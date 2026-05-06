@@ -1,0 +1,8 @@
+{
+  "name": "@orkora/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared lint, prettier, and tsconfig bases",
+  "main": "index.js",
+  "files": ["eslint-base.js", "prettier.js", "tsconfig.base.json"]
+}

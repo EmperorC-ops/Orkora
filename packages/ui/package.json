@@ -1,0 +1,26 @@
+{
+  "name": "@orkora/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared design tokens and primitives - web first, mobile consumers import tokens",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "clean": "rm -rf dist .turbo"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-native": "*"
+  },
+  "dependencies": {
+    "@orkora/theme": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@types/react-native": "^0.73.0",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://swc.rs/schema.json",
+  "sourceMaps": true,
+  "module": {
+    "type": "commonjs"
+  },
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "decorators": true,
+      "dynamicImport": true
+    },
+    "transform": {
+      "legacyDecorator": true,
+      "decoratorMetadata": true,
+      "useDefineForClassFields": false
+    },
+    "baseUrl": "./",
+    "target": "es2022",
+    "keepClassNames": true
+  },
+  "exclude": [".*\\.spec\\.ts$", ".*\\.e2e-spec\\.ts$"]
+}

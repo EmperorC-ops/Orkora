@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "incremental": true,
+    "declaration": true,
+    "composite": false,
+    "paths": {
+      "@orkora/ui": ["./packages/ui/src/index.ts"],
+      "@orkora/ui/*": ["./packages/ui/src/*"],
+      "@orkora/sdk": ["./packages/sdk/src/index.ts"],
+      "@orkora/sdk/*": ["./packages/sdk/src/*"],
+      "@orkora/contracts": ["./packages/contracts/src/index.ts"],
+      "@orkora/contracts/*": ["./packages/contracts/src/*"],
+      "@orkora/theme": ["./packages/theme/src/index.ts"],
+      "@orkora/theme/*": ["./packages/theme/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next", ".turbo", "coverage"]
+}

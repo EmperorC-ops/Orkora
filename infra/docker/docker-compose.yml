@@ -1,0 +1,57 @@
+name: orkora-local
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: orkora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orkora
+      POSTGRES_PASSWORD: orkora
+      POSTGRES_DB: orkora
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orkora"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: orkora-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: orkora-mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+
+  minio:
+    image: minio/minio:latest
+    container_name: orkora-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: orkora
+      MINIO_ROOT_PASSWORD: orkora-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  miniodata:

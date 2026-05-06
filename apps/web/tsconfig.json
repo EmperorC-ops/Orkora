@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "jsx": "preserve",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@orkora/ui": ["../../packages/ui/src/index.ts"],
+      "@orkora/ui/*": ["../../packages/ui/src/*"],
+      "@orkora/sdk": ["../../packages/sdk/src/index.ts"],
+      "@orkora/sdk/*": ["../../packages/sdk/src/*"],
+      "@orkora/theme": ["../../packages/theme/src/index.ts"],
+      "@orkora/theme/*": ["../../packages/theme/src/*"]
+    },
+    "plugins": [{ "name": "next" }]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

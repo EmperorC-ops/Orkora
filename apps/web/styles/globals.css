@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Orkora dark canvas. Surfaces are dark by default; light surfaces are
+       opt-in (e.g. forms, cards on the dashboard). */
+    --background: 234 36% 10%;        /* #0F1222 */
+    --surface: 230 38% 16%;           /* #1A1F3A */
+    --surface-raised: 230 32% 22%;    /* #252B4A */
+    --foreground: 0 0% 100%;
+    --muted: 230 24% 28%;
+    --muted-foreground: 232 17% 69%;  /* #A0A4C0 */
+    --border: 230 30% 22%;
+    --ring: 248 73% 63%;              /* #6C5CE7 */
+  }
+
+  html {
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  body {
+    background-color: #0F1222;
+    color: #FFFFFF;
+    @apply antialiased;
+  }
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border border-surface-border bg-surface p-5 shadow-glow;
+  }
+  .surface-card-light {
+    @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+  }
+  .pill-primary {
+    @apply inline-flex items-center gap-2 rounded-full bg-brand-500/15 px-3 py-1 text-xs font-semibold text-brand-200;
+  }
+}
