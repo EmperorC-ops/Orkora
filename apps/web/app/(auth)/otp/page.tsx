@@ -1,16 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, authApi, persistTokens } from '@/lib/auth';
 import type { TokenBundle } from '@/lib/auth';
 
-// useSearchParams() can't be statically exported; render per request.
-export const dynamic = 'force-dynamic';
-
 const RESEND_SECONDS = 30;
 
-export default function OtpPage() {
+function OtpPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const destination = params.get('destination') ?? '';
@@ -179,5 +176,17 @@ export default function OtpPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+
+export default function OtpPage() {
+  // useSearchParams() requires a Suspense boundary during static export
+  // (Next.js 14). Anything outside the boundary can be prerendered; the
+  // inner component renders client-side once params resolve.
+  return (
+    <Suspense fallback={null}>
+      <OtpPageInner />
+    </Suspense>
   );
 }
