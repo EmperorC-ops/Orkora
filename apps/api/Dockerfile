@@ -22,19 +22,34 @@ COPY . .
 RUN pnpm --filter @orkora/api exec prisma generate
 RUN pnpm --filter @orkora/api build
 
+# === Production deps ===
+# pnpm workspaces hoist transitive deps to the repo-root `node_modules` and
+# leave per-app `node_modules` as a forest of symlinks. To produce a runtime
+# image with no symlinks (Docker doesn't preserve them across stage copies
+# the same way a single FS does), we use `pnpm deploy` which materialises a
+# self-contained, production-only `node_modules` for the chosen workspace.
+FROM base AS prod-deps
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/contracts ./packages/contracts
+RUN pnpm deploy --filter @orkora/api --prod /tmp/api-deploy
+
 # === Runtime ===
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Production runtime needs openssl for Prisma's query engine, and `pg` for
-# the entrypoint's bootstrap logic to talk to Postgres directly.
+# Production runtime needs openssl for Prisma's query engine, and curl for
+# the healthcheck.
 RUN apk add --no-cache openssl libc6-compat curl
 
 RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 nestjs
 
+# Self-contained node_modules from `pnpm deploy` — no dangling symlinks.
+COPY --chown=nestjs:nodejs --from=prod-deps /tmp/api-deploy/node_modules ./node_modules
 COPY --chown=nestjs:nodejs --from=builder /app/apps/api/dist ./dist
-COPY --chown=nestjs:nodejs --from=builder /app/apps/api/node_modules ./node_modules
 COPY --chown=nestjs:nodejs --from=builder /app/apps/api/prisma ./prisma
 COPY --chown=nestjs:nodejs --from=builder /app/apps/api/package.json ./
 # Schema.sql ships with the image so the entrypoint can bootstrap a fresh
