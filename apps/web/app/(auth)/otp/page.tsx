@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, authApi, persistTokens } from '@/lib/auth';
 import type { TokenBundle } from '@/lib/auth';
 
+// useSearchParams() can't be statically exported; render per request.
+export const dynamic = 'force-dynamic';
+
 const RESEND_SECONDS = 30;
 
 export default function OtpPage() {
