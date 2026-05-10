@@ -2,7 +2,7 @@
 
 # === Base ===
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 # Prisma needs openssl on alpine. swc and the API runtime need it too.
 RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
