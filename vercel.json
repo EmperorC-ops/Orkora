@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "pnpm turbo run build --filter=@orkora/web...",
-  "installCommand": "pnpm install --frozen-lockfile",
-  "outputDirectory": "apps/web/.next",
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@orkora/web...",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "outputDirectory": ".next",
   "github": {
     "silent": true
   },
