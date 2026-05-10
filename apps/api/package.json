@@ -19,6 +19,8 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.582.0",
+    "@aws-sdk/s3-request-presigner": "^3.582.0",
     "@nestjs/common": "^10.3.7",
     "@nestjs/config": "^3.2.2",
     "@nestjs/core": "^10.3.7",
@@ -32,8 +34,6 @@
     "@nestjs/throttler": "^5.1.2",
     "@nestjs/websockets": "^10.3.7",
     "@prisma/client": "^5.13.0",
-    "@aws-sdk/client-s3": "^3.582.0",
-    "@aws-sdk/s3-request-presigner": "^3.582.0",
     "@sentry/node": "^8.7.0",
     "argon2": "^0.40.1",
     "bullmq": "^5.7.6",
@@ -49,6 +49,7 @@
     "nestjs-pino": "^4.0.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pg": "^8.20.0",
     "pino": "^9.0.0",
     "pino-http": "^9.0.0",
     "pino-pretty": "^11.0.0",
@@ -71,6 +72,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.11.30",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pg": "^8.20.0",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^7.7.0",
@@ -87,7 +89,11 @@
     "typescript": "^5.4.5"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
