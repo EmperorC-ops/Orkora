@@ -9,7 +9,7 @@ WORKDIR /app
 
 # === Dependencies ===
 FROM base AS deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc turbo.json ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/contracts/package.json ./packages/contracts/
 RUN pnpm install --frozen-lockfile --filter @orkora/api...
@@ -28,6 +28,9 @@ RUN pnpm --filter @orkora/api build
 # image with no symlinks, we use `pnpm deploy` which materialises a
 # self-contained, production-only `node_modules` for the chosen workspace.
 #
+# pnpm 10 requires inject-workspace-packages=true for `pnpm deploy` to work
+# (set in both .npmrc and pnpm-workspace.yaml for belt-and-suspenders).
+#
 # After deploy we re-run `prisma generate` against the deployed tree so the
 # generated client (which lives inside @prisma/client/.prisma/) is present
 # in the runtime image. The builder stage's generated client doesn't survive
@@ -35,7 +38,7 @@ RUN pnpm --filter @orkora/api build
 FROM base AS prod-deps
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc turbo.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/api/prisma ./apps/api/prisma
 COPY packages/contracts ./packages/contracts
