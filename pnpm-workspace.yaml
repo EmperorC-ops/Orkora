@@ -1,3 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# pnpm 10 requires this for `pnpm deploy` to work. It copies workspace
+# packages into the deploy target instead of leaving them as workspace:
+# protocol links — which is what we want for a self-contained runtime image.
+injectWorkspacePackages: true
