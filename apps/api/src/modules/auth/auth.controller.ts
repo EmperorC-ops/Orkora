@@ -39,11 +39,22 @@ interface TokenBundle {
  *     don't need it.
  *   - maxAge: matches JWT_REFRESH_TTL (30 days by default).
  */
+/**
+ * In production the web client and the API are usually on different sites
+ * (e.g. *.vercel.app and *.onrender.com), so the refresh cookie has to be
+ * `SameSite=None; Secure` for the browser to send it on cross-site `fetch`
+ * with `credentials: 'include'`. In development everything is on
+ * localhost, so `SameSite=Lax` is sufficient and avoids needing HTTPS.
+ */
+const COOKIE_SAMESITE: 'lax' | 'none' =
+  process.env.NODE_ENV === 'production' ? 'none' : 'lax';
+const COOKIE_SECURE = process.env.NODE_ENV === 'production';
+
 function setRefreshCookie(res: Response, refreshToken: string) {
   res.cookie(REFRESH_COOKIE, refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAMESITE,
     path: REFRESH_COOKIE_PATH,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
@@ -52,8 +63,8 @@ function setRefreshCookie(res: Response, refreshToken: string) {
 function clearRefreshCookie(res: Response) {
   res.clearCookie(REFRESH_COOKIE, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAMESITE,
     path: REFRESH_COOKIE_PATH,
   });
 }
