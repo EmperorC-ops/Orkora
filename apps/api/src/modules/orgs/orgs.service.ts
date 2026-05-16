@@ -24,6 +24,21 @@ interface UpdateOrgInput {
 const ALLOWED_ROLES = ['owner', 'admin', 'organizer', 'staff', 'vendor'] as const;
 type AssignableRole = (typeof ALLOWED_ROLES)[number];
 
+/**
+ * Type guard around Prisma's PrismaClientKnownRequestError. We inspect by
+ * `code` and the violated `target` field so we don't accidentally hide
+ * other unique-constraint races (e.g. a different column).
+ */
+function isUniqueConstraintError(err: unknown, field: string): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; meta?: { target?: unknown } };
+  if (e.code !== 'P2002') return false;
+  const target = e.meta?.target;
+  if (Array.isArray(target)) return target.includes(field);
+  if (typeof target === 'string') return target.includes(field);
+  return true;
+}
+
 @Injectable()
 export class OrgsService {
   constructor(
@@ -32,23 +47,55 @@ export class OrgsService {
   ) {}
 
   async create(userId: string, input: CreateOrgInput) {
-    return this.prisma.$transaction(async (tx) => {
-      const org = await tx.organization.create({
-        data: {
-          name: input.name,
-          slug: input.slug,
-          countryCode: input.countryCode ?? 'NG',
-        },
-      });
-      await tx.membership.create({
-        data: {
-          userId,
-          organizationId: org.id,
-          role: 'owner',
-        },
-      });
-      return org;
+    // Cheap pre-flight: if a row with this slug already exists and the
+    // caller is already an owner of it, return that row instead of trying
+    // a doomed insert. This handles the "client retried after a network
+    // wobble" case without surfacing a confusing duplicate-slug error.
+    const existing = await this.prisma.organization.findUnique({
+      where: { slug: input.slug },
+      include: { memberships: { where: { userId, role: 'owner' }, take: 1 } },
     });
+    if (existing && existing.memberships.length > 0) {
+      // Strip the `memberships` join we used for the ownership probe.
+      const { memberships: _omit, ...org } = existing;
+      void _omit;
+      return org;
+    }
+    if (existing) {
+      throw new BadRequestException(
+        'That slug is already taken. Try a different one.',
+      );
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const org = await tx.organization.create({
+          data: {
+            name: input.name,
+            slug: input.slug,
+            countryCode: input.countryCode ?? 'NG',
+          },
+        });
+        await tx.membership.create({
+          data: {
+            userId,
+            organizationId: org.id,
+            role: 'owner',
+          },
+        });
+        return org;
+      });
+    } catch (err) {
+      // Race-safety: the slug check above can lose to a concurrent insert.
+      // Prisma raises P2002 for unique-constraint violations, which we
+      // convert to a 400 instead of letting it surface as a 500.
+      if (isUniqueConstraintError(err, 'slug')) {
+        throw new BadRequestException(
+          'That slug is already taken. Try a different one.',
+        );
+      }
+      throw err;
+    }
   }
 
   async findById(id: string) {
