@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { authApi, clearTokens } from '@/lib/auth';
 import { useToast } from '@/components/toast';
+import { readActiveOrgId } from '@/lib/events';
+import { Onboarding } from '@/components/onboarding';
 
 const nav = [
   { href: '/dashboard', label: 'Overview', Icon: Home },
@@ -35,6 +37,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const toast = useToast();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  // 'checking' = waiting on the JWT decode, 'none' = no memberships,
+  // 'has' = at least one membership. Drives the onboarding gate.
+  const [orgState, setOrgState] = useState<'checking' | 'none' | 'has'>('checking');
 
   // Decode the JWT once on mount to surface the user's name in the header.
   useEffect(() => {
@@ -60,6 +65,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } catch {
       // Ignore: header just falls back to the brand mark.
     }
+  }, []);
+
+  // Determine whether the user has any organization memberships. If not,
+  // we render the Onboarding gate instead of the normal child routes.
+  useEffect(() => {
+    const id = readActiveOrgId();
+    setOrgState(id ? 'has' : 'none');
   }, []);
 
   async function signOut() {
@@ -145,7 +157,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           </div>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6">
+          {orgState === 'checking' ? null : orgState === 'none' ? <Onboarding /> : children}
+        </main>
       </div>
     </div>
   );
