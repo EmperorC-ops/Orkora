@@ -13,7 +13,10 @@ import { ConsoleSmsProvider, TermiiSmsProvider, TwilioSmsProvider } from './prov
       inject: [ConfigService],
       useFactory: (cfg: ConfigService) => {
         const token = cfg.get<string>('POSTMARK_TOKEN');
-        if (token) return new PostmarkEmailProvider(token);
+        if (token) {
+          const from = cfg.get<string>('EMAIL_FROM_ADDRESS') ?? 'no-reply@orkora.io';
+          return new PostmarkEmailProvider(token, from);
+        }
         return new ConsoleEmailProvider();
       },
     },

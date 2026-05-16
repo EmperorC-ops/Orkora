@@ -34,6 +34,13 @@ export const envSchema = z.object({
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
 
   POSTMARK_TOKEN: z.string().optional(),
+  EMAIL_FROM_ADDRESS: z.string().email().optional(),
+  /**
+   * When true, OTP codes are logged at WARN level so they can be retrieved
+   * from server logs. Use only when email delivery is unavailable (e.g. a
+   * provider is in review). Never enable in real production traffic.
+   */
+  LOG_OTP_TO_CONSOLE: z.coerce.boolean().default(false),
   TERMII_API_KEY: z.string().optional(),
   TWILIO_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),

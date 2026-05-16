@@ -66,10 +66,33 @@ export class OtpService {
       },
     });
 
-    if (input.channel === 'email') {
-      await this.notifications.sendOtpEmail(destination, code);
-    } else {
-      await this.notifications.sendOtpSms(destination, code);
+    // When LOG_OTP_TO_CONSOLE is on (operator break-glass for email/SMS
+    // provider outages or onboarding review), always emit the code at WARN
+    // so it can be retrieved from server logs. Never leave this on in real
+    // production traffic; the env schema defaults it to false.
+    const debugLog = this.cfg.get<boolean>('LOG_OTP_TO_CONSOLE') === true;
+    if (debugLog) {
+      this.logger.warn(`[OTP DEBUG] ${input.channel} ${input.purpose} -> ${destination} code=${code}`);
+    }
+
+    try {
+      if (input.channel === 'email') {
+        await this.notifications.sendOtpEmail(destination, code);
+      } else {
+        await this.notifications.sendOtpSms(destination, code);
+      }
+    } catch (err) {
+      // If the provider rejects (Postmark account in review, SMS provider
+      // down, etc.) we never want signup to silently break. Log the code
+      // so an operator can rescue the user, and rethrow so the caller can
+      // decide whether to surface a retry message.
+      this.logger.error(
+        `[OTP SEND FAILED] ${input.channel} -> ${destination}: ${(err as Error).message}. Code (rescue): ${code}`,
+      );
+      // In debug mode we already logged the code above. The OTP row is in
+      // the DB, so verification will still work if the user gets the code
+      // out-of-band.
+      if (!debugLog) throw err;
     }
 
     return { expiresAt };

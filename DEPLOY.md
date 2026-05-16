@@ -93,6 +93,14 @@ it after the first successful deploy so future restarts don't try to re-run.
    - `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
      `S3_BUCKET_MEDIA`, `S3_PUBLIC_BASE_URL` from step 2
    - `POSTMARK_TOKEN` (Postmark Server API token)
+   - `EMAIL_FROM_ADDRESS` (a confirmed Postmark sender signature, e.g.
+     `no-reply@yourdomain.com`). If unset, defaults to `no-reply@orkora.io`,
+     which Postmark will reject unless you own that domain.
+   - `LOG_OTP_TO_CONSOLE=true` is an operator break-glass for the rare case
+     where the email provider is rejecting sends (Postmark "under review"
+     state, SMS provider outage). When on, the OTP code is logged at WARN
+     level so it can be retrieved from `render logs` and given to the user
+     out-of-band. **Never leave this enabled in real production traffic.**
    - Payment provider keys when you have them: `STRIPE_SECRET_KEY`,
      `STRIPE_WEBHOOK_SECRET`, `PAYSTACK_SECRET_KEY`,
      `PAYSTACK_WEBHOOK_SECRET`, `FLUTTERWAVE_SECRET_KEY`,
