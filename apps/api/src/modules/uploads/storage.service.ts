@@ -47,6 +47,12 @@ export class StorageService implements OnModuleInit {
       region,
       credentials: { accessKeyId, secretAccessKey },
       forcePathStyle,
+      // Cloudflare R2 rejects the CRC32 checksum that aws-sdk v3 (>=3.729)
+      // now adds to PutObject by default, which makes presigned PUTs fail
+      // with a 503. Only attach checksums when a command explicitly needs
+      // them so presigned URLs stay R2-compatible.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 
