@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from 'react';
 import { CheckCircle2, Info, X, XCircle } from 'lucide-react';
 
@@ -66,11 +65,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={api}>
-      {/* The ambient global `React.ReactNode` (hoisted @types/react) carries
-          `bigint`, which the Provider's children type (resolved via the
-          explicit `react` import) does not. Bridge the two at this single
-          boundary so callers can keep using the global node type. */}
-      {children as ReactNode}
+      {children}
       <Toaster toasts={toasts} onDismiss={dismiss} />
     </Ctx.Provider>
   );
