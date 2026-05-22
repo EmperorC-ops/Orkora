@@ -35,7 +35,7 @@ const Ctx = createContext<ToastApi | null>(null);
  * Mount once near the app root. Children call `useToast()` to push.
  * Toasts stack at the bottom right and auto-dismiss after ttl ms (default 4s).
  */
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(1);
 
@@ -66,7 +66,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={api}>
-      {children}
+      {/* The ambient global `React.ReactNode` (hoisted @types/react) carries
+          `bigint`, which the Provider's children type (resolved via the
+          explicit `react` import) does not. Bridge the two at this single
+          boundary so callers can keep using the global node type. */}
+      {children as ReactNode}
       <Toaster toasts={toasts} onDismiss={dismiss} />
     </Ctx.Provider>
   );
