@@ -22,6 +22,9 @@ const nextConfig = {
       { protocol: 'https', hostname: 'cdn.orkora.io' },
       { protocol: 'http', hostname: 'localhost' },
       { protocol: 'https', hostname: '*.r2.cloudflarestorage.com' },
+      // Cloudflare R2 public bucket URL (S3_PUBLIC_BASE_URL), used as the
+      // public src for uploaded banners/avatars/logos.
+      { protocol: 'https', hostname: '*.r2.dev' },
     ],
   },
   async headers() {
