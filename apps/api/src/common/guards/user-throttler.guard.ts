@@ -18,7 +18,7 @@ interface AuthedRequest extends Request {
  */
 @Injectable()
 export class UserThrottlerGuard extends ThrottlerGuard {
-  protected getTracker(req: AuthedRequest): Promise<string> {
+  protected override getTracker(req: AuthedRequest): Promise<string> {
     const userId = req.user?.userId;
     if (userId) return Promise.resolve(`user:${userId}`);
     const ip = (req.ips && req.ips[0]) || req.ip || 'unknown';

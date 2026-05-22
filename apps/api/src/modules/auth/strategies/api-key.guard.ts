@@ -124,9 +124,13 @@ export class JwtOrApiKeyGuard implements CanActivate {
       return this.apiKey.canActivate(ctx);
     }
     if (!this.jwtGuard) {
-      this.jwtGuard = new (AuthGuard('jwt'))();
+      // Passport's AuthGuard implements the wider `IAuthGuard` (its
+      // canActivate may return an Observable); we only need the narrow
+      // CanActivateLike seam, so bridge through `unknown`.
+      this.jwtGuard = new (AuthGuard('jwt'))() as unknown as CanActivateLike;
     }
-    const result = await this.jwtGuard.canActivate(ctx);
+    const guard = this.jwtGuard;
+    const result = await guard.canActivate(ctx);
     return Boolean(result);
   }
 }

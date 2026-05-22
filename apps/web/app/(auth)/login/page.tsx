@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
@@ -28,7 +29,7 @@ export default function LoginPage() {
       const next =
         new URLSearchParams(window.location.search).get('next') ?? '/dashboard';
       toast.success('Welcome back', 'Loading your workspace.');
-      router.push(next);
+      router.push(next as Route);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError('Email or password is incorrect.');

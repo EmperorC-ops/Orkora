@@ -24,7 +24,7 @@ const nav = [
   { href: '/dashboard/attendees', label: 'Attendees', Icon: Users },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart3 },
   { href: '/dashboard/settings', label: 'Settings', Icon: Settings },
-];
+] as const;
 
 interface SessionUser {
   email: string;

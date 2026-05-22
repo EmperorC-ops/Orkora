@@ -83,7 +83,9 @@ export interface CreateEventInput {
   endAt: string;
   timezone?: string;
   capacity?: number;
-  bannerUrl?: string;
+  // `null` is accepted on update to clear an existing banner; the API treats
+  // an absent value as "no change" and an explicit null as "remove".
+  bannerUrl?: string | null;
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>;

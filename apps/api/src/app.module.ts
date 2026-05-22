@@ -48,8 +48,8 @@ import { ReportsModule } from './modules/reports/reports.module';
           res.setHeader('X-Request-Id', id);
           return id;
         },
-        customProps: (req: IncomingMessage & { id?: string }) => ({
-          requestId: req.id,
+        customProps: (req: IncomingMessage) => ({
+          requestId: String((req as IncomingMessage & { id?: unknown }).id ?? ''),
         }),
       },
     }),

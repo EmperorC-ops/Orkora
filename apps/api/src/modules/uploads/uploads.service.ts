@@ -41,7 +41,8 @@ function inferExtension(filename: string, contentType: string): string | null {
     'image/webp': 'webp',
     'image/gif': 'gif',
   };
-  if (map[contentType.toLowerCase()]) return map[contentType.toLowerCase()];
+  const mapped = map[contentType.toLowerCase()];
+  if (mapped) return mapped;
   const fromName = filename.toLowerCase().match(/\.([a-z0-9]{2,5})$/)?.[1];
   if (fromName) return fromName;
   return null;

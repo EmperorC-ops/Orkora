@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react';
 import { CheckCircle2, Info, X, XCircle } from 'lucide-react';
 
@@ -34,7 +35,7 @@ const Ctx = createContext<ToastApi | null>(null);
  * Mount once near the app root. Children call `useToast()` to push.
  * Toasts stack at the bottom right and auto-dismiss after ttl ms (default 4s).
  */
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(1);
 

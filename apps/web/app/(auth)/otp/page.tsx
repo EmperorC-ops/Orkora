@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
+import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, authApi, persistTokens } from '@/lib/auth';
 import type { TokenBundle } from '@/lib/auth';
@@ -31,7 +32,7 @@ function OtpPageInner() {
     if (raw.length > 1) {
       const cleaned = raw.replace(/\D/g, '').slice(0, 6).split('');
       const next = ['', '', '', '', '', ''];
-      for (let k = 0; k < cleaned.length; k++) next[k] = cleaned[k];
+      for (let k = 0; k < cleaned.length; k++) next[k] = cleaned[k] ?? '';
       setDigits(next);
       const lastIdx = Math.min(cleaned.length, 5);
       inputs.current[lastIdx]?.focus();
@@ -59,7 +60,7 @@ function OtpPageInner() {
     try {
       if (purpose === 'signup') {
         await authApi.verifyOtp({ destination, code, purpose });
-        const fullName = params.get('fullName') ?? destination.split('@')[0];
+        const fullName = params.get('fullName') ?? destination.split('@')[0] ?? destination;
         const phone = params.get('phone') ?? '';
         const password = params.get('password') ?? '';
         const tokens = await authApi.signup({
@@ -69,7 +70,7 @@ function OtpPageInner() {
           phone: phone || undefined,
         });
         persistTokens(tokens);
-        router.push(next);
+        router.push(next as Route);
       } else {
         // Magic-link / passwordless sign-in. The API verifies the OTP and
         // issues tokens in one round trip.
@@ -79,7 +80,7 @@ function OtpPageInner() {
           auth: false,
         });
         persistTokens(tokens);
-        router.push(next);
+        router.push(next as Route);
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
