@@ -159,7 +159,7 @@ export default function OtpScreen() {
                   ref={(el) => {
                     inputs.current[i] = el;
                   }}
-                  style={[styles.codeBox, d && styles.codeBoxFilled]}
+                  style={[styles.codeBox, d ? styles.codeBoxFilled : null]}
                   value={d}
                   onChangeText={(v) => setDigit(i, v)}
                   onKeyPress={({ nativeEvent }) => {
