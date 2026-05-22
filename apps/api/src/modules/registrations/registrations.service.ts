@@ -19,6 +19,51 @@ import { TicketSigner } from './ticket-signer';
 const TICKET_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const TICKET_CODE_LENGTH = 10;
 
+/**
+ * Generate a human-friendly, collision-resistant ticket code from a
+ * crypto-random source. Uses an unambiguous alphabet (no 0/O/1/I/L) so the
+ * code is safe to read aloud at a check-in desk.
+ */
+function generateTicketCode(): string {
+  const bytes = randomBytes(TICKET_CODE_LENGTH);
+  let out = '';
+  for (let i = 0; i < TICKET_CODE_LENGTH; i++) {
+    out += TICKET_CODE_ALPHABET.charAt((bytes[i] ?? 0) % TICKET_CODE_ALPHABET.length);
+  }
+  return out;
+}
+
+/**
+ * Format an event's start/end as a single human line for emails, rendered in
+ * the event's own timezone (e.g. "Sat, 20 Jun 2026, 18:00 - 22:00"). Falls
+ * back to a day range when the event spans multiple calendar days.
+ */
+function formatDateRange(start: Date, end: Date, timeZone: string): string {
+  const dayFmt: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone,
+  };
+  const timeFmt: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone,
+  };
+  const dayKey = (d: Date) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  if (dayKey(start) === dayKey(end)) {
+    return `${start.toLocaleDateString('en-GB', dayFmt)}, ${start.toLocaleTimeString('en-GB', timeFmt)} - ${end.toLocaleTimeString('en-GB', timeFmt)}`;
+  }
+  return `${start.toLocaleDateString('en-GB', dayFmt)} - ${end.toLocaleDateString('en-GB', dayFmt)}`;
+}
+
 @Injectable()
 export class RegistrationsService {
   constructor(
@@ -185,7 +230,7 @@ export class RegistrationsService {
         await this.notifications
           .sendTicketConfirmationEmail(user.email, {
             eventTitle: event.title,
-            eventDateLine: formatDateRange(event.startAt, event.endAt),
+            eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
             tickets: tickets.map((t) => ({
               code: t.code,
               holderName: t.holderName,
@@ -692,6 +737,58 @@ export class RegistrationsService {
       status: ticket.status,
       tierName,
       qrToken,
+    };
+  }
+
+  /**
+   * Map a persisted ticket (with `tier` and `registration.event` included) to
+   * the public-facing shape consumed by the ticket page and the "my tickets"
+   * list. Includes a fresh QR token and the event timezone so the client can
+   * render times in the event's local zone.
+   */
+  private publicTicket(ticket: {
+    id: string;
+    code: string;
+    holderName: string;
+    holderEmail: string;
+    status: string;
+    issuedAt: Date;
+    checkedInAt: Date | null;
+    tier: { id: string; name: string };
+    registration: {
+      id: string;
+      event: {
+        id: string;
+        title: string;
+        code: string;
+        startAt: Date;
+        endAt: Date;
+        bannerUrl: string | null;
+        timezone: string;
+      };
+    };
+  }) {
+    const event = ticket.registration.event;
+    return {
+      id: ticket.id,
+      code: ticket.code,
+      holderName: ticket.holderName,
+      holderEmail: ticket.holderEmail,
+      status: ticket.status,
+      issuedAt: ticket.issuedAt.toISOString(),
+      checkedInAt: ticket.checkedInAt?.toISOString() ?? null,
+      tier: { id: ticket.tier.id, name: ticket.tier.name },
+      event: {
+        id: event.id,
+        title: event.title,
+        code: event.code,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt.toISOString(),
+        bannerUrl: event.bannerUrl,
+        timezone: event.timezone,
+      },
+      registrationId: ticket.registration.id,
+      qrToken: this.signer.sign({ t: ticket.id, e: event.id }),
     };
   }
 }
