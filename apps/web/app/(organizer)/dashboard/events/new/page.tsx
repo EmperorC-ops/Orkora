@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { eventsApi, readActiveOrgId, type EventKind } from '@/lib/events';
+import { eventsApi, readActiveOrgId, wallTimeToUtcISO, type EventKind } from '@/lib/events';
 import { ImageUpload } from '@/components/image-upload';
 
 export default function NewEventPage() {
@@ -24,13 +24,17 @@ export default function NewEventPage() {
       return;
     }
     const f = new FormData(e.currentTarget);
+    const timezone = String(f.get('timezone') ?? 'Africa/Lagos') || 'Africa/Lagos';
     const body = {
       title: String(f.get('title') ?? ''),
       description: (String(f.get('description') ?? '') || undefined) as string | undefined,
       kind: (f.get('kind') as EventKind) || 'physical',
-      startAt: new Date(String(f.get('startAt') ?? '')).toISOString(),
-      endAt: new Date(String(f.get('endAt') ?? '')).toISOString(),
-      timezone: String(f.get('timezone') ?? 'Africa/Lagos') || undefined,
+      // Interpret the typed wall-clock times in the event's timezone, not the
+      // organiser's browser zone, so the stored instant is correct regardless
+      // of where the event is being created from.
+      startAt: wallTimeToUtcISO(String(f.get('startAt') ?? ''), timezone),
+      endAt: wallTimeToUtcISO(String(f.get('endAt') ?? ''), timezone),
+      timezone,
       capacity: f.get('capacity') ? Number(f.get('capacity')) : undefined,
       bannerUrl: bannerUrl ?? undefined,
     };

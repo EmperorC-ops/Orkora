@@ -24,6 +24,7 @@ interface EventOverview {
     code: string;
     startAt: string;
     endAt: string;
+    timezone: string;
     capacity: number | null;
   };
   registrations: number;
@@ -95,6 +96,7 @@ export default function EventAnalyticsPage() {
           <span className="inline-flex items-center gap-1.5">
             <Calendar className="h-3 w-3" />
             {new Date(data.event.startAt).toLocaleDateString('en-GB', {
+              timeZone: data.event.timezone,
               weekday: 'short',
               day: '2-digit',
               month: 'short',

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
 
 interface PublicTier {
   id: string;
@@ -112,25 +113,30 @@ function formatPrice(priceMinor: number, currency: string): string {
   }
 }
 
-function formatDay(d: Date): string {
+function formatDay(d: Date, timeZone?: string): string {
   return new Intl.DateTimeFormat('en-NG', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
   }).format(d);
 }
 
-function formatTime(d: Date): string {
-  return new Intl.DateTimeFormat('en-NG', { hour: 'numeric', minute: '2-digit' }).format(d);
+function formatTime(d: Date, timeZone?: string): string {
+  return new Intl.DateTimeFormat('en-NG', {
+    hour: 'numeric',
+    minute: '2-digit',
+    ...(timeZone ? { timeZone } : {}),
+  }).format(d);
 }
 
-function groupSessionsByDay(sessions: PublicSession[]) {
+function groupSessionsByDay(sessions: PublicSession[], timeZone?: string) {
   const groups: Record<string, PublicSession[]> = {};
   for (const session of [...sessions].sort(
     (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
   )) {
-    const key = new Date(session.startAt).toDateString();
+    const key = dayKeyInTz(new Date(session.startAt), timeZone);
     (groups[key] ??= []).push(session);
   }
   return Object.entries(groups);
@@ -142,7 +148,7 @@ export default async function PublicEventPage({ params }: { params: { code: stri
 
   const start = new Date(event.startAt);
   const end = new Date(event.endAt);
-  const sameDay = start.toDateString() === end.toDateString();
+  const sameDay = sameCalendarDay(start, end, event.timezone);
   const tracksById = new Map((event.tracks ?? []).map((t) => [t.id, t]));
 
   return (
@@ -165,8 +171,8 @@ export default async function PublicEventPage({ params }: { params: { code: stri
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-brand-50">
             {sameDay
-              ? `${formatDay(start)} - ${formatTime(start)} to ${formatTime(end)}`
-              : `${formatDay(start)} - ${formatDay(end)}`}{' '}
+              ? `${formatDay(start, event.timezone)} - ${formatTime(start, event.timezone)} to ${formatTime(end, event.timezone)}`
+              : `${formatDay(start, event.timezone)} - ${formatDay(end, event.timezone)}`}{' '}
             ({event.timezone})
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -203,10 +209,10 @@ export default async function PublicEventPage({ params }: { params: { code: stri
           <section>
             <h2 className="mb-6 text-2xl font-bold text-ink-primary">Agenda</h2>
             <div className="space-y-8">
-              {groupSessionsByDay(event.sessions).map(([day, sessions]) => (
+              {groupSessionsByDay(event.sessions, event.timezone).map(([day, sessions]) => (
                 <div key={day}>
                   <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-secondary">
-                    {formatDay(new Date(day))}
+                    {formatDay(new Date(sessions[0]?.startAt ?? day), event.timezone)}
                   </h3>
                   <ul className="overflow-hidden rounded-xl border border-surface-border bg-surface shadow-glow">
                     {sessions.map((s, idx) => {
@@ -217,7 +223,7 @@ export default async function PublicEventPage({ params }: { params: { code: stri
                           className={`flex flex-col gap-1 p-4 sm:flex-row sm:items-start sm:gap-6 ${idx > 0 ? 'border-t border-surface-border' : ''}`}
                         >
                           <span className="w-32 shrink-0 text-sm font-semibold text-brand-300">
-                            {formatTime(new Date(s.startAt))} - {formatTime(new Date(s.endAt))}
+                            {formatTime(new Date(s.startAt), event.timezone)} - {formatTime(new Date(s.endAt), event.timezone)}
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-ink-primary">{s.title}</p>

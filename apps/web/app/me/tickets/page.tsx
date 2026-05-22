@@ -99,6 +99,7 @@ export default function MyTicketsPage() {
                           day: '2-digit',
                           month: 'short',
                           year: 'numeric',
+                          timeZone: t.event.timezone,
                         })}
                       </span>
                       <span className="inline-flex items-center gap-1.5">

@@ -263,7 +263,15 @@ export class AnalyticsService {
   async eventOverview(orgId: string, eventId: string) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, organizationId: orgId },
-      select: { id: true, title: true, code: true, startAt: true, endAt: true, capacity: true },
+      select: {
+        id: true,
+        title: true,
+        code: true,
+        startAt: true,
+        endAt: true,
+        timezone: true,
+        capacity: true,
+      },
     });
     if (!event) return null;
 

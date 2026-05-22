@@ -21,6 +21,8 @@ import {
   formatEventDateRange,
   formatPrice,
   readActiveOrgId,
+  sameCalendarDay,
+  wallTimeToUtcISO,
   type EventDetail,
   type EventTier,
   type EventStatus,
@@ -176,7 +178,7 @@ export default function EventDetailPage() {
               </div>
               <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
                 <Calendar className="h-4 w-4" />
-                {formatEventDateRange(event.startAt, event.endAt)}
+                {formatEventDateRange(event.startAt, event.endAt, event.timezone)}
               </p>
               <p className="mt-1 text-xs text-slate-400">
                 Code <span className="font-mono">{event.code}</span> &middot; {event.kind}
@@ -370,6 +372,7 @@ export default function EventDetailPage() {
             orgId={orgId}
             eventId={id}
             tracks={event.tracks}
+            timezone={event.timezone}
             onCreated={async () => {
               setShowSessionForm(false);
               await refresh();
@@ -394,6 +397,7 @@ export default function EventDetailPage() {
                     key={s.id}
                     session={s}
                     track={track}
+                    timezone={event.timezone}
                     onDelete={async () => {
                       if (!orgId) return;
                       if (!confirm(`Delete session "${s.title}"?`)) return;
@@ -775,6 +779,7 @@ interface NewSessionFormProps {
   orgId: string;
   eventId: string;
   tracks: Array<{ id: string; name: string }>;
+  timezone: string;
   onCreated: () => Promise<void> | void;
   onError: (msg: string) => void;
 }
@@ -783,6 +788,7 @@ function NewSessionForm({
   orgId,
   eventId,
   tracks,
+  timezone,
   onCreated,
   onError,
 }: NewSessionFormProps) {
@@ -800,8 +806,8 @@ function NewSessionForm({
         title: String(f.get('title') ?? '').trim(),
         description: (String(f.get('description') ?? '').trim() || undefined),
         trackId: trackId || undefined,
-        startAt: new Date(String(f.get('startAt'))).toISOString(),
-        endAt: new Date(String(f.get('endAt'))).toISOString(),
+        startAt: wallTimeToUtcISO(String(f.get('startAt')), timezone),
+        endAt: wallTimeToUtcISO(String(f.get('endAt')), timezone),
         streamUrl: streamUrl || undefined,
         capacity: capacity ? Number(capacity) : undefined,
         requiresRsvp: f.get('requiresRsvp') === 'on',
@@ -892,6 +898,7 @@ function NewSessionForm({
 function SessionRow({
   session,
   track,
+  timezone,
   onDelete,
 }: {
   session: {
@@ -906,11 +913,12 @@ function SessionRow({
     trackId: string | null;
   };
   track: { id: string; name: string; color: string | null } | null;
+  timezone: string;
   onDelete: () => void;
 }) {
   const start = new Date(session.startAt);
   const end = new Date(session.endAt);
-  const sameDay = start.toDateString() === end.toDateString();
+  const sameDay = sameCalendarDay(start, end, timezone);
   return (
     <li className="flex items-start justify-between gap-4 py-3">
       <div className="min-w-0">
@@ -942,16 +950,22 @@ function SessionRow({
             month: 'short',
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: timezone,
           })}{' '}
           –{' '}
           {sameDay
-            ? end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+            ? end.toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: timezone,
+              })
             : end.toLocaleString('en-GB', {
                 weekday: 'short',
                 day: '2-digit',
                 month: 'short',
                 hour: '2-digit',
                 minute: '2-digit',
+                timeZone: timezone,
               })}
         </p>
         {session.streamUrl ? (

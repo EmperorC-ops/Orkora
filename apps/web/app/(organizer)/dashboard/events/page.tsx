@@ -137,7 +137,7 @@ export default function EventsListPage() {
                 </div>
                 <p className="flex items-center gap-2 text-xs text-slate-500">
                   <Calendar className="h-3.5 w-3.5" />
-                  {formatEventDateRange(event.startAt, event.endAt)}
+                  {formatEventDateRange(event.startAt, event.endAt, event.timezone)}
                 </p>
                 <p className="text-xs text-slate-400">Code: {event.code}</p>
               </div>

@@ -233,7 +233,7 @@ export default function RegisterPage() {
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-secondary">
               <span className="inline-flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                {formatEventDates(event.startAt, event.endAt)}
+                {formatEventDates(event.startAt, event.endAt, event.timezone)}
               </span>
               <span className="font-mono text-xs uppercase tracking-wider">{event.code}</span>
             </div>

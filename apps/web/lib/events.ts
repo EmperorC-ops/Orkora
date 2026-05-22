@@ -11,6 +11,7 @@ export interface OrganizerEventSummary {
   kind: EventKind;
   startAt: string;
   endAt: string;
+  timezone: string;
   status: EventStatus;
   bannerUrl: string | null;
   capacity: number | null;
@@ -216,20 +217,112 @@ export function formatPrice(priceMinor: number, currency: string): string {
 }
 
 /**
- * "Mon, 12 Aug - 13 Aug 2026" or "Mon, 12 Aug 2026, 09:00 - 17:00" depending
- * on whether the event spans more than one day.
+ * "YYYY-MM-DD" for an instant rendered in `timeZone` (or the runtime's local
+ * zone when omitted). Stable key for grouping/comparing by calendar day.
  */
-export function formatEventDateRange(startISO: string, endISO: string): string {
+export function dayKeyInTz(d: Date, timeZone?: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    ...(timeZone ? { timeZone } : {}),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+/** True when two instants fall on the same calendar day in `timeZone` (or local). */
+export function sameCalendarDay(a: Date, b: Date, timeZone?: string): boolean {
+  return dayKeyInTz(a, timeZone) === dayKeyInTz(b, timeZone);
+}
+
+/**
+ * Offset of `timeZone` from UTC, in milliseconds, at a given absolute instant.
+ * Positive for zones ahead of UTC (e.g. Africa/Lagos => +3_600_000).
+ *
+ * Works by formatting the instant in the target zone, reading the wall-clock
+ * components back, and diffing against the same components interpreted as UTC.
+ */
+function tzOffsetMs(instantMs: number, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const parts = dtf.formatToParts(new Date(instantMs));
+  const get = (type: string): number => {
+    const found = parts.find((p) => p.type === type);
+    return found ? Number(found.value) : 0;
+  };
+  // Some engines emit hour "24" at midnight; normalise to 0.
+  const hour = get('hour') === 24 ? 0 : get('hour');
+  const asUtc = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    hour,
+    get('minute'),
+    get('second'),
+  );
+  return asUtc - instantMs;
+}
+
+/**
+ * Interpret a timezone-naive wall-clock string (what `<input type="datetime-local">`
+ * produces, e.g. "2026-06-20T18:00") as a wall time IN `timeZone`, and return the
+ * corresponding absolute instant as a UTC ISO string.
+ *
+ * `new Date(naive).toISOString()` interprets the string in the BROWSER's local
+ * zone, which is wrong whenever the organizer is not physically in the event's
+ * timezone. This resolves the zone's offset at that instant and corrects for it.
+ */
+export function wallTimeToUtcISO(naive: string, timeZone?: string): string {
+  if (!naive) return '';
+  const m = naive.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m || !timeZone) {
+    // Unexpected shape or no zone: fall back to browser-local parsing.
+    return new Date(naive).toISOString();
+  }
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const h = Number(m[4]);
+  const mi = Number(m[5]);
+  const s = m[6] ? Number(m[6]) : 0;
+  const asUtcGuess = Date.UTC(y, mo - 1, d, h, mi, s);
+  const offset = tzOffsetMs(asUtcGuess, timeZone);
+  return new Date(asUtcGuess - offset).toISOString();
+}
+
+/**
+ * "Mon, 12 Aug - 13 Aug 2026" or "Mon, 12 Aug 2026, 09:00 - 17:00" depending
+ * on whether the event spans more than one day. When `timeZone` is supplied the
+ * wall-clock times are rendered in that zone (the event's own timezone) rather
+ * than the viewer's, so an organiser abroad still sees the local event time.
+ */
+export function formatEventDateRange(
+  startISO: string,
+  endISO: string,
+  timeZone?: string,
+): string {
   const start = new Date(startISO);
   const end = new Date(endISO);
-  const sameDay = start.toDateString() === end.toDateString();
+  const sameDay = sameCalendarDay(start, end, timeZone);
   const dayFmt: Intl.DateTimeFormatOptions = {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
   };
-  const timeFmt: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+  const timeFmt: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(timeZone ? { timeZone } : {}),
+  };
   if (sameDay) {
     return `${start.toLocaleDateString('en-GB', dayFmt)}, ${start.toLocaleTimeString('en-GB', timeFmt)} - ${end.toLocaleTimeString('en-GB', timeFmt)}`;
   }

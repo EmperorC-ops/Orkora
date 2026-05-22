@@ -137,19 +137,34 @@ export function formatMoney(minor: number, currency: string): string {
   }
 }
 
-export function formatEventDates(startISO: string, endISO: string): string {
+export function formatEventDates(
+  startISO: string,
+  endISO: string,
+  timeZone?: string,
+): string {
   const start = new Date(startISO);
   const end = new Date(endISO);
   const dayFmt = new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
+    ...(timeZone ? { timeZone } : {}),
   });
   const timeFmt = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
+    ...(timeZone ? { timeZone } : {}),
   });
-  if (start.toDateString() === end.toDateString()) {
+  // Compare calendar days in the event's zone so a late-night event that crosses
+  // midnight in UTC is still treated as a single day when it is in the venue zone.
+  const dayKey = (d: Date) =>
+    new Intl.DateTimeFormat('en-CA', {
+      ...(timeZone ? { timeZone } : {}),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  if (dayKey(start) === dayKey(end)) {
     return `${dayFmt.format(start)}, ${timeFmt.format(start)} to ${timeFmt.format(end)}`;
   }
   return `${dayFmt.format(start)} to ${dayFmt.format(end)}`;

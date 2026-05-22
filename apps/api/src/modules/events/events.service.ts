@@ -221,6 +221,7 @@ export class EventsService {
         kind: true,
         startAt: true,
         endAt: true,
+        timezone: true,
         status: true,
         bannerUrl: true,
         capacity: true,
