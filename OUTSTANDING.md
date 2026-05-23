@@ -35,7 +35,8 @@ Closed since the original Apr 29 revision (kept here for the changelog):
 - First public API endpoint via `JwtOrApiKeyGuard +
   @RequireScope('events.read')`: `GET /v1/organizations/:orgId/public/events`.
 - Stripe API version configurable via `STRIPE_API_VERSION`, default
-  `2025-09-30.acacia`.
+  `2024-04-10` (the version `stripe@15` is built for; must move with the SDK,
+  since Stripe rejects unknown versions with "Invalid Stripe API version").
 - `scripts/rotate-secrets.sh` mints JWT keypair + pepper + ticket secret.
 - README "What's next" refreshed to reflect the actual phase status.
 

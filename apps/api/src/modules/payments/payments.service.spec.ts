@@ -126,3 +126,144 @@ describe('PaymentsService.refundOrder', () => {
     );
   });
 });
+
+/**
+ * Unit tests for the verify-on-return settlement path. This is the code the
+ * confirmation page calls when a buyer returns from the hosted checkout, so a
+ * delayed or missed webhook never strands a paid customer. We isolate
+ * settleOrder by spying on the private state-transition methods rather than
+ * exercising the full DB transaction.
+ */
+function makeSettleService(opts: {
+  order: Record<string, unknown> | null;
+  verifyTransaction?: jest.Mock;
+  hasVerify?: boolean;
+}) {
+  const prisma = {
+    order: { findUnique: jest.fn().mockResolvedValue(opts.order) },
+  };
+  const provider: Record<string, unknown> = { name: 'stripe' };
+  if (opts.hasVerify ?? true) {
+    provider.verifyTransaction =
+      opts.verifyTransaction ?? jest.fn().mockResolvedValue({ status: 'pending' });
+  }
+  const registry = {
+    resolve: jest.fn().mockReturnValue(provider),
+  } as unknown as PaymentsRegistry;
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  const svc = new PaymentsService(
+    prisma as unknown as never,
+    {} as never,
+    registry,
+    {} as never,
+    {} as never,
+    audit as unknown as AuditService,
+  );
+  return { svc, prisma, provider, registry };
+}
+
+describe('PaymentsService.settleOrder', () => {
+  it('throws NotFoundException when the order does not exist', async () => {
+    const { svc } = makeSettleService({ order: null });
+    await expect(svc.settleOrder('missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('short-circuits a non-pending order without touching the provider', async () => {
+    const { svc, registry } = makeSettleService({
+      order: { id: 'o1', status: 'paid', provider: 'stripe', providerRef: 'cs_1' },
+    });
+    const out = await svc.settleOrder('o1');
+    expect(out).toEqual({ status: 'paid' });
+    expect(registry.resolve).not.toHaveBeenCalled();
+  });
+
+  it('short-circuits a pending order that has no provider set', async () => {
+    const { svc, registry } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: null, providerRef: null },
+    });
+    const out = await svc.settleOrder('o1');
+    expect(out).toEqual({ status: 'pending' });
+    expect(registry.resolve).not.toHaveBeenCalled();
+  });
+
+  it('returns current status when the provider cannot verify synchronously', async () => {
+    const { svc } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
+      hasVerify: false,
+    });
+    const out = await svc.settleOrder('o1');
+    expect(out).toEqual({ status: 'pending' });
+  });
+
+  it('marks the order paid and returns "paid" on a successful verify', async () => {
+    const paidAt = new Date('2026-06-20T18:00:00.000Z');
+    const verify = jest.fn().mockResolvedValue({ status: 'success', paidAt });
+    const { svc, provider } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
+      verifyTransaction: verify,
+    });
+    const markPaid = jest
+      .spyOn(svc as unknown as { markOrderPaid: (id: string, at: Date) => Promise<void> }, 'markOrderPaid')
+      .mockResolvedValue(undefined);
+
+    const out = await svc.settleOrder('o1');
+
+    expect(verify).toHaveBeenCalledWith({ orderId: 'o1', providerRef: 'cs_1' });
+    expect(markPaid).toHaveBeenCalledWith('o1', paidAt);
+    expect(out).toEqual({ status: 'paid' });
+    void provider;
+  });
+
+  it('defaults paidAt to now when the provider omits it', async () => {
+    const verify = jest.fn().mockResolvedValue({ status: 'success' });
+    const { svc } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
+      verifyTransaction: verify,
+    });
+    const markPaid = jest
+      .spyOn(svc as unknown as { markOrderPaid: (id: string, at: Date) => Promise<void> }, 'markOrderPaid')
+      .mockResolvedValue(undefined);
+
+    const out = await svc.settleOrder('o1');
+
+    expect(out).toEqual({ status: 'paid' });
+    expect(markPaid.mock.calls[0]?.[0]).toBe('o1');
+    expect(markPaid.mock.calls[0]?.[1]).toBeInstanceOf(Date);
+  });
+
+  it('marks the order failed and returns "failed" on a failed verify', async () => {
+    const verify = jest.fn().mockResolvedValue({ status: 'failed' });
+    const { svc } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
+      verifyTransaction: verify,
+    });
+    const markFailed = jest
+      .spyOn(svc as unknown as { markOrderFailed: (id: string, r?: string) => Promise<void> }, 'markOrderFailed')
+      .mockResolvedValue(undefined);
+
+    const out = await svc.settleOrder('o1');
+
+    expect(markFailed).toHaveBeenCalledWith('o1', expect.stringContaining('verify'));
+    expect(out).toEqual({ status: 'failed' });
+  });
+
+  it('leaves the order pending when the provider reports pending', async () => {
+    const verify = jest.fn().mockResolvedValue({ status: 'pending' });
+    const { svc } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
+      verifyTransaction: verify,
+    });
+    const out = await svc.settleOrder('o1');
+    expect(out).toEqual({ status: 'pending' });
+  });
+
+  it('swallows a verify error and leaves the order pending', async () => {
+    const verify = jest.fn().mockRejectedValue(new Error('network'));
+    const { svc } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
+      verifyTransaction: verify,
+    });
+    const out = await svc.settleOrder('o1');
+    expect(out).toEqual({ status: 'pending' });
+  });
+});

@@ -21,11 +21,14 @@ export class StripeProvider implements PaymentProvider {
   constructor(cfg: ConfigService) {
     const secret = cfg.get<string>('STRIPE_SECRET_KEY');
     this.webhookSecret = cfg.get<string>('STRIPE_WEBHOOK_SECRET') ?? null;
-    // Pin to a known-good API version so a Stripe SDK upgrade does not
-    // silently change request shapes. Override via env when bumping; the
-    // dashboard will warn if the version goes stale.
+    // Pin to the API version this SDK was built against (stripe@15 ->
+    // '2024-04-10'). The version is sent to Stripe as the `Stripe-Version`
+    // header, and Stripe rejects every request with "Invalid Stripe API
+    // version" when given a version it does not recognise, so this pin MUST
+    // move in lockstep with the `stripe` package. Only set STRIPE_API_VERSION
+    // when bumping the SDK to a release that supports the newer version.
     const apiVersion =
-      (cfg.get<string>('STRIPE_API_VERSION') ?? '2025-09-30.acacia') as Stripe.LatestApiVersion;
+      (cfg.get<string>('STRIPE_API_VERSION') ?? '2024-04-10') as Stripe.LatestApiVersion;
     this.client = secret ? new Stripe(secret, { apiVersion }) : null;
     if (!this.client) {
       this.logger.warn('STRIPE_SECRET_KEY is not set; Stripe provider is disabled');

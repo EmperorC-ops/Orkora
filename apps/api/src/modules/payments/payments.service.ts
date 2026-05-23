@@ -317,7 +317,11 @@ export class PaymentsService {
       await this.notifications
         .sendTicketConfirmationEmail(order.registration.user.email, {
           eventTitle: order.event.title,
-          eventDateLine: formatDateRange(order.event.startAt, order.event.endAt),
+          eventDateLine: formatDateRange(
+            order.event.startAt,
+            order.event.endAt,
+            order.event.timezone,
+          ),
           tickets: tickets.map((t) => ({
             code: t.code,
             holderName: t.holderName,
@@ -402,17 +406,35 @@ export class PaymentsService {
   }
 }
 
-function formatDateRange(start: Date, end: Date): string {
-  const fmt = new Intl.DateTimeFormat('en-GB', {
+/**
+ * Format an event's start/end as a single human line for the paid-confirmation
+ * email, rendered in the event's own timezone. Mirrors the helper in
+ * registrations.service.ts so the free-ticket and paid-ticket emails read
+ * identically. Without `timeZone`, Intl renders in the server's zone (UTC in
+ * prod), which silently shifts the displayed time.
+ */
+function formatDateRange(start: Date, end: Date, timeZone: string): string {
+  const dayFmt: Intl.DateTimeFormatOptions = {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone,
+  };
+  const timeFmt: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
-  });
-  if (start.toDateString() === end.toDateString()) {
-    return `${fmt.format(start)} to ${fmt.format(end).split(' ').slice(-2).join(' ')}`;
+    timeZone,
+  };
+  const dayKey = (d: Date) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  if (dayKey(start) === dayKey(end)) {
+    return `${start.toLocaleDateString('en-GB', dayFmt)}, ${start.toLocaleTimeString('en-GB', timeFmt)} - ${end.toLocaleTimeString('en-GB', timeFmt)}`;
   }
-  return `${fmt.format(start)} - ${fmt.format(end)}`;
+  return `${start.toLocaleDateString('en-GB', dayFmt)} - ${end.toLocaleDateString('en-GB', dayFmt)}`;
 }

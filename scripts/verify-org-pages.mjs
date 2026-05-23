@@ -358,11 +358,11 @@ check(
   existsSync(join(root, 'apps/api/src/modules/events/public-api.controller.spec.ts')),
 );
 check(
-  'StripeProvider reads STRIPE_API_VERSION + has 2025-09-30 default',
+  'StripeProvider reads STRIPE_API_VERSION + pins SDK-matched default (2024-04-10)',
   fileContains(
     'apps/api/src/modules/payments/providers/stripe.provider.ts',
     'STRIPE_API_VERSION',
-    '2025-09-30',
+    '2024-04-10',
   ),
 );
 check(
