@@ -71,7 +71,7 @@ describe('ApiKeysService.create', () => {
     const audit = makeAuditMock();
     prisma.apiKey.create.mockResolvedValue({
       id: 'k1',
-      name: 'k',
+      name: 'ci-key',
       lastFour: 'abcd',
       scopes: ['events.read'],
       createdAt: new Date(),
@@ -84,7 +84,7 @@ describe('ApiKeysService.create', () => {
     await svc.create({
       organizationId: 'org-1',
       createdById: 'user-1',
-      name: 'k',
+      name: 'ci-key',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       scopes: ['events.read', 'admin.god-mode'] as any,
     });
