@@ -45,7 +45,7 @@ export class EventsService {
         bannerUrl: true,
         theme: true,
         status: true,
-        organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true } },
+        organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
           orderBy: { startAt: 'asc' },
@@ -90,7 +90,12 @@ export class EventsService {
         },
       },
     });
-    if (!event || event.status === 'draft' || event.status === 'archived') {
+    if (
+      !event ||
+      event.status === 'draft' ||
+      event.status === 'archived' ||
+      event.organization.status === 'suspended'
+    ) {
       throw new NotFoundException('Event not found');
     }
     return this.serializeEvent(event);
@@ -115,7 +120,7 @@ export class EventsService {
         bannerUrl: true,
         theme: true,
         status: true,
-        organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true } },
+        organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
           orderBy: { startAt: 'asc' },
@@ -161,7 +166,12 @@ export class EventsService {
         },
       },
     });
-    if (!event || event.status === 'draft' || event.status === 'archived') {
+    if (
+      !event ||
+      event.status === 'draft' ||
+      event.status === 'archived' ||
+      event.organization.status === 'suspended'
+    ) {
       throw new NotFoundException('Event not found');
     }
     return this.serializeEvent(event);

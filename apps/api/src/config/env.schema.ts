@@ -48,6 +48,11 @@ export const envSchema = z.object({
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   APPLE_OAUTH_CLIENT_ID: z.string().optional(),
 
+  // Bootstrap for the platform super admin (consumed by the seed:superadmin
+  // script). Optional at runtime; only needed when minting the master account.
+  SUPERADMIN_EMAIL: z.string().email().optional(),
+  SUPERADMIN_NAME: z.string().optional(),
+
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   PAYSTACK_SECRET_KEY: z.string().optional(),

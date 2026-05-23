@@ -79,8 +79,14 @@ export class RegistrationsService {
    * a pending order for paid tiers.
    */
   async register(eventCode: string, dto: RegisterAttendeesDto) {
-    const event = await this.prisma.event.findUnique({ where: { code: eventCode } });
+    const event = await this.prisma.event.findUnique({
+      where: { code: eventCode },
+      include: { organization: { select: { status: true } } },
+    });
     if (!event) throw new NotFoundException('Event not found');
+    if (event.organization.status === 'suspended') {
+      throw new BadRequestException('Registration is closed for this event');
+    }
     if (event.status !== 'published') {
       throw new BadRequestException('Event is not open for registration');
     }

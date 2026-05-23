@@ -15,6 +15,7 @@ import {
 import { authApi, clearTokens } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { readActiveOrgId } from '@/lib/events';
+import { isSuperAdmin } from '@/lib/admin';
 import { Onboarding } from '@/components/onboarding';
 
 const nav = [
@@ -40,6 +41,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // 'checking' = waiting on the JWT decode, 'none' = no memberships,
   // 'has' = at least one membership. Drives the onboarding gate.
   const [orgState, setOrgState] = useState<'checking' | 'none' | 'has'>('checking');
+
+  // The platform master account is not an organizer; send it to /admin so it
+  // never lands on the org onboarding gate.
+  useEffect(() => {
+    if (isSuperAdmin()) router.replace('/admin');
+  }, [router]);
 
   // Decode the JWT once on mount to surface the user's name in the header.
   useEffect(() => {

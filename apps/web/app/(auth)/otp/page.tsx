@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, authApi, persistTokens } from '@/lib/auth';
 import type { TokenBundle } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/admin';
 
 const RESEND_SECONDS = 30;
 
@@ -70,7 +71,7 @@ function OtpPageInner() {
           phone: phone || undefined,
         });
         persistTokens(tokens);
-        router.push(next as Route);
+        router.push((isSuperAdmin() ? '/admin' : next) as Route);
       } else {
         // Magic-link / passwordless sign-in. The API verifies the OTP and
         // issues tokens in one round trip.
@@ -80,7 +81,7 @@ function OtpPageInner() {
           auth: false,
         });
         persistTokens(tokens);
-        router.push(next as Route);
+        router.push((isSuperAdmin() ? '/admin' : next) as Route);
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {

@@ -22,6 +22,10 @@ model Organization {
   logoUrl       String?  @map("logo_url")
   brandColor    String?  @default("#6D28D9") @map("brand_color")
   plan          String   @default("starter")
+  // Platform lifecycle: "active" | "suspended". A super admin can suspend an
+  // org from the platform console; suspended orgs are hidden from the public
+  // and blocked from new registrations.
+  status        String   @default("active")
   countryCode   String   @default("NG") @map("country_code") @db.Char(2)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
@@ -45,6 +49,11 @@ model User {
   emailVerified Boolean   @default(false) @map("email_verified")
   phoneVerified Boolean   @default(false) @map("phone_verified")
   locale        String    @default("en-NG")
+  // Platform-wide role, distinct from per-org membership roles:
+  //   "none"       - a normal user (organizer and/or attendee)
+  //   "support"    - Orkora staff with read access to the platform console
+  //   "superadmin" - Orkora master account: full cross-org control
+  platformRole  String    @default("none") @map("platform_role")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamptz
 

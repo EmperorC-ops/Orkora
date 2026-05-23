@@ -10,6 +10,7 @@ interface JwtMembership {
 interface RequestUser {
   userId: string;
   email: string;
+  platformRole?: string;
   memberships?: JwtMembership[];
 }
 
@@ -60,6 +61,16 @@ export class RolesGuard implements CanActivate {
 
     if (!orgId) {
       throw new ForbiddenException('Organization context is required');
+    }
+
+    // Platform super admins have full cross-org control: they satisfy any org
+    // role requirement without needing a membership. We attach `owner` as the
+    // effective role so downstream interceptors (tenancy, audit) behave as for
+    // the highest org role.
+    if (user.platformRole === 'superadmin') {
+      (req.user as RequestUser & { activeOrgId?: string; activeRole?: Role }).activeOrgId = orgId;
+      (req.user as RequestUser & { activeOrgId?: string; activeRole?: Role }).activeRole = 'owner';
+      return true;
     }
 
     const membership = user.memberships?.find((m) => m.orgId === orgId);

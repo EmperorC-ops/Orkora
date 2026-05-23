@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
 import { ApiError, authApi, persistTokens } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/admin';
 import { useToast } from '@/components/toast';
 
 export default function LoginPage() {
@@ -29,7 +30,7 @@ export default function LoginPage() {
       const next =
         new URLSearchParams(window.location.search).get('next') ?? '/dashboard';
       toast.success('Welcome back', 'Loading your workspace.');
-      router.push(next as Route);
+      router.push((isSuperAdmin() ? '/admin' : next) as Route);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError('Email or password is incorrect.');

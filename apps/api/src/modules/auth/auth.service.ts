@@ -158,14 +158,21 @@ export class AuthService {
   }
 
   private async issueTokens(userId: string, email: string): Promise<TokenBundle> {
-    const memberships = await this.prisma.membership.findMany({
-      where: { userId },
-      select: { organizationId: true, role: true },
-    });
+    const [account, memberships] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { platformRole: true },
+      }),
+      this.prisma.membership.findMany({
+        where: { userId },
+        select: { organizationId: true, role: true },
+      }),
+    ]);
 
     const accessToken = await this.jwt.signAsync({
       sub: userId,
       email,
+      platformRole: account?.platformRole ?? 'none',
       memberships: memberships.map((m) => ({ orgId: m.organizationId, role: m.role })),
     });
 

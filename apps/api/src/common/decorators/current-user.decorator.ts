@@ -3,6 +3,8 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 export interface AuthUser {
   userId: string;
   email: string;
+  /** Platform-wide role: "none" | "support" | "superadmin". */
+  platformRole?: string;
   orgId?: string;
   role?: string;
 }

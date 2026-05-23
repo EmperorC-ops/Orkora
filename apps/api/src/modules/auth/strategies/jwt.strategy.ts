@@ -6,6 +6,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 interface JwtPayload {
   sub: string;
   email: string;
+  platformRole?: string;
   memberships: Array<{ orgId: string; role: string }>;
 }
 
@@ -26,6 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       userId: payload.sub,
       email: payload.email,
+      platformRole: payload.platformRole ?? 'none',
       orgId: primary?.orgId,
       role: primary?.role,
       memberships: payload.memberships,

@@ -22,6 +22,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     AuditModule,
     ApiKeysModule,
     ReportsModule,
+    AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: UserThrottlerGuard }],
 })

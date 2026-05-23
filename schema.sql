@@ -34,6 +34,7 @@ create table organizations (
   logo_url         text,
   brand_color      text default '#6D28D9',
   plan             text not null default 'starter',
+  status           text not null default 'active',
   country_code     char(2) not null default 'NG',
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
@@ -49,6 +50,7 @@ create table users (
   email_verified   boolean not null default false,
   phone_verified   boolean not null default false,
   locale           text not null default 'en-NG',
+  platform_role    text not null default 'none',
   created_at       timestamptz not null default now(),
   last_login_at    timestamptz
 );
