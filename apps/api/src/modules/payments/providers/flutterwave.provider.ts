@@ -5,6 +5,7 @@ import type {
   CheckoutSession,
   CreateCheckoutInput,
   PaymentProvider,
+  TransactionStatus,
   WebhookOutcome,
 } from './types';
 
@@ -135,6 +136,41 @@ export class FlutterwaveProvider implements PaymentProvider {
       return { type: 'refunded', orderId, providerEventId };
     }
     return { type: 'ignored', reason: `Unhandled Flutterwave event: ${eventName}` };
+  }
+
+  /**
+   * Verify-on-return: Flutterwave's tx_ref is our order id, so we can verify
+   * by reference and treat status 'successful' as settled.
+   */
+  async verifyTransaction(input: {
+    orderId: string;
+    providerRef: string | null;
+  }): Promise<TransactionStatus> {
+    if (!this.secretKey) throw new Error('Flutterwave provider is not configured');
+    const res = await fetch(
+      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(input.orderId)}`,
+      { headers: { Authorization: `Bearer ${this.secretKey}` } },
+    );
+    if (!res.ok) {
+      this.logger.warn(`Flutterwave verify failed (${res.status}) for ${input.orderId}`);
+      return { status: 'pending' };
+    }
+    const body = (await res.json()) as {
+      status: string;
+      data?: { status?: string; id?: number | string };
+    };
+    const txStatus = body.data?.status;
+    if (body.status === 'success' && txStatus === 'successful') {
+      return {
+        status: 'success',
+        paidAt: new Date(),
+        providerRef: String(body.data?.id ?? input.orderId),
+      };
+    }
+    if (txStatus === 'failed' || txStatus === 'cancelled') {
+      return { status: 'failed' };
+    }
+    return { status: 'pending' };
   }
 
   async refund(input: {

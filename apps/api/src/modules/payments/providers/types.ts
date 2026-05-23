@@ -81,5 +81,8 @@ export interface PaymentProvider {
    * settle an order synchronously when the async webhook is late or missed.
    * Optional: providers that cannot verify synchronously may omit it.
    */
-  verifyTransaction?(reference: string): Promise<TransactionStatus>;
+  verifyTransaction?(input: {
+    orderId: string;
+    providerRef: string | null;
+  }): Promise<TransactionStatus>;
 }

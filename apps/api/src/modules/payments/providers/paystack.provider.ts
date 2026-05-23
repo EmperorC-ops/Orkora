@@ -147,8 +147,13 @@ export class PaystackProvider implements PaymentProvider {
    * to settle an order when the webhook is late or never arrives.
    * https://paystack.com/docs/api/transaction/#verify
    */
-  async verifyTransaction(reference: string): Promise<TransactionStatus> {
+  async verifyTransaction(input: {
+    orderId: string;
+    providerRef: string | null;
+  }): Promise<TransactionStatus> {
     if (!this.secretKey) throw new Error('Paystack provider is not configured');
+    // Paystack's transaction reference is our order id (set at init time).
+    const reference = input.orderId;
     const res = await fetch(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
       { headers: { Authorization: `Bearer ${this.secretKey}` } },

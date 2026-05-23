@@ -185,7 +185,10 @@ export class PaymentsService {
     }
 
     try {
-      const result = await provider.verifyTransaction(order.id);
+      const result = await provider.verifyTransaction({
+        orderId: order.id,
+        providerRef: order.providerRef,
+      });
       if (result.status === 'success') {
         await this.markOrderPaid(order.id, result.paidAt ?? new Date());
         return { status: 'paid' };

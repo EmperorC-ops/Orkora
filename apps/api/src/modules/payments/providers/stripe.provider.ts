@@ -5,6 +5,7 @@ import type {
   CheckoutSession,
   CreateCheckoutInput,
   PaymentProvider,
+  TransactionStatus,
   WebhookOutcome,
 } from './types';
 
@@ -130,6 +131,29 @@ export class StripeProvider implements PaymentProvider {
       }
       default:
         return { type: 'ignored', reason: `Unhandled event type: ${event.type}` };
+    }
+  }
+
+  /**
+   * Verify-on-return: the order's providerRef is the Checkout Session id.
+   * Retrieve it and treat `payment_status === 'paid'` as settled.
+   */
+  async verifyTransaction(input: {
+    orderId: string;
+    providerRef: string | null;
+  }): Promise<TransactionStatus> {
+    if (!this.client) throw new Error('Stripe provider is not configured');
+    if (!input.providerRef) return { status: 'pending' };
+    try {
+      const session = await this.client.checkout.sessions.retrieve(input.providerRef);
+      if (session.payment_status === 'paid') {
+        return { status: 'success', paidAt: new Date(), providerRef: input.providerRef };
+      }
+      if (session.status === 'expired') return { status: 'failed' };
+      return { status: 'pending' };
+    } catch (err) {
+      this.logger.warn({ err }, 'Stripe verify failed');
+      return { status: 'pending' };
     }
   }
 
