@@ -23,7 +23,10 @@ export default function ConfirmOrderPage() {
 
     async function pollOnce() {
       try {
-        const o = await paymentsApi.getOrder(orderId);
+        // verifyOrder settles the order against the provider on each poll, so
+        // a late or missed webhook never strands a paid customer. It is
+        // idempotent once the order is no longer pending.
+        const o = await paymentsApi.verifyOrder(orderId);
         if (cancelled) return;
         setOrder(o);
         if (o.status === 'paid' || o.status === 'failed' || o.status === 'refunded') {

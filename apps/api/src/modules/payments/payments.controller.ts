@@ -57,6 +57,18 @@ export class PaymentsController {
   getOrder(@Param('orderId') orderId: string) {
     return this.payments.getOrderStatus(orderId);
   }
+
+  /**
+   * Verify-on-return: settle the order against the provider (covers a late or
+   * missed webhook), then return the current status. Public for the same
+   * reason as getOrder above: the order id is in the redirect URL.
+   */
+  @Post('orders/:orderId/verify')
+  @HttpCode(200)
+  async verifyOrder(@Param('orderId') orderId: string) {
+    await this.payments.settleOrder(orderId);
+    return this.payments.getOrderStatus(orderId);
+  }
 }
 
 /**

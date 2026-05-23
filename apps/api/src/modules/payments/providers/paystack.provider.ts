@@ -5,6 +5,7 @@ import type {
   CheckoutSession,
   CreateCheckoutInput,
   PaymentProvider,
+  TransactionStatus,
   WebhookOutcome,
 } from './types';
 
@@ -138,6 +139,44 @@ export class PaystackProvider implements PaymentProvider {
       default:
         return { type: 'ignored', reason: `Unhandled Paystack event: ${event.event}` };
     }
+  }
+
+  /**
+   * Synchronously verify a transaction via Paystack's verify endpoint. Our
+   * order id is used as the transaction `reference`. Used by the confirm page
+   * to settle an order when the webhook is late or never arrives.
+   * https://paystack.com/docs/api/transaction/#verify
+   */
+  async verifyTransaction(reference: string): Promise<TransactionStatus> {
+    if (!this.secretKey) throw new Error('Paystack provider is not configured');
+    const res = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${this.secretKey}` } },
+    );
+    if (!res.ok) {
+      // 404 = reference not found yet (user may not have paid). Treat as
+      // pending so the caller keeps polling rather than failing a live order.
+      this.logger.warn(`Paystack verify failed (${res.status}) for ${reference}`);
+      return { status: 'pending' };
+    }
+    const body = (await res.json()) as {
+      status: boolean;
+      data?: { status?: string; paid_at?: string; id?: number | string };
+    };
+    const data = body.data;
+    if (!body.status || !data?.status) return { status: 'pending' };
+    if (data.status === 'success') {
+      return {
+        status: 'success',
+        paidAt: data.paid_at ? new Date(data.paid_at) : new Date(),
+        providerRef: String(data.id ?? reference),
+      };
+    }
+    if (['failed', 'abandoned', 'reversed'].includes(data.status)) {
+      return { status: 'failed' };
+    }
+    // 'ongoing' / 'pending' / 'processing' / queued — not settled yet.
+    return { status: 'pending' };
   }
 
   async refund(input: {

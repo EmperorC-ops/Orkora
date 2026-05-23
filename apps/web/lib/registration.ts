@@ -117,6 +117,15 @@ export const paymentsApi = {
       method: 'GET',
       auth: false,
     }),
+  /**
+   * Verify-on-return: asks the API to settle the order against the provider
+   * (covering a late or missed webhook) and returns the current status.
+   */
+  verifyOrder: (orderId: string) =>
+    apiFetch<OrderStatusView>(
+      `/v1/payments/orders/${encodeURIComponent(orderId)}/verify`,
+      { method: 'POST', auth: false },
+    ),
 };
 
 /**

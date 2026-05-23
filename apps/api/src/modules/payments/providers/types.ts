@@ -33,6 +33,17 @@ export type WebhookOutcome =
   | { type: 'refunded'; orderId: string; providerEventId: string }
   | { type: 'ignored'; reason: string };
 
+/**
+ * Result of a synchronous transaction lookup, used by the verify-on-return
+ * fallback so a delayed or missed webhook never leaves a paid customer without
+ * a ticket.
+ */
+export interface TransactionStatus {
+  status: 'success' | 'failed' | 'pending';
+  paidAt?: Date;
+  providerRef?: string;
+}
+
 export interface PaymentProvider {
   /** Stable name used in `orders.provider`. */
   readonly name: PaymentMethodName;
@@ -63,4 +74,12 @@ export interface PaymentProvider {
    * the local order status; this call just initiates the refund upstream.
    */
   refund(input: { providerRef: string; amountMinor: bigint; currency: string }): Promise<void>;
+
+  /**
+   * Verify-on-return fallback. Ask the provider whether the transaction for
+   * `reference` (our order id) actually succeeded, so the confirm page can
+   * settle an order synchronously when the async webhook is late or missed.
+   * Optional: providers that cannot verify synchronously may omit it.
+   */
+  verifyTransaction?(reference: string): Promise<TransactionStatus>;
 }

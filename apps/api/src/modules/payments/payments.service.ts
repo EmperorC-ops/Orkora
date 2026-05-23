@@ -166,6 +166,42 @@ export class PaymentsService {
   }
 
   /**
+   * Verify-on-return settlement. Called by the confirmation page when the user
+   * returns from the hosted checkout. We ask the provider directly whether the
+   * transaction succeeded and settle the order synchronously, so a delayed or
+   * missed webhook never strands a paid customer. Safe to call repeatedly: a
+   * non-pending order short-circuits and `markOrderPaid` is idempotent.
+   */
+  async settleOrder(orderId: string): Promise<{ status: string }> {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 'pending' || !order.provider) {
+      return { status: order.status };
+    }
+
+    const provider = this.registry.resolve(order.provider as PaymentMethodName);
+    if (!provider.verifyTransaction) {
+      return { status: order.status };
+    }
+
+    try {
+      const result = await provider.verifyTransaction(order.id);
+      if (result.status === 'success') {
+        await this.markOrderPaid(order.id, result.paidAt ?? new Date());
+        return { status: 'paid' };
+      }
+      if (result.status === 'failed') {
+        await this.markOrderFailed(order.id, 'verify: provider reported failure');
+        return { status: 'failed' };
+      }
+      return { status: 'pending' };
+    } catch (err) {
+      this.logger.warn({ err, orderId }, 'verifyTransaction failed; leaving order pending');
+      return { status: 'pending' };
+    }
+  }
+
+  /**
    * Webhook entry point. The controller has already grabbed the raw body and
    * the signature header. We delegate to the right provider, then translate
    * the canonical outcome into a state transition.
