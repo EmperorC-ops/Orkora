@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { Route } from 'next';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Building2, CalendarDays, LayoutDashboard, LogOut, ShieldCheck, Users } from 'lucide-react';
@@ -69,7 +70,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             return (
               <Link
                 key={href}
-                href={href}
+                href={href as Route}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
                   active
                     ? 'bg-brand-500/15 text-ink-primary'
