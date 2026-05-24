@@ -1,12 +1,10 @@
 name: Deploy API
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/api/**'
-      - 'packages/**'
-      - '.github/workflows/deploy-api.yml'
+  # The API deploys via Render's native GitHub integration, not AWS ECS. This
+  # workflow is kept for a possible future AWS migration but no longer runs on
+  # push, so it stops failing on missing AWS_* secrets and emailing failures.
+  # Trigger it manually from the Actions tab once the AWS infra + secrets exist.
   workflow_dispatch:
 
 permissions:
