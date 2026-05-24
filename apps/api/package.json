@@ -13,6 +13,7 @@
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "clean": "rm -rf dist .turbo",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",

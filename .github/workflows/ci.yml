@@ -53,6 +53,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Prisma Client is generated, not committed; the API's types depend on it.
+      - run: pnpm --filter @orkora/api exec prisma generate
+
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -74,4 +77,5 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @orkora/api exec prisma generate
       - run: pnpm build

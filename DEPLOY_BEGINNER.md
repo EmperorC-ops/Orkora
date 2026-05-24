@@ -140,13 +140,29 @@ Install psql if you don't have it:
 
 Then in the project folder:
 
+**On macOS / Linux / WSL** (uses `<` for input):
+
 ```bash
-psql "PASTE_YOUR_NEON_URL_HERE" < schema.sql
-psql "PASTE_YOUR_NEON_URL_HERE" < migrations/2026-04-28-add-message-upvotes.sql
-psql "PASTE_YOUR_NEON_URL_HERE" < migrations/2026-04-28-add-webhook-events.sql
-psql "PASTE_YOUR_NEON_URL_HERE" < migrations/2026-04-28-add-audit-events.sql
-psql "PASTE_YOUR_NEON_URL_HERE" < migrations/2026-05-04-add-api-keys-and-provider-prefs.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' < schema.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' < migrations/2026-04-28-add-message-upvotes.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' < migrations/2026-04-28-add-webhook-events.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' < migrations/2026-04-28-add-audit-events.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' < migrations/2026-05-04-add-api-keys-and-provider-prefs.sql
 ```
+
+**On Windows PowerShell** (uses `-f` because PowerShell doesn't support
+`<` redirection):
+
+```powershell
+psql 'PASTE_YOUR_NEON_URL_HERE' -f schema.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' -f migrations6-04-28-add-message-upvotes.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' -f migrations6-04-28-add-webhook-events.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' -f migrations6-04-28-add-audit-events.sql
+psql 'PASTE_YOUR_NEON_URL_HERE' -f migrations6-05-04-add-api-keys-and-provider-prefs.sql
+```
+
+Use **single quotes** around the connection string. PowerShell expands `$`
+and `@` inside double quotes and that mangles passwords / URLs.
 
 If each command prints a list of `CREATE TABLE` lines and exits without
 errors, you're done. Take the connection string out of your shell history
