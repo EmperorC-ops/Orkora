@@ -40,4 +40,25 @@ export class NotificationsService {
     const { subject, html, text } = ticketConfirmationTemplate(input);
     await this.email.send({ to, subject, html, text });
   }
+
+  /**
+   * Payment receipt (financial record), emailed alongside the ticket
+   * confirmation when an order is marked paid. Amounts are pre-formatted by the
+   * caller (via `formatMoney`) so each currency's decimals are already correct.
+   */
+  async sendReceiptEmail(
+    to: string,
+    input: {
+      orderId: string;
+      eventTitle: string;
+      orgName: string;
+      paidAtLine: string;
+      provider: string;
+      totalFormatted: string;
+      lines: ReceiptLine[];
+    },
+  ): Promise<void> {
+    const { subject, html, text } = receiptTemplate(input);
+    await this.email.send({ to, subject, html, text });
+  }
 }

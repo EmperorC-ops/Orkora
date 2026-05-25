@@ -603,6 +603,7 @@ export class RegistrationsService {
         provider: true,
         createdAt: true,
         paidAt: true,
+        refundInitiatedAt: true,
         eventId: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -641,6 +642,7 @@ export class RegistrationsService {
         totalMinor: Number(o.totalMinor),
         createdAt: o.createdAt.toISOString(),
         paidAt: o.paidAt?.toISOString() ?? null,
+        refundInitiatedAt: o.refundInitiatedAt?.toISOString() ?? null,
       })),
     };
   }

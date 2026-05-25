@@ -35,7 +35,11 @@ Web (Vercel):
 2. Env: `NEXT_PUBLIC_API_URL` (or equivalent) pointing at the staging API.
 
 Provider webhooks: point each provider's TEST webhook at the staging API
-(`/v1/organizations/:orgId/payments/webhook/:provider`).
+(`/v1/payments/webhook/:provider` - public, signature-verified per provider).
+Subscribe the refund events too (`charge.refunded` for Stripe,
+`refund.processed` for Paystack/Flutterwave); see DEPLOY.md step 6 for the full
+event list. Refunds also settle synchronously and via reconciliation, so the
+webhook is a fallback, not the sole path.
 
 Exit: you can push, see it deploy to staging, run a full flow with test keys,
 and nothing there can touch real money or prod data.

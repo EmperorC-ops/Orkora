@@ -262,8 +262,18 @@ create table orders (
   provider         text,
   provider_ref     text,
   created_at       timestamptz not null default now(),
-  paid_at          timestamptz
+  paid_at          timestamptz,
+  -- Set when a refund is requested upstream; the order stays 'paid' until the
+  -- refund is confirmed (synchronously, by webhook, or by reconciliation), at
+  -- which point status flips to 'refunded'. reconcileRefunds() scans this.
+  refund_initiated_at timestamptz
 );
+
+-- Lets the refund reconciliation sweep cheaply find paid orders with a refund
+-- still in flight (partial index: only rows that have a refund pending).
+create index if not exists orders_refund_in_flight_idx
+  on orders (refund_initiated_at)
+  where status = 'paid' and refund_initiated_at is not null;
 
 create table order_items (
   id               uuid primary key default uuidv7(),

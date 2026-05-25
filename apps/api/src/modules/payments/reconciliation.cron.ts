@@ -3,11 +3,13 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentsService } from './payments.service';
 
 /**
- * Periodic payment reconciliation. Re-checks recent pending orders against their
- * provider and settles any that succeeded but whose webhook + verify-on-return
- * were both missed, and surfaces drift via logs for alerting. Runs ahead of the
- * stale-hold TTL so paid customers are settled promptly. In-process Nest
- * scheduler for now; swap for a BullMQ job if volume demands.
+ * Periodic payment + refund reconciliation. Re-checks recent pending orders
+ * against their provider and settles any that succeeded but whose webhook +
+ * verify-on-return were both missed, then does the same for refunds in flight
+ * (refund webhook + synchronous result both missed). Surfaces drift via logs
+ * for alerting. Runs ahead of the stale-hold TTL so paid customers are settled
+ * promptly. In-process Nest scheduler for now; swap for a BullMQ job if volume
+ * demands.
  */
 @Injectable()
 export class ReconciliationCron {
@@ -20,7 +22,12 @@ export class ReconciliationCron {
     try {
       await this.payments.reconcilePendingPayments();
     } catch (err) {
-      this.logger.warn({ err }, 'Reconciliation iteration failed');
+      this.logger.warn({ err }, 'Payment reconciliation iteration failed');
+    }
+    try {
+      await this.payments.reconcileRefunds();
+    } catch (err) {
+      this.logger.warn({ err }, 'Refund reconciliation iteration failed');
     }
   }
 }

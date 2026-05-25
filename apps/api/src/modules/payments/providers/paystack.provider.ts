@@ -6,6 +6,7 @@ import type {
   CheckoutSession,
   CreateCheckoutInput,
   PaymentProvider,
+  RefundResult,
   TransactionStatus,
   WebhookOutcome,
 } from './types';
@@ -189,7 +190,7 @@ export class PaystackProvider implements PaymentProvider {
     providerRef: string;
     amountMinor: bigint;
     currency: string;
-  }): Promise<void> {
+  }): Promise<RefundResult> {
     if (!this.secretKey) throw new Error('Paystack provider is not configured');
     const res = await fetch('https://api.paystack.co/refund', {
       method: 'POST',
@@ -207,5 +208,58 @@ export class PaystackProvider implements PaymentProvider {
       const text = await res.text().catch(() => '');
       throw new Error(`Paystack refund failed (${res.status}): ${text}`);
     }
+    const body = (await res.json().catch(() => ({}))) as {
+      data?: { status?: string };
+    };
+    return { status: mapPaystackRefundStatus(body.data?.status) };
+  }
+
+  /**
+   * Refund reconciliation: list refunds Paystack holds for this transaction
+   * (our providerRef is the transaction reference) and report the strongest
+   * outcome. `processed` means the money moved; if the only refunds are
+   * `failed`, surface that; anything still in flight is `pending`. Returns
+   * `pending` on any lookup error so the sweep retries.
+   * https://paystack.com/docs/api/refund/#list
+   */
+  async verifyRefund(input: { providerRef: string }): Promise<RefundResult> {
+    if (!this.secretKey) throw new Error('Paystack provider is not configured');
+    try {
+      const res = await fetch(
+        `https://api.paystack.co/refund?transaction=${encodeURIComponent(input.providerRef)}`,
+        { headers: { Authorization: `Bearer ${this.secretKey}` } },
+      );
+      if (!res.ok) return { status: 'pending' };
+      const body = (await res.json()) as {
+        status: boolean;
+        data?: Array<{ status?: string }>;
+      };
+      const refunds = body.data ?? [];
+      if (refunds.length === 0) return { status: 'pending' };
+      const statuses = refunds.map((r) => mapPaystackRefundStatus(r.status));
+      if (statuses.includes('succeeded')) return { status: 'succeeded' };
+      if (statuses.every((s) => s === 'failed')) return { status: 'failed' };
+      return { status: 'pending' };
+    } catch (err) {
+      this.logger.warn({ err }, 'Paystack verifyRefund failed');
+      return { status: 'pending' };
+    }
+  }
+}
+
+/**
+ * Map a Paystack refund `status` to our canonical outcome. Paystack reports
+ * `pending` -> `processing` -> `processed`, or `failed`.
+ * https://paystack.com/docs/payments/refunds/
+ */
+function mapPaystackRefundStatus(status: string | undefined): RefundResult['status'] {
+  switch (status) {
+    case 'processed':
+      return 'succeeded';
+    case 'failed':
+      return 'failed';
+    // 'pending' | 'processing' | undefined
+    default:
+      return 'pending';
   }
 }

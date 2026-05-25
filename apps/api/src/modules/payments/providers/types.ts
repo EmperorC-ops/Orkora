@@ -44,6 +44,20 @@ export interface TransactionStatus {
   providerRef?: string;
 }
 
+/**
+ * Outcome of a refund, used both for the synchronous result of `refund()` and
+ * for the `verifyRefund()` reconciliation lookup:
+ *   - `succeeded`: the refund is settled upstream (the local order can flip to
+ *     `refunded` immediately, no webhook required).
+ *   - `pending`: the refund was accepted but is still processing (e.g. a bank
+ *     refund that takes days); settle later via webhook or reconciliation.
+ *   - `failed`: the refund was rejected or cancelled upstream; leave the order
+ *     `paid` and surface the failure.
+ */
+export interface RefundResult {
+  status: 'succeeded' | 'pending' | 'failed';
+}
+
 export interface PaymentProvider {
   /** Stable name used in `orders.provider`. */
   readonly name: PaymentMethodName;
@@ -70,10 +84,18 @@ export interface PaymentProvider {
   /**
    * Issue a refund for a previously paid order. Implementations may not
    * support partial refunds; the registry caller passes the full order
-   * total. The webhook for `charge.refunded` (Stripe) or equivalent flips
-   * the local order status; this call just initiates the refund upstream.
+   * total. Returns the refund's settlement state so the service can flip the
+   * order to `refunded` synchronously when the provider settles immediately
+   * (most card refunds), rather than depending solely on the async
+   * `charge.refunded` (Stripe) / `refund.processed` (Paystack/Flutterwave)
+   * webhook. A `pending` result is settled later by webhook or by
+   * `verifyRefund` reconciliation.
    */
-  refund(input: { providerRef: string; amountMinor: bigint; currency: string }): Promise<void>;
+  refund(input: {
+    providerRef: string;
+    amountMinor: bigint;
+    currency: string;
+  }): Promise<RefundResult>;
 
   /**
    * Verify-on-return fallback. Ask the provider whether the transaction for
@@ -85,4 +107,14 @@ export interface PaymentProvider {
     orderId: string;
     providerRef: string | null;
   }): Promise<TransactionStatus>;
+
+  /**
+   * Refund-reconciliation lookup. Ask the provider whether the refund for a
+   * given order (identified by its `providerRef`) has settled, so a refund
+   * whose webhook AND synchronous result were both missed/pending is still
+   * confirmed by the reconciliation sweep. Mirrors `verifyTransaction` for the
+   * payment side. Optional: providers that cannot verify a refund synchronously
+   * may omit it.
+   */
+  verifyRefund?(input: { providerRef: string }): Promise<RefundResult>;
 }

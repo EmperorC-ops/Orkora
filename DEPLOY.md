@@ -145,19 +145,48 @@ the suffix changes.
 | Paystack     | `https://orkora-api.onrender.com/v1/payments/webhook/paystack`     |
 | Flutterwave  | `https://orkora-api.onrender.com/v1/payments/webhook/flutterwave`  |
 
-Stripe: Dashboard -> Developers -> Webhooks -> **Add endpoint**. Copy the
-signing secret it generates and paste into Render as
-`STRIPE_WEBHOOK_SECRET`.
+Stripe: Dashboard -> Developers -> Webhooks -> **Add endpoint**. Subscribe to
+these events: `checkout.session.completed`,
+`checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, `checkout.session.expired`,
+`charge.refunded`, and `charge.refund.updated`. Copy the signing secret it
+generates and paste into Render as `STRIPE_WEBHOOK_SECRET`.
 
-Paystack: Dashboard -> Settings -> Webhooks. Enter the URL and save.
-Paystack uses the same secret key as the API, so no extra env var needed.
+Paystack: Dashboard -> Settings -> Webhooks. Enter the URL and save. Paystack
+sends `charge.success`, `charge.failed`, and `refund.processed` /
+`refund.pending` to the same endpoint; it uses the same secret key as the API,
+so no extra env var needed.
 
 Flutterwave: Dashboard -> Settings -> Webhooks. Enter the URL, generate or
 choose a secret hash, and paste the same hash into Render as
-`FLUTTERWAVE_WEBHOOK_SECRET`.
+`FLUTTERWAVE_WEBHOOK_SECRET`. Flutterwave sends `charge.completed` and
+`refund.processed` to the same endpoint.
 
 After all three are wired, run a tiny test payment for each provider you
-enabled. Confirm the order flips to `paid` in the dashboard.
+enabled. Confirm the order flips to `paid` in the dashboard, then refund it and
+confirm it flips to `refunded`.
+
+### Refund settlement is defence-in-depth
+
+Refunds do not depend on the webhook arriving. When an organizer clicks Refund,
+the API asks the provider to refund and, for the common case (card refunds
+settle immediately), flips the order to `refunded` synchronously. The
+`charge.refunded` / `refund.processed` webhook is the first fallback for slower
+(bank-backed) refunds, and a reconciliation sweep (every 10 minutes) is the
+second: it re-checks any order with a refund still in flight against the
+provider and settles it. So a missed or misconfigured refund webhook degrades
+to "settles within ~10 minutes," never "order stuck on `paid` forever."
+
+As a manual escape hatch, the attendee detail page in the dashboard has a
+**Re-check** button on every paid order: it asks the provider whether the charge
+was refunded and settles the order on the spot. Use it to rescue an order that
+was refunded on the provider before this settlement logic existed (the
+reconciliation sweep only picks up refunds initiated through the app).
+
+> Note: the Stripe `charge.refunded` event carries the Charge, which does not
+> include our `orderId` (that lives on the PaymentIntent). The webhook handler
+> retrieves the PaymentIntent to resolve the order, so the event must be
+> subscribed for the webhook path to settle a refund on its own.
 
 ## 7. Mobile preview on Expo Go
 

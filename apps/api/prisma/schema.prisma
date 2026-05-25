@@ -290,6 +290,11 @@ model Order {
   providerRef    String?   @map("provider_ref")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
   paidAt         DateTime? @map("paid_at") @db.Timestamptz
+  // Set when a refund is requested upstream. The order stays `paid` until the
+  // refund is confirmed (synchronously by the provider, by webhook, or by the
+  // refund reconciliation sweep), at which point status flips to `refunded`.
+  // This is the in-flight marker reconcileRefunds() scans for.
+  refundInitiatedAt DateTime? @map("refund_initiated_at") @db.Timestamptz
 
   event        Event         @relation(fields: [eventId], references: [id])
   user         User          @relation(fields: [userId], references: [id])

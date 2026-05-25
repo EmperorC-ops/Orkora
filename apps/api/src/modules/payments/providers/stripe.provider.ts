@@ -6,6 +6,7 @@ import type {
   CheckoutSession,
   CreateCheckoutInput,
   PaymentProvider,
+  RefundResult,
   TransactionStatus,
   WebhookOutcome,
 } from './types';
@@ -126,10 +127,25 @@ export class StripeProvider implements PaymentProvider {
       case 'charge.refunded':
       case 'charge.refund.updated': {
         const charge = event.data.object as Stripe.Charge;
-        const orderId =
+        let orderId: string | undefined =
           (charge.metadata?.orderId as string | undefined) ??
-          (typeof charge.payment_intent === 'string' ? null : (charge.payment_intent?.metadata as { orderId?: string } | undefined)?.orderId) ??
-          null;
+          (typeof charge.payment_intent === 'string'
+            ? undefined
+            : (charge.payment_intent?.metadata as { orderId?: string } | undefined)?.orderId);
+        // In a webhook payload `charge.payment_intent` is a bare id string, and
+        // a Charge does NOT inherit its PaymentIntent's metadata, so our
+        // orderId (set on the PI at checkout via payment_intent_data.metadata)
+        // is absent from the event. Retrieve the PI to resolve it; without this
+        // step a refund can never settle locally and the order is stranded as
+        // `paid` forever even with the webhook correctly configured.
+        if (!orderId && typeof charge.payment_intent === 'string') {
+          try {
+            const pi = await this.client.paymentIntents.retrieve(charge.payment_intent);
+            orderId = (pi.metadata as { orderId?: string } | undefined)?.orderId;
+          } catch (err) {
+            this.logger.warn({ err }, 'Stripe refund webhook: failed to retrieve PI for orderId');
+          }
+        }
         if (!orderId) return { type: 'ignored', reason: 'No orderId on refund' };
         return { type: 'refunded', orderId, providerEventId: event.id };
       }
@@ -165,7 +181,7 @@ export class StripeProvider implements PaymentProvider {
     providerRef: string;
     amountMinor: bigint;
     currency: string;
-  }): Promise<void> {
+  }): Promise<RefundResult> {
     if (!this.client) throw new Error('Stripe provider is not configured');
     // `providerRef` is the Checkout Session id we stored on the order. To
     // refund we need the Payment Intent it expanded into.
@@ -177,11 +193,59 @@ export class StripeProvider implements PaymentProvider {
     if (!paymentIntent) {
       throw new Error('Cannot refund: no payment_intent on the session');
     }
-    await this.client.refunds.create({
+    const refund = await this.client.refunds.create({
       payment_intent: paymentIntent,
       amount: toSmallestUnit(input.amountMinor, input.currency),
       // We do not pass `currency` because Stripe derives it from the
       // payment intent. Passing a different currency here causes a 400.
     });
+    return { status: mapRefundStatus(refund.status) };
+  }
+
+  /**
+   * Refund reconciliation: resolve the session's PaymentIntent and inspect its
+   * charge. A fully-refunded charge (`refunded` flag, or amount_refunded >=
+   * amount) means the refund settled upstream even if the webhook and the
+   * synchronous result were both missed. Returns `pending` on any lookup error
+   * so the sweep simply retries next tick rather than wrongly flipping state.
+   */
+  async verifyRefund(input: { providerRef: string }): Promise<RefundResult> {
+    if (!this.client) throw new Error('Stripe provider is not configured');
+    try {
+      const session = await this.client.checkout.sessions.retrieve(input.providerRef);
+      const piId =
+        typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id;
+      if (!piId) return { status: 'pending' };
+      const pi = await this.client.paymentIntents.retrieve(piId, { expand: ['latest_charge'] });
+      const charge = typeof pi.latest_charge === 'string' ? null : pi.latest_charge;
+      if (charge && (charge.refunded || charge.amount_refunded >= charge.amount)) {
+        return { status: 'succeeded' };
+      }
+      return { status: 'pending' };
+    } catch (err) {
+      this.logger.warn({ err }, 'Stripe verifyRefund failed');
+      return { status: 'pending' };
+    }
+  }
+}
+
+/**
+ * Map a Stripe refund's `status` to our canonical refund outcome. Card refunds
+ * usually return `succeeded` synchronously; bank-backed methods can sit in
+ * `pending` for days; `failed`/`canceled` mean the money did not move.
+ * https://stripe.com/docs/api/refunds/object#refund_object-status
+ */
+function mapRefundStatus(status: Stripe.Refund['status']): RefundResult['status'] {
+  switch (status) {
+    case 'succeeded':
+      return 'succeeded';
+    case 'failed':
+    case 'canceled':
+      return 'failed';
+    // 'pending' | 'requires_action' | null
+    default:
+      return 'pending';
   }
 }

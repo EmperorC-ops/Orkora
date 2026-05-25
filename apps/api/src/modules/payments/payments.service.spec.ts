@@ -13,6 +13,9 @@ function makePrismaMock() {
   return {
     order: {
       findFirst: jest.fn(),
+      // refundOrder stamps refundInitiatedAt; markOrderRefunded reads + flips.
+      update: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn(),
     },
   };
 }
@@ -101,7 +104,8 @@ describe('PaymentsService.refundOrder', () => {
       totalMinor: 12345n,
       currency: 'NGN',
     });
-    const refund = jest.fn().mockResolvedValue(undefined);
+    // A 'pending' result keeps the order paid (settled later by webhook/sweep).
+    const refund = jest.fn().mockResolvedValue({ status: 'pending' });
     const { svc, audit } = makeService(prisma, refund);
     const out = await svc.refundOrder({
       orgId: 'org-1',
@@ -109,12 +113,20 @@ describe('PaymentsService.refundOrder', () => {
       actorUserId: 'user-1',
       requestId: 'req-abc',
     });
-    expect(out).toEqual({ ok: true });
+    expect(out).toEqual({ ok: true, status: 'pending' });
     expect(refund).toHaveBeenCalledWith({
       providerRef: 'cs_abc',
       amountMinor: 12345n,
       currency: 'NGN',
     });
+    // Stamps the in-flight marker so a missed webhook + missed sync result is
+    // still recoverable by reconcileRefunds.
+    expect(prisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'x' },
+        data: expect.objectContaining({ refundInitiatedAt: expect.any(Date) }),
+      }),
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: 'org-1',
@@ -124,6 +136,54 @@ describe('PaymentsService.refundOrder', () => {
         resourceId: 'x',
         requestId: 'req-abc',
       }),
+    );
+  });
+
+  it('verify-on-action: a synchronously-settled refund flips the order to refunded now', async () => {
+    const prisma = makePrismaMock();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'x',
+      status: 'paid',
+      provider: 'stripe',
+      providerRef: 'cs_abc',
+      totalMinor: 2000n,
+      currency: 'USD',
+    });
+    const refund = jest.fn().mockResolvedValue({ status: 'succeeded' });
+    const { svc } = makeService(prisma, refund);
+    const markRefunded = jest
+      .spyOn(
+        svc as unknown as { markOrderRefunded: (id: string) => Promise<void> },
+        'markOrderRefunded',
+      )
+      .mockResolvedValue(undefined);
+
+    const out = await svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' });
+
+    expect(out).toEqual({ ok: true, status: 'refunded' });
+    expect(markRefunded).toHaveBeenCalledWith('x');
+  });
+
+  it('a provider-declined refund throws, audits refund_failed, and never stamps the marker', async () => {
+    const prisma = makePrismaMock();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'x',
+      status: 'paid',
+      provider: 'stripe',
+      providerRef: 'cs_abc',
+      totalMinor: 2000n,
+      currency: 'USD',
+    });
+    const refund = jest.fn().mockResolvedValue({ status: 'failed' });
+    const { svc, audit } = makeService(prisma, refund);
+
+    await expect(
+      svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.order.update).not.toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'refund_failed', resourceId: 'x' }),
     );
   });
 });
@@ -446,5 +506,196 @@ describe('PaymentsService.releaseStaleHolds (verify-before-fail)', () => {
     expect(markFailed).toHaveBeenCalledWith('unpaid1', 'expired');
     expect(markFailed).toHaveBeenCalledWith('noref', 'expired');
     expect(out).toEqual({ released: 2, recovered: 1 });
+  });
+});
+
+/**
+ * Refund reconciliation is the mirror of payment reconciliation: it finds
+ * paid orders with a refund in flight (refundInitiatedAt set) and asks the
+ * provider whether the refund settled, so a refund whose webhook AND
+ * synchronous result were both missed is still confirmed.
+ */
+describe('PaymentsService.reconcileRefunds', () => {
+  function makeSvc(
+    candidates: Array<{ id: string; provider: string | null; providerRef: string | null }>,
+    verifyRefund?: jest.Mock,
+  ) {
+    const prisma = { order: { findMany: jest.fn().mockResolvedValue(candidates) } };
+    const provider: Record<string, unknown> = { name: 'stripe' };
+    if (verifyRefund) provider.verifyRefund = verifyRefund;
+    const registry = {
+      resolve: jest.fn().mockReturnValue(provider),
+    } as unknown as PaymentsRegistry;
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      { get: jest.fn() } as unknown as never,
+      registry,
+      {} as never,
+      {} as never,
+      { record: jest.fn() } as unknown as AuditService,
+      {} as never,
+    );
+    return { svc };
+  }
+
+  it('settles confirmed refunds, clears declined ones, and tallies the rest', async () => {
+    const verifyRefund = jest.fn().mockImplementation(({ providerRef }: { providerRef: string }) => {
+      if (providerRef === 'settled') return Promise.resolve({ status: 'succeeded' });
+      if (providerRef === 'declined') return Promise.resolve({ status: 'failed' });
+      return Promise.resolve({ status: 'pending' });
+    });
+    const { svc } = makeSvc(
+      [
+        { id: 'a', provider: 'stripe', providerRef: 'settled' },
+        { id: 'b', provider: 'stripe', providerRef: 'declined' },
+        { id: 'c', provider: 'stripe', providerRef: 'waiting' },
+      ],
+      verifyRefund,
+    );
+    const markRefunded = jest
+      .spyOn(
+        svc as unknown as { markOrderRefunded: (id: string) => Promise<void> },
+        'markOrderRefunded',
+      )
+      .mockResolvedValue(undefined);
+    const clearFailed = jest
+      .spyOn(
+        svc as unknown as { clearFailedRefund: (id: string) => Promise<void> },
+        'clearFailedRefund',
+      )
+      .mockResolvedValue(undefined);
+
+    const out = await svc.reconcileRefunds();
+
+    expect(markRefunded).toHaveBeenCalledWith('a');
+    expect(clearFailed).toHaveBeenCalledWith('b');
+    expect(out).toEqual({ checked: 3, settled: 1, failed: 1, stillPending: 1 });
+  });
+
+  it('counts a thrown verifyRefund as still pending without aborting the sweep', async () => {
+    const verifyRefund = jest.fn().mockImplementation(({ providerRef }: { providerRef: string }) => {
+      if (providerRef === 'boom') return Promise.reject(new Error('provider down'));
+      return Promise.resolve({ status: 'succeeded' });
+    });
+    const { svc } = makeSvc(
+      [
+        { id: 'a', provider: 'stripe', providerRef: 'boom' },
+        { id: 'b', provider: 'stripe', providerRef: 'ok' },
+      ],
+      verifyRefund,
+    );
+    jest
+      .spyOn(
+        svc as unknown as { markOrderRefunded: (id: string) => Promise<void> },
+        'markOrderRefunded',
+      )
+      .mockResolvedValue(undefined);
+
+    const out = await svc.reconcileRefunds();
+
+    expect(out).toEqual({ checked: 2, settled: 1, failed: 0, stillPending: 1 });
+  });
+
+  it('treats a provider without verifyRefund as still pending', async () => {
+    const { svc } = makeSvc([{ id: 'a', provider: 'stripe', providerRef: 'x' }]);
+    const out = await svc.reconcileRefunds();
+    expect(out).toEqual({ checked: 1, settled: 0, failed: 0, stillPending: 1 });
+  });
+});
+
+/**
+ * Manual refund re-check from the dashboard. Settles an order stuck on `paid`
+ * after a refund whose webhook never landed, without needing the in-flight
+ * marker (so it also rescues refunds issued before that marker existed).
+ */
+describe('PaymentsService.recheckRefund', () => {
+  function makeSvc(order: Record<string, unknown> | null, verifyRefund?: jest.Mock) {
+    const prisma = { order: { findFirst: jest.fn().mockResolvedValue(order) } };
+    const provider: Record<string, unknown> = { name: 'stripe' };
+    if (verifyRefund) provider.verifyRefund = verifyRefund;
+    const registry = {
+      resolve: jest.fn().mockReturnValue(provider),
+    } as unknown as PaymentsRegistry;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      {} as never,
+      registry,
+      {} as never,
+      {} as never,
+      audit as unknown as AuditService,
+      {} as never,
+    );
+    return { svc, audit };
+  }
+
+  it('throws NotFoundException when the order is not in the org', async () => {
+    const { svc } = makeSvc(null);
+    await expect(
+      svc.recheckRefund({ orgId: 'o', orderId: 'x', actorUserId: 'a' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('short-circuits an already-refunded order', async () => {
+    const { svc } = makeSvc({ id: 'x', status: 'refunded', provider: 'stripe', providerRef: 'cs' });
+    expect(await svc.recheckRefund({ orgId: 'o', orderId: 'x', actorUserId: 'a' })).toEqual({
+      status: 'refunded',
+    });
+  });
+
+  it('rejects a non-paid order', async () => {
+    const { svc } = makeSvc({ id: 'x', status: 'pending', provider: 'stripe', providerRef: 'cs' });
+    await expect(
+      svc.recheckRefund({ orgId: 'o', orderId: 'x', actorUserId: 'a' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects when the provider cannot verify refunds', async () => {
+    const { svc } = makeSvc({ id: 'x', status: 'paid', provider: 'stripe', providerRef: 'cs' });
+    await expect(
+      svc.recheckRefund({ orgId: 'o', orderId: 'x', actorUserId: 'a' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('settles the order when the provider confirms the refund', async () => {
+    const verifyRefund = jest.fn().mockResolvedValue({ status: 'succeeded' });
+    const { svc, audit } = makeSvc(
+      { id: 'x', status: 'paid', provider: 'stripe', providerRef: 'cs' },
+      verifyRefund,
+    );
+    const markRefunded = jest
+      .spyOn(
+        svc as unknown as { markOrderRefunded: (id: string) => Promise<void> },
+        'markOrderRefunded',
+      )
+      .mockResolvedValue(undefined);
+
+    const out = await svc.recheckRefund({ orgId: 'o', orderId: 'x', actorUserId: 'a' });
+
+    expect(verifyRefund).toHaveBeenCalledWith({ providerRef: 'cs' });
+    expect(markRefunded).toHaveBeenCalledWith('x');
+    expect(out).toEqual({ status: 'refunded' });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'refund_rechecked', resourceId: 'x' }),
+    );
+  });
+
+  it('leaves the order paid when no settled refund is found upstream', async () => {
+    const verifyRefund = jest.fn().mockResolvedValue({ status: 'pending' });
+    const { svc } = makeSvc(
+      { id: 'x', status: 'paid', provider: 'stripe', providerRef: 'cs' },
+      verifyRefund,
+    );
+    const markRefunded = jest
+      .spyOn(
+        svc as unknown as { markOrderRefunded: (id: string) => Promise<void> },
+        'markOrderRefunded',
+      )
+      .mockResolvedValue(undefined);
+
+    const out = await svc.recheckRefund({ orgId: 'o', orderId: 'x', actorUserId: 'a' });
+
+    expect(out).toEqual({ status: 'paid' });
+    expect(markRefunded).not.toHaveBeenCalled();
   });
 });

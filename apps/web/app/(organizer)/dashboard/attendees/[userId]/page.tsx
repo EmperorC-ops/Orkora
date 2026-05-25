@@ -3,7 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, DollarSign, Mail, Phone, RotateCcw, TicketCheck } from 'lucide-react';
+import {
+  ArrowLeft,
+  Calendar,
+  DollarSign,
+  Mail,
+  Phone,
+  RefreshCw,
+  RotateCcw,
+  TicketCheck,
+} from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
 import { useToast } from '@/components/toast';
@@ -37,6 +46,7 @@ interface AttendeeDetail {
     provider: string | null;
     createdAt: string;
     paidAt: string | null;
+    refundInitiatedAt: string | null;
     eventId: string;
   }>;
 }
@@ -49,6 +59,7 @@ export default function AttendeeDetailPage() {
   const [data, setData] = useState<AttendeeDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
+  const [recheckingOrderId, setRecheckingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     setOrgId(readActiveOrgId());
@@ -67,32 +78,59 @@ export default function AttendeeDetailPage() {
   }, [orgId, userId]);
 
   /**
-   * Initiate a refund through the configured PSP. The order's local status
-   * stays `paid` until the provider posts a webhook confirming the refund;
-   * we surface that distinction in the UI by showing a "refund initiated"
-   * toast rather than optimistically flipping the row.
+   * Initiate a refund through the configured PSP. Most card refunds settle
+   * synchronously, so the API flips the order to `refunded` immediately and
+   * returns `status: 'refunded'`; slower (bank-backed) refunds come back as
+   * `status: 'pending'` and are finished later by the provider webhook or the
+   * refund reconciliation sweep. We surface that distinction in the toast.
    */
   async function refundOrder(orderId: string, amountLabel: string) {
     if (!orgId) return;
-    if (
-      !confirm(
-        `Refund ${amountLabel} for this order? The provider will process the refund; the local status flips to refunded once their webhook arrives.`,
-      )
-    ) {
+    if (!confirm(`Refund ${amountLabel} for this order? This cannot be undone.`)) {
       return;
     }
     setRefundingOrderId(orderId);
     try {
-      await apiFetch(`/v1/organizations/${orgId}/payments/orders/${orderId}/refund`, {
-        method: 'POST',
-        json: {},
-      });
-      toast.success('Refund initiated', 'Status will update once the provider confirms.');
+      const res = await apiFetch<{ ok: true; status: 'refunded' | 'pending' }>(
+        `/v1/organizations/${orgId}/payments/orders/${orderId}/refund`,
+        { method: 'POST', json: {} },
+      );
+      if (res.status === 'refunded') {
+        toast.success('Refunded', `${amountLabel} has been refunded.`);
+      } else {
+        toast.success('Refund initiated', 'Status will update once the provider confirms.');
+      }
       refreshDetail(orgId);
     } catch (err) {
       toast.error('Could not refund', err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setRefundingOrderId(null);
+    }
+  }
+
+  /**
+   * Re-check a refund against the provider and settle it locally if it has
+   * actually been refunded. Rescues an order stuck on `paid` when the refund
+   * webhook never settled it, without opening the provider dashboard.
+   */
+  async function recheckRefund(orderId: string) {
+    if (!orgId) return;
+    setRecheckingOrderId(orderId);
+    try {
+      const res = await apiFetch<{ status: 'refunded' | 'pending' | 'paid' }>(
+        `/v1/organizations/${orgId}/payments/orders/${orderId}/refund/recheck`,
+        { method: 'POST', json: {} },
+      );
+      if (res.status === 'refunded') {
+        toast.success('Refund settled', 'The provider confirmed the refund; the order is now refunded.');
+        refreshDetail(orgId);
+      } else {
+        toast.info('No refund found yet', 'The provider has not refunded this charge. Try again later.');
+      }
+    } catch (err) {
+      toast.error('Could not re-check', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setRecheckingOrderId(null);
     }
   }
 
@@ -256,18 +294,40 @@ export default function AttendeeDetailPage() {
                         </td>
                         <td className="px-5 py-4 text-right">
                           {o.status === 'paid' ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                refundOrder(o.id, formatMoney(o.totalMinor, o.currency))
-                              }
-                              disabled={refundingOrderId === o.id}
-                              className="inline-flex items-center gap-1 rounded-md border border-[#FF7675]/40 px-2 py-1 text-xs font-semibold text-[#FF9090] transition hover:bg-[#FF7675]/10 disabled:opacity-50"
-                              aria-label="Refund order"
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                              {refundingOrderId === o.id ? 'Refunding...' : 'Refund'}
-                            </button>
+                            <div className="flex flex-col items-end gap-1.5">
+                              {o.refundInitiatedAt ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#3B82F6]">
+                                  Refund pending
+                                </span>
+                              ) : null}
+                              <div className="inline-flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => recheckRefund(o.id)}
+                                  disabled={recheckingOrderId === o.id}
+                                  className="inline-flex items-center gap-1 rounded-md border border-surface-border px-2 py-1 text-xs font-semibold text-ink-secondary transition hover:bg-surface disabled:opacity-50"
+                                  aria-label="Re-check refund status"
+                                  title="Re-check the refund status with the payment provider"
+                                >
+                                  <RefreshCw
+                                    className={`h-3 w-3 ${recheckingOrderId === o.id ? 'animate-spin' : ''}`}
+                                  />
+                                  {recheckingOrderId === o.id ? 'Checking...' : 'Re-check'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    refundOrder(o.id, formatMoney(o.totalMinor, o.currency))
+                                  }
+                                  disabled={refundingOrderId === o.id}
+                                  className="inline-flex items-center gap-1 rounded-md border border-[#FF7675]/40 px-2 py-1 text-xs font-semibold text-[#FF9090] transition hover:bg-[#FF7675]/10 disabled:opacity-50"
+                                  aria-label="Refund order"
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                  {refundingOrderId === o.id ? 'Refunding...' : 'Refund'}
+                                </button>
+                              </div>
+                            </div>
                           ) : null}
                         </td>
                       </tr>

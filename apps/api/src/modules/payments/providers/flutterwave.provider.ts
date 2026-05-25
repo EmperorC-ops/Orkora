@@ -6,6 +6,7 @@ import type {
   CheckoutSession,
   CreateCheckoutInput,
   PaymentProvider,
+  RefundResult,
   TransactionStatus,
   WebhookOutcome,
 } from './types';
@@ -178,20 +179,12 @@ export class FlutterwaveProvider implements PaymentProvider {
     providerRef: string;
     amountMinor: bigint;
     currency: string;
-  }): Promise<void> {
+  }): Promise<RefundResult> {
     if (!this.secretKey) throw new Error('Flutterwave provider is not configured');
     // Flutterwave refund endpoint takes the transaction id (not tx_ref).
     // Our `providerRef` is tx_ref (= orderId), so we must look up the
     // transaction first.
-    const lookup = await fetch(
-      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(input.providerRef)}`,
-      { headers: { Authorization: `Bearer ${this.secretKey}` } },
-    );
-    if (!lookup.ok) {
-      throw new Error(`Flutterwave verify failed: ${lookup.status}`);
-    }
-    const verifyBody = (await lookup.json()) as { data?: { id?: number } };
-    const txId = verifyBody.data?.id;
+    const txId = await this.resolveTxId(input.providerRef);
     if (!txId) throw new Error('Flutterwave: no transaction id for ref');
 
     const refund = await fetch(
@@ -209,5 +202,69 @@ export class FlutterwaveProvider implements PaymentProvider {
       const text = await refund.text().catch(() => '');
       throw new Error(`Flutterwave refund failed (${refund.status}): ${text}`);
     }
+    const body = (await refund.json().catch(() => ({}))) as {
+      data?: { status?: string };
+    };
+    return { status: mapFlutterwaveRefundStatus(body.data?.status) };
+  }
+
+  /**
+   * Refund reconciliation: list the refunds Flutterwave holds for the
+   * transaction behind our providerRef (tx_ref) and report the strongest
+   * outcome. A `completed` refund means the money moved. Returns `pending` on
+   * any lookup error so the sweep retries.
+   * https://developer.flutterwave.com/reference/list-all-refunds
+   */
+  async verifyRefund(input: { providerRef: string }): Promise<RefundResult> {
+    if (!this.secretKey) throw new Error('Flutterwave provider is not configured');
+    try {
+      const txId = await this.resolveTxId(input.providerRef);
+      if (!txId) return { status: 'pending' };
+      const res = await fetch(
+        `https://api.flutterwave.com/v3/transactions/${txId}/refunds`,
+        { headers: { Authorization: `Bearer ${this.secretKey}` } },
+      );
+      if (!res.ok) return { status: 'pending' };
+      const body = (await res.json()) as { status: string; data?: Array<{ status?: string }> };
+      const refunds = body.data ?? [];
+      if (refunds.length === 0) return { status: 'pending' };
+      const statuses = refunds.map((r) => mapFlutterwaveRefundStatus(r.status));
+      if (statuses.includes('succeeded')) return { status: 'succeeded' };
+      if (statuses.every((s) => s === 'failed')) return { status: 'failed' };
+      return { status: 'pending' };
+    } catch (err) {
+      this.logger.warn({ err }, 'Flutterwave verifyRefund failed');
+      return { status: 'pending' };
+    }
+  }
+
+  /** Resolve Flutterwave's numeric transaction id from our tx_ref (= orderId). */
+  private async resolveTxId(txRef: string): Promise<number | null> {
+    const lookup = await fetch(
+      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`,
+      { headers: { Authorization: `Bearer ${this.secretKey}` } },
+    );
+    if (!lookup.ok) {
+      throw new Error(`Flutterwave verify failed: ${lookup.status}`);
+    }
+    const verifyBody = (await lookup.json()) as { data?: { id?: number } };
+    return verifyBody.data?.id ?? null;
+  }
+}
+
+/**
+ * Map a Flutterwave refund `status` to our canonical outcome. Flutterwave
+ * reports `completed` or `pending` (and `failed` when the refund is rejected).
+ * https://developer.flutterwave.com/docs/making-payments/refunds
+ */
+function mapFlutterwaveRefundStatus(status: string | undefined): RefundResult['status'] {
+  switch (status) {
+    case 'completed':
+      return 'succeeded';
+    case 'failed':
+      return 'failed';
+    // 'pending' | undefined
+    default:
+      return 'pending';
   }
 }

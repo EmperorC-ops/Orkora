@@ -130,4 +130,27 @@ export class OrganizerPaymentsController {
       requestId: req.id,
     });
   }
+
+  /**
+   * Re-check a refund against the provider and settle it locally if it has
+   * actually been refunded. Rescues an order stuck on `paid` after a refund
+   * whose webhook never settled it (including refunds issued before the
+   * in-flight marker existed), without anyone touching the provider dashboard.
+   */
+  @Post('orders/:orderId/refund/recheck')
+  @HttpCode(200)
+  @Roles('admin')
+  recheckRefund(
+    @Param('orgId') orgId: string,
+    @Param('orderId') orderId: string,
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request & { id?: string },
+  ) {
+    return this.payments.recheckRefund({
+      orgId,
+      orderId,
+      actorUserId: user.userId,
+      requestId: req.id,
+    });
+  }
 }

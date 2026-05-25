@@ -43,15 +43,21 @@ export class PaymentsService {
   /**
    * Initiate a refund. Caller has already gone through RolesGuard so we
    * trust the org context; we still verify the order belongs to the org.
-   * The actual local-state flip to `refunded` happens in `markOrderRefunded`
-   * when the provider posts the corresponding webhook back.
+   *
+   * Settlement is verify-on-action, mirroring verify-on-return for payments:
+   * most card refunds settle synchronously, so when the provider reports
+   * `succeeded` we flip the order to `refunded` immediately rather than waiting
+   * for the async webhook. We always stamp `refundInitiatedAt` first so that a
+   * `pending` (slow bank) refund, or one whose synchronous result we could not
+   * read, is still finished by `reconcileRefunds` or the webhook. A provider
+   * that declines the refund synchronously leaves the order `paid`.
    */
   async refundOrder(input: {
     orgId: string;
     orderId: string;
     actorUserId: string;
     requestId?: string;
-  }): Promise<{ ok: true }> {
+  }): Promise<{ ok: true; status: 'refunded' | 'pending' }> {
     const order = await this.prisma.order.findFirst({
       where: { id: input.orderId, event: { organizationId: input.orgId } },
     });
@@ -65,12 +71,39 @@ export class PaymentsService {
       throw new BadRequestException('Order has no provider reference to refund');
     }
     const provider = this.registry.resolve(order.provider as PaymentMethodName);
-    await provider.refund({
+    const result = await provider.refund({
       providerRef: order.providerRef,
       amountMinor: BigInt(order.totalMinor),
       currency: order.currency,
     });
-    this.logger.log({ orderId: order.id, provider: provider.name }, 'Refund initiated');
+
+    if (result.status === 'failed') {
+      this.logger.warn(
+        { orderId: order.id, provider: provider.name },
+        'Provider declined the refund',
+      );
+      await this.audit.record({
+        organizationId: input.orgId,
+        actorUserId: input.actorUserId,
+        action: 'refund_failed',
+        resourceType: 'order',
+        resourceId: order.id,
+        metadata: { provider: provider.name, reason: 'provider declined' },
+        requestId: input.requestId,
+      });
+      throw new BadRequestException('The payment provider declined the refund');
+    }
+
+    // Stamp the in-flight marker before anything else so a missed webhook AND a
+    // missed synchronous result still leave a trail reconcileRefunds can finish.
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: { refundInitiatedAt: new Date() },
+    });
+    this.logger.log(
+      { orderId: order.id, provider: provider.name, result: result.status },
+      'Refund initiated',
+    );
     await this.audit.record({
       organizationId: input.orgId,
       actorUserId: input.actorUserId,
@@ -81,10 +114,72 @@ export class PaymentsService {
         provider: provider.name,
         totalMinor: Number(order.totalMinor),
         currency: order.currency,
+        result: result.status,
       },
       requestId: input.requestId,
     });
-    return { ok: true };
+
+    // Verify-on-action: a synchronously-settled refund flips the order now, so
+    // the organizer sees "Refunded" without depending on the webhook arriving.
+    if (result.status === 'succeeded') {
+      await this.markOrderRefunded(order.id);
+      return { ok: true, status: 'refunded' };
+    }
+    return { ok: true, status: 'pending' };
+  }
+
+  /**
+   * Manual refund re-check for the dashboard. Asks the provider whether the
+   * order's charge has actually been refunded and settles it locally if so.
+   * Unlike `reconcileRefunds`, this does NOT require `refundInitiatedAt` to be
+   * set, so it also rescues a refund that was issued before that marker existed
+   * (e.g. a refund done on the provider while the local order is still `paid`).
+   * Org-scoped and idempotent: an already-refunded order short-circuits, and a
+   * paid order with no upstream refund simply stays `paid`.
+   */
+  async recheckRefund(input: {
+    orgId: string;
+    orderId: string;
+    actorUserId: string;
+    requestId?: string;
+  }): Promise<{ status: 'refunded' | 'pending' | 'paid' }> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: input.orderId, event: { organizationId: input.orgId } },
+      select: { id: true, status: true, provider: true, providerRef: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === 'refunded') return { status: 'refunded' };
+    if (order.status !== 'paid') {
+      throw new BadRequestException(
+        `Only paid orders can be re-checked for a refund. Current status: ${order.status}`,
+      );
+    }
+    if (!order.provider || !order.providerRef) {
+      throw new BadRequestException('Order has no provider reference to re-check');
+    }
+    const provider = this.registry.resolve(order.provider as PaymentMethodName);
+    if (!provider.verifyRefund) {
+      throw new BadRequestException(`${provider.name} cannot verify refunds`);
+    }
+    const { status } = await provider.verifyRefund({ providerRef: order.providerRef });
+    if (status === 'succeeded') {
+      await this.markOrderRefunded(order.id);
+      await this.audit.record({
+        organizationId: input.orgId,
+        actorUserId: input.actorUserId,
+        action: 'refund_rechecked',
+        resourceType: 'order',
+        resourceId: order.id,
+        metadata: { provider: provider.name, result: 'settled' },
+        requestId: input.requestId,
+      });
+      return { status: 'refunded' };
+    }
+    this.logger.log(
+      { orderId: order.id, provider: provider.name, result: status },
+      'Manual refund re-check found no settled refund',
+    );
+    return { status: 'paid' };
   }
 
   /** Public read for the confirmation page to poll. */
@@ -400,8 +495,18 @@ export class PaymentsService {
     this.logger.log({ orderId, reason }, 'Order marked failed and seats released');
   }
 
+  /**
+   * Idempotent flip to `refunded`. Called from every settlement path (the
+   * verify-on-action result in refundOrder, the provider webhook, and the
+   * reconciliation sweep), so it records a single `refund_settled` audit event
+   * regardless of which path won the race. A no-op for an already-refunded
+   * order, so duplicate webhook + reconcile + sync settlement do not double-log.
+   */
   private async markOrderRefunded(orderId: string): Promise<void> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { event: { select: { organizationId: true } } },
+    });
     if (!order) return;
     if (order.status === 'refunded') return;
     await this.prisma.order.update({
@@ -409,6 +514,19 @@ export class PaymentsService {
       data: { status: 'refunded' },
     });
     this.logger.log({ orderId }, 'Order marked refunded');
+    // record() swallows its own errors, so this can never fail the refund flip.
+    await this.audit.record({
+      organizationId: order.event.organizationId,
+      actorUserId: null,
+      action: 'refund_settled',
+      resourceType: 'order',
+      resourceId: orderId,
+      metadata: {
+        provider: order.provider ?? 'unknown',
+        totalMinor: Number(order.totalMinor),
+        currency: order.currency,
+      },
+    });
   }
 
   /**
@@ -511,6 +629,102 @@ export class PaymentsService {
       this.logger.log(summary, 'Payment reconciliation clean');
     }
     return summary;
+  }
+
+  /**
+   * Refund reconciliation sweep, the mirror of `reconcilePendingPayments` for
+   * the refund side. Finds orders still `paid` that have a refund in flight
+   * (`refundInitiatedAt` set) within the recent window and asks the provider
+   * whether the refund has settled, flipping any confirmed ones to `refunded`.
+   * This closes the gap where a refund's synchronous result was `pending` (slow
+   * bank refund) AND its `charge.refunded`/`refund.processed` webhook was
+   * missed. A provider that reports the refund `failed` clears the in-flight
+   * marker and audits it, so it stops being rescanned and the failure surfaces.
+   * Idempotent (markOrderRefunded no-ops a settled order); safe on a schedule.
+   * Window defaults to 7 days because bank-backed refunds can take several days.
+   */
+  async reconcileRefunds(opts?: {
+    windowMinutes?: number;
+    batch?: number;
+  }): Promise<{ checked: number; settled: number; failed: number; stillPending: number }> {
+    const windowMinutes = opts?.windowMinutes ?? 60 * 24 * 7; // last 7 days
+    const batch = opts?.batch ?? 100;
+    const windowStart = new Date(Date.now() - windowMinutes * 60_000);
+    const candidates = await this.prisma.order.findMany({
+      where: {
+        status: 'paid',
+        refundInitiatedAt: { not: null, gt: windowStart },
+        provider: { not: null },
+        providerRef: { not: null },
+      },
+      select: { id: true, provider: true, providerRef: true },
+      orderBy: { refundInitiatedAt: 'asc' },
+      take: batch,
+    });
+
+    let settled = 0;
+    let failed = 0;
+    let stillPending = 0;
+    for (const o of candidates) {
+      try {
+        const provider = this.registry.resolve(o.provider as PaymentMethodName);
+        if (!provider.verifyRefund || !o.providerRef) {
+          stillPending += 1;
+          continue;
+        }
+        const { status } = await provider.verifyRefund({ providerRef: o.providerRef });
+        if (status === 'succeeded') {
+          await this.markOrderRefunded(o.id);
+          settled += 1;
+          this.logger.warn(
+            { orderId: o.id },
+            'Reconciliation settled a refund (webhook and sync result both missed)',
+          );
+        } else if (status === 'failed') {
+          await this.clearFailedRefund(o.id);
+          failed += 1;
+        } else {
+          stillPending += 1;
+        }
+      } catch (err) {
+        stillPending += 1;
+        this.logger.warn({ err, orderId: o.id }, 'Refund reconciliation check failed for order');
+      }
+    }
+
+    const summary = { checked: candidates.length, settled, failed, stillPending };
+    if (settled > 0 || failed > 0) {
+      this.logger.warn(summary, 'Refund reconciliation drift detected');
+    } else if (candidates.length > 0) {
+      this.logger.log(summary, 'Refund reconciliation clean');
+    }
+    return summary;
+  }
+
+  /**
+   * A refund the provider ultimately declined: clear the in-flight marker so it
+   * stops being rescanned, leave the order `paid`, and audit the failure so an
+   * operator can re-attempt or investigate.
+   */
+  private async clearFailedRefund(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { event: { select: { organizationId: true } } },
+    });
+    if (!order || order.refundInitiatedAt === null) return;
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { refundInitiatedAt: null },
+    });
+    this.logger.warn({ orderId }, 'Refund reported failed by provider; cleared in-flight marker');
+    await this.audit.record({
+      organizationId: order.event.organizationId,
+      actorUserId: null,
+      action: 'refund_failed',
+      resourceType: 'order',
+      resourceId: orderId,
+      metadata: { provider: order.provider ?? 'unknown', reason: 'provider reported failed' },
+    });
   }
 }
 
