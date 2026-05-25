@@ -115,6 +115,57 @@ export function ticketConfirmationTemplate(input: {
   };
 }
 
+export interface ReceiptLine {
+  description: string;
+  quantity: number;
+  amount: string;
+}
+
+export function receiptTemplate(input: {
+  orderId: string;
+  eventTitle: string;
+  orgName: string;
+  paidAtLine: string;
+  provider: string;
+  totalFormatted: string;
+  lines: ReceiptLine[];
+}) {
+  const { orderId, eventTitle, orgName, paidAtLine, provider, totalFormatted, lines } = input;
+  const lineRows = lines
+    .map(
+      (l) => `
+    <tr>
+      <td style="padding:8px 0;color:#0F172A;font-size:14px;">${escapeHtml(l.description)} <span style="color:#94A3B8;">x${l.quantity}</span></td>
+      <td style="padding:8px 0;color:#0F172A;font-size:14px;text-align:right;white-space:nowrap;">${escapeHtml(l.amount)}</td>
+    </tr>`,
+    )
+    .join('');
+  const html = wrap(`
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Payment receipt</h1>
+    <p style="margin:0 0 4px 0;color:#0F172A;font-size:16px;font-weight:600;">${escapeHtml(eventTitle)}</p>
+    <p style="margin:0 0 20px 0;color:#64748B;">Paid to ${escapeHtml(orgName)} on ${escapeHtml(paidAtLine)}</p>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0;margin-bottom:16px;">
+      ${lineRows}
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td style="color:#0F172A;font-size:16px;font-weight:700;">Total paid</td>
+        <td style="color:#0F172A;font-size:16px;font-weight:700;text-align:right;">${escapeHtml(totalFormatted)}</td>
+      </tr>
+    </table>
+    <p style="margin:20px 0 0 0;color:#94A3B8;font-size:13px;">
+      Paid via ${escapeHtml(provider)}. Receipt reference: ${escapeHtml(orderId)}.
+    </p>
+  `);
+  return {
+    subject: `Your Orkora receipt - ${eventTitle}`,
+    html,
+    text: `Receipt for ${eventTitle} (paid to ${orgName} on ${paidAtLine}). ${lines
+      .map((l) => `${l.description} x${l.quantity} ${l.amount}`)
+      .join('; ')}. Total paid: ${totalFormatted}. Paid via ${provider}. Reference: ${orderId}.`,
+  };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

@@ -62,3 +62,14 @@ export function toSmallestUnit(amountMinor: bigint | number, currency: string): 
 export function toMajorUnit(amountMinor: bigint | number): number {
   return toMajor(amountMinor);
 }
+
+/**
+ * Human-readable amount with the currency's correct decimals (e.g. "US$20.00",
+ * "GHS 50", "FCFA 1,000" for zero-decimal XAF). Used for receipts/emails.
+ */
+export function formatMoney(amountMinor: bigint | number, currency: string): string {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(toMajor(amountMinor));
+}

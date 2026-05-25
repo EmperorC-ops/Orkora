@@ -4,7 +4,9 @@ import {
   otpEmailTemplate,
   inviteEmailTemplate,
   ticketConfirmationTemplate,
+  receiptTemplate,
   type TicketEmailTicket,
+  type ReceiptLine,
 } from './templates';
 
 @Injectable()

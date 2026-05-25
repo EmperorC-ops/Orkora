@@ -11,6 +11,7 @@ import { FlutterwaveProvider } from './providers/flutterwave.provider';
 import { PaystackProvider } from './providers/paystack.provider';
 import { PaymentsRegistry } from './providers/registry';
 import { StripeProvider } from './providers/stripe.provider';
+import { ReconciliationCron } from './reconciliation.cron';
 import { StaleHoldCron } from './stale-hold.cron';
 
 @Module({
@@ -24,6 +25,7 @@ import { StaleHoldCron } from './stale-hold.cron';
     PaystackProvider,
     FlutterwaveProvider,
     StaleHoldCron,
+    ReconciliationCron,
   ],
   exports: [PaymentsService, PaymentsRegistry, PaymentPreferencesService],
 })

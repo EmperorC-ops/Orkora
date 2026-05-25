@@ -6,6 +6,7 @@ import { TicketSigner } from '../registrations/ticket-signer';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
 import { PaymentPreferencesService } from './preferences.service';
+import { formatMoney } from './money';
 import type { PaymentMethodName } from './providers/types';
 
 @Injectable()
@@ -284,7 +285,8 @@ export class PaymentsService {
       where: { id: orderId },
       include: {
         registration: { include: { tickets: { include: { tier: true } }, user: true } },
-        event: true,
+        items: { include: { tier: { select: { name: true } } } },
+        event: { include: { organization: { select: { name: true } } } },
       },
     });
     if (!order) {
@@ -340,6 +342,27 @@ export class PaymentsService {
         })
         .catch((err) => this.logger.warn({ err }, 'Failed to send paid-confirmation email'));
     }
+
+    // Receipt (financial record), emailed alongside the ticket confirmation.
+    await this.notifications
+      .sendReceiptEmail(order.registration.user.email, {
+        orderId: order.id,
+        eventTitle: order.event.title,
+        orgName: order.event.organization.name,
+        paidAtLine: new Intl.DateTimeFormat('en-GB', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: order.event.timezone,
+        }).format(paidAt),
+        provider: order.provider ?? 'unknown',
+        totalFormatted: formatMoney(order.totalMinor, order.currency),
+        lines: order.items.map((it) => ({
+          description: it.tier.name,
+          quantity: it.quantity,
+          amount: formatMoney(BigInt(it.unitPriceMinor) * BigInt(it.quantity), order.currency),
+        })),
+      })
+      .catch((err) => this.logger.warn({ err }, 'Failed to send receipt email'));
   }
 
   private async markOrderFailed(orderId: string, reason?: string): Promise<void> {
@@ -389,29 +412,105 @@ export class PaymentsService {
   }
 
   /**
-   * Cron-driven cleanup. Releases pending orders that have been hanging
-   * around longer than `ORDER_HOLD_TTL_MIN`. Mirrors the failed path so the
-   * tier inventory becomes available again.
+   * Cron-driven cleanup. Releases pending orders older than `ORDER_HOLD_TTL_MIN`
+   * so the tier inventory becomes available again. Critically, before failing an
+   * order the buyer started paying for (has a providerRef) we verify it against
+   * the provider, so a paid-but-unsettled order (missed webhook AND missed
+   * return) is recovered rather than wrongly cancelled.
    */
-  async releaseStaleHolds(): Promise<{ released: number }> {
+  async releaseStaleHolds(): Promise<{ released: number; recovered: number }> {
     const ttl = Number(this.cfg.get<number>('ORDER_HOLD_TTL_MIN') ?? 20);
     const cutoff = new Date(Date.now() - ttl * 60_000);
     const stale = await this.prisma.order.findMany({
       where: { status: 'pending', createdAt: { lt: cutoff } },
-      select: { id: true },
+      select: { id: true, provider: true, providerRef: true },
       take: 50,
     });
     let released = 0;
+    let recovered = 0;
     for (const o of stale) {
       try {
+        if (o.provider && o.providerRef) {
+          const { status } = await this.settleOrder(o.id);
+          if (status === 'paid') {
+            recovered += 1;
+            this.logger.warn(
+              { orderId: o.id },
+              'Stale order was actually paid; recovered instead of releasing',
+            );
+            continue;
+          }
+        }
         await this.markOrderFailed(o.id, 'expired');
         released += 1;
       } catch (err) {
         this.logger.warn({ err, orderId: o.id }, 'Could not release stale order');
       }
     }
-    if (released > 0) this.logger.log({ released }, 'Released stale pending orders');
-    return { released };
+    if (released > 0 || recovered > 0) {
+      this.logger.log({ released, recovered }, 'Stale-hold sweep complete');
+    }
+    return { released, recovered };
+  }
+
+  /**
+   * Reconciliation sweep. Finds pending orders the buyer started paying for
+   * (has a providerRef) within the recent window and re-checks them against the
+   * provider, settling any that actually succeeded but whose webhook AND
+   * verify-on-return were both missed. Recovered/failed counts are logged so a
+   * monitor can alert on drift. Idempotent (settleOrder no-ops a settled order)
+   * and safe to run on a schedule, ahead of the TTL release so paid customers
+   * are settled promptly rather than only when their hold expires.
+   */
+  async reconcilePendingPayments(opts?: {
+    windowMinutes?: number;
+    batch?: number;
+  }): Promise<{ checked: number; recoveredPaid: number; markedFailed: number; stillPending: number }> {
+    const windowMinutes = opts?.windowMinutes ?? 60 * 24 * 3; // last 3 days
+    const batch = opts?.batch ?? 100;
+    const now = Date.now();
+    const candidates = await this.prisma.order.findMany({
+      where: {
+        status: 'pending',
+        provider: { not: null },
+        providerRef: { not: null },
+        createdAt: { lt: new Date(now - 60_000), gt: new Date(now - windowMinutes * 60_000) },
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+      take: batch,
+    });
+
+    let recoveredPaid = 0;
+    let markedFailed = 0;
+    let stillPending = 0;
+    for (const o of candidates) {
+      try {
+        const { status } = await this.settleOrder(o.id);
+        if (status === 'paid') {
+          recoveredPaid += 1;
+          this.logger.warn(
+            { orderId: o.id },
+            'Reconciliation recovered a paid order (webhook and return both missed)',
+          );
+        } else if (status === 'failed') {
+          markedFailed += 1;
+        } else {
+          stillPending += 1;
+        }
+      } catch (err) {
+        stillPending += 1;
+        this.logger.warn({ err, orderId: o.id }, 'Reconciliation check failed for order');
+      }
+    }
+
+    const summary = { checked: candidates.length, recoveredPaid, markedFailed, stillPending };
+    if (recoveredPaid > 0 || markedFailed > 0) {
+      this.logger.warn(summary, 'Payment reconciliation drift detected');
+    } else if (candidates.length > 0) {
+      this.logger.log(summary, 'Payment reconciliation clean');
+    }
+    return summary;
   }
 }
 

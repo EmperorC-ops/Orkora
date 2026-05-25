@@ -1,5 +1,6 @@
 import {
   currencyDecimals,
+  formatMoney,
   toMajor,
   toMajorUnit,
   toSmallestUnit,
@@ -78,5 +79,18 @@ describe('currency sets', () => {
     for (const c of ZERO_DECIMAL_CURRENCIES) {
       expect(THREE_DECIMAL_CURRENCIES.has(c)).toBe(false);
     }
+  });
+});
+
+describe('formatMoney (receipts/emails)', () => {
+  it('formats 2-decimal currencies with two decimals', () => {
+    expect(formatMoney(2000, 'USD')).toContain('20.00');
+    expect(formatMoney(500000, 'NGN')).toContain('5,000.00');
+  });
+
+  it('formats zero-decimal currencies with no decimal places', () => {
+    const xaf = formatMoney(100000, 'XAF');
+    expect(xaf).toContain('1,000');
+    expect(xaf).not.toContain('.00');
   });
 });

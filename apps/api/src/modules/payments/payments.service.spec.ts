@@ -347,3 +347,104 @@ describe('PaymentsService.createCheckoutForOrder provider resolution', () => {
     await expect(svc.createCheckoutForOrder('o1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('PaymentsService.reconcilePendingPayments', () => {
+  function makeSvc(candidates: Array<{ id: string }>) {
+    const prisma = { order: { findMany: jest.fn().mockResolvedValue(candidates) } };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      { get: jest.fn() } as unknown as never,
+      {} as unknown as PaymentsRegistry,
+      {} as never,
+      {} as never,
+      { record: jest.fn() } as unknown as AuditService,
+      {} as never,
+    );
+    return { svc };
+  }
+
+  it('tallies recovered/failed/pending from settleOrder results', async () => {
+    const { svc } = makeSvc([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+    const settle = jest
+      .spyOn(
+        svc as unknown as { settleOrder: (id: string) => Promise<{ status: string }> },
+        'settleOrder',
+      )
+      .mockImplementation(async (id: string) => ({
+        status: id === 'a' ? 'paid' : id === 'b' ? 'failed' : 'pending',
+      }));
+
+    const out = await svc.reconcilePendingPayments();
+
+    expect(settle).toHaveBeenCalledTimes(3);
+    expect(out).toEqual({ checked: 3, recoveredPaid: 1, markedFailed: 1, stillPending: 1 });
+  });
+
+  it('counts a thrown verify as still pending without aborting the sweep', async () => {
+    const { svc } = makeSvc([{ id: 'a' }, { id: 'b' }]);
+    const settle = jest
+      .spyOn(
+        svc as unknown as { settleOrder: (id: string) => Promise<{ status: string }> },
+        'settleOrder',
+      )
+      .mockImplementation(async (id: string) => {
+        if (id === 'a') throw new Error('provider down');
+        return { status: 'paid' };
+      });
+
+    const out = await svc.reconcilePendingPayments();
+
+    expect(settle).toHaveBeenCalledTimes(2);
+    expect(out).toEqual({ checked: 2, recoveredPaid: 1, markedFailed: 0, stillPending: 1 });
+  });
+});
+
+describe('PaymentsService.releaseStaleHolds (verify-before-fail)', () => {
+  function makeSvc(
+    stale: Array<{ id: string; provider: string | null; providerRef: string | null }>,
+  ) {
+    const prisma = { order: { findMany: jest.fn().mockResolvedValue(stale) } };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      { get: jest.fn().mockReturnValue(20) } as unknown as never,
+      {} as unknown as PaymentsRegistry,
+      {} as never,
+      {} as never,
+      { record: jest.fn() } as unknown as AuditService,
+      {} as never,
+    );
+    return { svc };
+  }
+
+  it('recovers a paid order instead of failing it, and fails the genuinely unpaid', async () => {
+    const { svc } = makeSvc([
+      { id: 'paid1', provider: 'stripe', providerRef: 'cs1' },
+      { id: 'unpaid1', provider: 'stripe', providerRef: 'cs2' },
+      { id: 'noref', provider: null, providerRef: null },
+    ]);
+    const settle = jest
+      .spyOn(
+        svc as unknown as { settleOrder: (id: string) => Promise<{ status: string }> },
+        'settleOrder',
+      )
+      .mockImplementation(async (id: string) => ({ status: id === 'paid1' ? 'paid' : 'pending' }));
+    const markFailed = jest
+      .spyOn(
+        svc as unknown as { markOrderFailed: (id: string, r?: string) => Promise<void> },
+        'markOrderFailed',
+      )
+      .mockResolvedValue(undefined);
+
+    const out = await svc.releaseStaleHolds();
+
+    // verify only ran for orders the buyer started paying for (have a providerRef)
+    expect(settle).toHaveBeenCalledWith('paid1');
+    expect(settle).toHaveBeenCalledWith('unpaid1');
+    expect(settle).not.toHaveBeenCalledWith('noref');
+    // the paid order is recovered, never failed; the others are released
+    expect(markFailed).not.toHaveBeenCalledWith('paid1', expect.anything());
+    expect(markFailed).toHaveBeenCalledWith('unpaid1', 'expired');
+    expect(markFailed).toHaveBeenCalledWith('noref', 'expired');
+    expect(out).toEqual({ released: 2, recovered: 1 });
+  });
+});
