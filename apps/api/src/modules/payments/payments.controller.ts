@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -44,6 +45,9 @@ export class PaymentsController {
   /** Mints a checkout URL for the given pending order. */
   @Post('orders/:orderId/checkout')
   @HttpCode(201)
+  // Each call hits the PSP to mint a hosted-checkout session; cap per IP so a
+  // script cannot spin up sessions in a loop.
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   startCheckout(@Param('orderId') orderId: string) {
     return this.payments.createCheckoutForOrder(orderId);
   }

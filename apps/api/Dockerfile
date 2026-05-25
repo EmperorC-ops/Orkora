@@ -66,6 +66,12 @@ COPY --chown=nestjs:nodejs --from=builder /app/apps/api/package.json ./
 # database when BOOTSTRAP_SCHEMA=true.
 COPY --chown=nestjs:nodejs --from=builder /app/schema.sql /app/schema.sql
 
+# Forward-only migrations + their runner. The entrypoint applies any pending
+# migrations on boot (advisory-locked) so existing databases stay in sync
+# without `prisma db push`. Needs `pg`, which is a production dependency.
+COPY --chown=nestjs:nodejs --from=builder /app/apps/api/migrations ./migrations
+COPY --chown=nestjs:nodejs --from=builder /app/apps/api/scripts ./scripts
+
 COPY --chown=nestjs:nodejs --from=builder /app/apps/api/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 

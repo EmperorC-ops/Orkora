@@ -33,7 +33,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
     cors: {
-      origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
+      // Locked to an explicit allow-list. Trim + drop empties so a stray space
+      // or trailing comma in CORS_ORIGINS cannot silently break a real origin
+      // (a mismatched origin fails closed: the browser blocks the response).
+      origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean),
       credentials: true,
     },
     // Capture the raw request body alongside the JSON-parsed body. The
@@ -77,7 +83,9 @@ async function bootstrap() {
   app.use(cookieParser());
   app.enableShutdownHooks();
 
-  app.setGlobalPrefix('v1', { exclude: ['health', 'metrics'] });
+  // Liveness (/health) and readiness (/health/ready) stay unprefixed so the
+  // container healthcheck and external uptime monitors hit stable URLs.
+  app.setGlobalPrefix('v1', { exclude: ['health', 'health/ready', 'metrics'] });
 
   app.useGlobalPipes(
     new ValidationPipe({

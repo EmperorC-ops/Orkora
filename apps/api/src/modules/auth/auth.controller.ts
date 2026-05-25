@@ -90,6 +90,7 @@ export class AuthController {
 
   @Post('signup')
   @HttpCode(201)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   async signup(
     @Body() dto: SignupDto,
     @Res({ passthrough: true }) res: Response,
@@ -99,6 +100,8 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
+  // Brute-force defense on the password path: 10 attempts/min per IP (or user).
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -112,6 +115,7 @@ export class AuthController {
    */
   @Post('social')
   @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async social(
     @Body() dto: SocialLoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -126,6 +130,9 @@ export class AuthController {
    */
   @Post('refresh')
   @HttpCode(200)
+  // Refresh runs whenever an access token expires; generous but bounded so a
+  // leaked/looping client cannot hammer the rotation path.
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
   async refresh(
     @Body() dto: RefreshDto | undefined,
     @Req() req: Request,

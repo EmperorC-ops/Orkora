@@ -63,13 +63,17 @@ Exit: refunds work, all target currencies are provably correct, webhooks are liv
 
 Goal: pass an OWASP-top-10 style review with no criticals; abuse is contained.
 
-- [BETA] Auth review: refresh-token rotation + revocation on logout/compromise, OTP brute-force lockout and per-destination rate limits, JWT signing-key rotation plan, session-fixation checks.
-- [BETA] Rate limiting tuned on the hot/abusable paths: OTP send, login, public registration, checkout creation, public API. (Throttler guard exists; set real limits.)
-- [BETA] Secrets: confirm none are committed, rotate the launch set (rotation script exists), document where each lives. Lock down CORS to known origins.
-- [BETA] Input/file validation coverage: confirm zod/class-validator on every public input; validate R2 upload content-type/size; sanitize anything rendered.
-- [BETA] Move CSP from report-only to enforce once the report stream is clean.
+- [BETA] [DONE] Auth review: refresh-token rotation on use, revoke-all on logout, and reuse detection (a replayed already-revoked token revokes the whole family). OTP has a 30s cooldown, an hourly per-destination send cap, and per-code attempt lockout. argon2 passwords; peppered refresh-token hashes. Session fixation N/A (stateless JWT + rotating refresh tokens). JWT signing-key rotation: see note.
+- [BETA] [DONE] Rate limits tuned per hot path (over the 300/min global): OTP send 5/min, OTP verify/exchange 10/min, login 10/min, signup 5/min, social 10/min, refresh 60/min, public registration 10/min, checkout creation 20/min, uploads 30/min, public API 120/min. Buckets by user when authenticated, else IP.
+- [BETA] [DONE] Secrets: `.env*` gitignored (none committed); rotation script at `scripts/rotate-secrets.sh`; CORS locked to a trimmed `CORS_ORIGINS` allow-list. Locations: Render env (API secrets), Vercel env (web `NEXT_PUBLIC_API_URL`), Neon (DB).
+- [BETA] [DONE] Input/file validation: global ValidationPipe fail-closed (whitelist + forbidNonWhitelisted + forbidUnknownValues); R2 uploads enforce a content-type allow-list signed into the PUT; email values HTML-escaped. Upload size: see note.
+- [BETA] [IN PROGRESS] CSP: API enforces a strict CSP; the web now ships a report-only CSP to `/v1/csp-reports`. Flip to enforce once the report stream is clean (Next App Router needs nonce middleware before `script-src` can be `'self'`-only).
 - [SCALE] Automated dependency + container scanning in CI (Dependabot/npm audit/Trivy); triage criticals.
 - [FOLLOW] Lightweight external pen test or a structured self-assessment before public launch.
+
+Notes / follow-ups from this pass:
+- JWT signing-key rotation: RS256 keys in Render env (`JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY`). To rotate without mass logout, support a second active public key for verification during an overlap window, then retire the old key. SCALE follow-up; write the runbook before public launch.
+- Upload size: presigned PUT signs content-type but cannot cap object size without changing the client contract (presigned POST with content-length-range, or an R2/Cloudflare-Worker edge limit). Content-type is enforced today; size is the recommended edge follow-up.
 
 Exit: security checklist signed off; scanners show no unaddressed criticals; abuse controls verified.
 

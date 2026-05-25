@@ -177,9 +177,21 @@ export class EventsService {
     return this.serializeEvent(event);
   }
 
+  /**
+   * Authenticated read-by-id (GET /v1/events/:id). This route is JWT-guarded but
+   * NOT org-scoped, so it must never expose another org's unpublished work:
+   * draft/archived events, and events of suspended orgs, are hidden here exactly
+   * as on the public by-code/by-slug reads. Organizers see their own drafts
+   * through the org-scoped getForOrg(orgId, eventId) instead. The status +
+   * organization filters live in the query so a non-matching id simply 404s.
+   */
   async findById(id: string) {
-    const event = await this.prisma.event.findUnique({
-      where: { id },
+    const event = await this.prisma.event.findFirst({
+      where: {
+        id,
+        status: { notIn: ['draft', 'archived'] },
+        organization: { status: { not: 'suspended' } },
+      },
       include: {
         tracks: true,
         sessions: { orderBy: { startAt: 'asc' } },

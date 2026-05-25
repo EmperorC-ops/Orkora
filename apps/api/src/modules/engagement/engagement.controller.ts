@@ -63,10 +63,11 @@ export class OrganizerPollsController {
   @Post()
   @Roles('organizer')
   async create(
+    @Param('orgId') orgId: string,
     @Param('eventId') eventId: string,
     @Body() dto: CreatePollDto,
   ) {
-    const poll = await this.service.createPoll(dto);
+    const poll = await this.service.createPoll({ ...dto, orgId, eventId });
     const shaped = await this.service.getPoll(poll.id);
     this.gateway.emitPollUpdate(eventId, shaped);
     return shaped;
@@ -74,8 +75,12 @@ export class OrganizerPollsController {
 
   @Post(':pollId/close')
   @Roles('organizer')
-  async close(@Param('eventId') eventId: string, @Param('pollId') pollId: string) {
-    const closed = await this.service.closePoll(pollId);
+  async close(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Param('pollId') pollId: string,
+  ) {
+    const closed = await this.service.closePoll({ orgId, eventId, pollId });
     this.gateway.emitPollUpdate(eventId, closed);
     return closed;
   }

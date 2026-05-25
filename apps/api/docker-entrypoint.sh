@@ -1,10 +1,14 @@
 #!/bin/sh
 # Production entrypoint.
-# Schema.sql is the canonical source of truth, applied once at first boot
-# of a brand-new database. Subsequent schema changes ship as numbered SQL
-# files under /migrations and run via `psql` from a one-off shell, not from
-# this entrypoint. We never run `prisma migrate deploy` because the project
-# does not maintain a Prisma migration history.
+# Schema.sql is the canonical source of truth, applied once at first boot of a
+# brand-new database (BOOTSTRAP_SCHEMA=true). Subsequent schema changes ship as
+# numbered, forward-only SQL files under /app/migrations and are applied by the
+# migration runner (scripts/migrate.mjs) on every boot, tracked in the
+# schema_migrations table and serialized with a Postgres advisory lock so
+# concurrent instances cannot race. We never run `prisma migrate deploy` or
+# `prisma db push`: the project keeps its DDL in schema.sql + migrations, and
+# db push would try to drop the SQL-only objects (uuidv7(), event_metrics,
+# event_daily_rollup, RLS policies) that schema.prisma does not model.
 set -e
 
 # Optional bootstrap: apply schema.sql when the DB is empty. Detects
@@ -33,6 +37,16 @@ if [ "${BOOTSTRAP_SCHEMA:-false}" = "true" ]; then
   else
     echo "[entrypoint] schema already applied"
   fi
+fi
+
+# Apply any pending forward-only migrations before the app starts, so the
+# running code never sees a database missing a column it expects. Safe to run on
+# every boot and across multiple instances (advisory-locked, idempotent).
+# Set RUN_MIGRATIONS_ON_BOOT=false to apply them out-of-band instead (e.g. a
+# Render Pre-Deploy Command running `node scripts/migrate.mjs`).
+if [ "${RUN_MIGRATIONS_ON_BOOT:-true}" = "true" ]; then
+  echo "[entrypoint] applying pending migrations"
+  node scripts/migrate.mjs
 fi
 
 # Optional one-time seed for the first preview boot.

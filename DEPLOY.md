@@ -65,12 +65,18 @@ not reuse values across environments.
    region eu-central-1.
 2. Copy the connection string. It looks like
    `postgresql://USER:PASSWORD@HOST/DB?sslmode=require`.
-3. From a local shell, apply the schema once:
+3. From a local shell, apply the canonical schema once, then bring the
+   incremental migrations up to date:
 
    ```bash
    psql "<your-neon-connection-string>" < schema.sql
-   psql "<your-neon-connection-string>" < migrations/2026-04-28-add-message-upvotes.sql
+   node apps/api/scripts/migrate.mjs --url "<your-neon-connection-string>"
    ```
+
+   `schema.sql` already includes every change up to now, so the runner records
+   the existing migrations as applied (they are idempotent no-ops on a fresh DB)
+   and the database is immediately in sync. From here on, new changes are picked
+   up automatically on deploy (see "Migrations after the first deploy").
 
 4. Neon supports `pg_uuidv7` natively but our `schema.sql` uses a small
    plpgsql polyfill, so this works with vanilla Postgres 15.
@@ -394,14 +400,31 @@ catches the common drift.
 
 ## Migrations after the first deploy
 
-Future schema changes ship as SQL files committed under `/migrations/`.
-Apply them once per environment:
+Schema changes ship as forward-only, numbered SQL files under
+`apps/api/migrations/` (e.g. `0001_orders_refund_initiated_at.sql`) and are
+applied by the migration runner, never by `prisma db push` (which would try to
+drop the SQL-only objects this project relies on: `uuidv7()`, `event_metrics`,
+the `event_daily_rollup` materialized view, and the RLS policies).
+
+On deploy, the container entrypoint runs pending migrations automatically before
+the API serves traffic (`RUN_MIGRATIONS_ON_BOOT=true`, the default). The runner
+records applied files in a `schema_migrations` table, runs each in a
+transaction, takes a Postgres advisory lock so multiple instances cannot race,
+and refuses to run if an already-applied migration's contents changed. So in the
+normal case you do nothing: push, and the new instance migrates itself.
+
+To apply out-of-band instead (recommended for structural changes you want to run
+before the new code goes live), set `RUN_MIGRATIONS_ON_BOOT=false` and either:
 
 ```bash
-# Against Neon (production)
-psql "$NEON_PROD_URL" < migrations/2026-MM-DD-name.sql
+# A) Render Pre-Deploy Command on the API service:
+node scripts/migrate.mjs
+
+# B) From your machine, against any environment:
+node apps/api/scripts/migrate.mjs --url "<DATABASE_URL>"
+node apps/api/scripts/migrate.mjs --url "<DATABASE_URL>" --status   # dry run
 ```
 
-For Render Postgres, open the **Shell** tab on the Postgres resource and
-paste the SQL there, or use the `psql` connection string from the Render
-dashboard.
+Authoring a change: edit `schema.sql` (fresh installs) AND add a numbered,
+idempotent file in `apps/api/migrations/` (existing installs). See
+LAUNCH_RUNBOOKS.md section 1.1 for the full workflow.

@@ -28,7 +28,15 @@ interface JwtPayload {
  * chat room and receive the same poll updates.
  *
  * Auth: clients pass `auth.token` on `io.connect`. We verify the JWT locally
- * with the same public key passport-jwt uses.
+ * with the same public key passport-jwt uses, which only AUTHENTICATES the user.
+ *
+ * Authorization model: live participation (chat:message, qa:ask, poll:vote,
+ * qa:upvote) is open to any authenticated user, matching the public live room
+ * (the REST engagement reads are unauthenticated too). Organizer-only actions
+ * must be authorized explicitly here because they bypass the REST RolesGuard:
+ * `qa:answer` posts an organizer-level reply, so the service verifies the user
+ * is an organizer of the question's event org before writing. Add the same
+ * service-level org check to any future organizer socket action.
  *
  * Events client -> server:
  *   `chat:join`     { eventId }

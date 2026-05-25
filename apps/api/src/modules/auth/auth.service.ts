@@ -140,7 +140,24 @@ export class AuthService {
       where: { tokenHash: hash, revokedAt: null, expiresAt: { gt: new Date() } },
       include: { user: true },
     });
-    if (!stored) throw new UnauthorizedException('Invalid refresh token');
+    if (!stored) {
+      // Reuse detection: a token hash we know but that is already revoked
+      // (rotated out or logged out) being presented again is the signature of a
+      // stolen refresh token. We cannot tell the attacker from the victim, so we
+      // revoke the user's whole token family, forcing every session to
+      // re-authenticate. A hash we have never seen is just an invalid token.
+      const seen = await this.prisma.refreshToken.findFirst({
+        where: { tokenHash: hash },
+        select: { userId: true },
+      });
+      if (seen) {
+        await this.prisma.refreshToken.updateMany({
+          where: { userId: seen.userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      throw new UnauthorizedException('Invalid refresh token');
+    }
 
     // Rotate: revoke the presented token, issue a new pair.
     await this.prisma.refreshToken.update({

@@ -17,6 +17,10 @@ const CODE_LENGTH = 6;
 const CODE_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
 const SEND_COOLDOWN_SECONDS = 30;
+// Beyond the short cooldown, cap how many codes a single destination + purpose
+// can request per hour. Defends against inbox/SMS flooding of a victim and SMS
+// toll fraud. A real user rarely needs more than a couple of resends.
+const MAX_SENDS_PER_HOUR = 6;
 
 class TooManyRequests extends HttpException {
   constructor(message: string) {
@@ -51,6 +55,19 @@ export class OtpService {
     });
     if (recent) {
       throw new TooManyRequests('Please wait before requesting another code');
+    }
+
+    const sentInLastHour = await this.prisma.otpCode.count({
+      where: {
+        destination,
+        purpose: input.purpose,
+        createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+      },
+    });
+    if (sentInLastHour >= MAX_SENDS_PER_HOUR) {
+      throw new TooManyRequests(
+        'Too many codes requested for this destination. Please try again later.',
+      );
     }
 
     const code = generateCode(CODE_LENGTH);

@@ -169,15 +169,44 @@ export class EngagementService {
   }) {
     const question = await this.prisma.message.findUnique({
       where: { id: input.questionId },
-      include: { channel: true },
+      include: { channel: { select: { eventId: true } } },
     });
     if (!question) throw new NotFoundException('Question not found');
+    // Authorization: answering posts an organizer-level reply, so the actor must
+    // be an organizer (or above) of THIS question's event's org. The websocket
+    // only authenticates the user; without this check any authenticated attendee
+    // could post "official" answers to any event's Q&A by id.
+    await this.assertEventOrganizer(input.userId, question.channel.eventId);
     return this.postMessage({
       userId: input.userId,
       channelId: question.channelId,
       body: input.body,
       replyToId: input.questionId,
     });
+  }
+
+  /**
+   * Throws unless `userId` has an organizer-or-above membership in the org that
+   * owns `eventId`. Used to gate organizer-only socket actions, which bypass the
+   * REST RolesGuard. DB-backed so it does not depend on JWT membership claims.
+   */
+  private async assertEventOrganizer(userId: string, eventId: string): Promise<void> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { organizationId: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        organizationId: event.organizationId,
+        role: { in: ['owner', 'admin', 'organizer'] },
+      },
+      select: { id: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException('Only event organizers can answer questions');
+    }
   }
 
   async toggleUpvote(input: { questionId: string; userId: string }) {
@@ -200,6 +229,8 @@ export class EngagementService {
   // ----- polls -----
 
   async createPoll(input: {
+    orgId: string;
+    eventId: string;
     sessionId: string;
     question: string;
     options: string[];
@@ -208,6 +239,15 @@ export class EngagementService {
     if (input.options.length < 2 || input.options.length > 8) {
       throw new BadRequestException('A poll needs 2 to 8 options');
     }
+    // Tenancy: the org-scoped RolesGuard only proves membership in :orgId, not
+    // that the body's sessionId belongs there. Verify the session belongs to
+    // this event and this org before creating, so an organizer of one org
+    // cannot attach a poll to another org's session by id.
+    const session = await this.prisma.session.findFirst({
+      where: { id: input.sessionId, event: { id: input.eventId, organizationId: input.orgId } },
+      select: { id: true },
+    });
+    if (!session) throw new NotFoundException('Session not found for this event');
     const options: PollOption[] = input.options.map((label, i) => ({
       id: String(i + 1),
       label: label.trim(),
@@ -241,9 +281,19 @@ export class EngagementService {
     return this.shapePoll(poll);
   }
 
-  async closePoll(pollId: string) {
+  async closePoll(input: { orgId: string; eventId: string; pollId: string }) {
+    // Tenancy: only close a poll whose session's event belongs to this org, so
+    // an organizer cannot close another org's poll by guessing its id.
+    const owned = await this.prisma.poll.findFirst({
+      where: {
+        id: input.pollId,
+        session: { event: { id: input.eventId, organizationId: input.orgId } },
+      },
+      select: { id: true },
+    });
+    if (!owned) throw new NotFoundException('Poll not found for this event');
     const poll = await this.prisma.poll.update({
-      where: { id: pollId },
+      where: { id: input.pollId },
       data: { status: 'closed', closedAt: new Date() },
       include: { votes: true, session: { select: { id: true, title: true, eventId: true } } },
     });
