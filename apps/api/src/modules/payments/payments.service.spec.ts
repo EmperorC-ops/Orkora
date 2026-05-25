@@ -44,6 +44,7 @@ function makeService(prisma: ReturnType<typeof makePrismaMock>, refund: jest.Moc
     NOTIFICATIONS,
     SIGNER,
     audit as unknown as AuditService,
+    {} as never,
   );
   return { svc, audit, registry };
 }
@@ -158,6 +159,7 @@ function makeSettleService(opts: {
     {} as never,
     {} as never,
     audit as unknown as AuditService,
+    {} as never,
   );
   return { svc, prisma, provider, registry };
 }
@@ -265,5 +267,83 @@ describe('PaymentsService.settleOrder', () => {
     });
     const out = await svc.settleOrder('o1');
     expect(out).toEqual({ status: 'pending' });
+  });
+});
+
+/**
+ * createCheckoutForOrder must pick the provider from the org's per-currency
+ * preference (Settings > Payments), not from whatever was stored on the order
+ * at registration time. This is what makes an override actually route a
+ * checkout (e.g. GHS -> Flutterwave) and stops a client forcing a provider.
+ */
+describe('PaymentsService.createCheckoutForOrder provider resolution', () => {
+  function makeOrder() {
+    return {
+      id: 'o1',
+      status: 'pending',
+      currency: 'GHS',
+      provider: 'paystack', // chosen at registration; must be overridden
+      totalMinor: 5000n,
+      user: { email: 'buyer@example.com' },
+      event: { title: 'Launch', organizationId: 'org-1' },
+      registration: { id: 'r1' },
+    };
+  }
+
+  it('resolves the provider from the org preference, persists it, and uses it', async () => {
+    const createCheckoutSession = jest
+      .fn()
+      .mockResolvedValue({ sessionId: 'flw_sess_1', url: 'https://checkout.flutterwave.com/x' });
+    const update = jest.fn().mockResolvedValue({});
+    const prisma = {
+      order: { findUnique: jest.fn().mockResolvedValue(makeOrder()), update },
+    };
+    const registry = {
+      resolve: jest.fn().mockReturnValue({ name: 'flutterwave', createCheckoutSession }),
+    } as unknown as PaymentsRegistry;
+    const preferences = { resolveForOrg: jest.fn().mockResolvedValue('flutterwave') };
+    const cfg = { get: jest.fn().mockReturnValue('https://app.example.com') };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      cfg as unknown as never,
+      registry,
+      {} as never,
+      {} as never,
+      { record: jest.fn() } as unknown as AuditService,
+      preferences as unknown as never,
+    );
+
+    const out = await svc.createCheckoutForOrder('o1');
+
+    expect(preferences.resolveForOrg).toHaveBeenCalledWith('org-1', 'GHS');
+    expect(registry.resolve).toHaveBeenCalledWith('flutterwave');
+    expect(out).toEqual({ url: 'https://checkout.flutterwave.com/x', provider: 'flutterwave' });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ provider: 'flutterwave' }) }),
+    );
+    expect(createCheckoutSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountMinor: 5000n,
+        currency: 'GHS',
+        customerEmail: 'buyer@example.com',
+      }),
+    );
+  });
+
+  it('throws when no provider resolves for the currency', async () => {
+    const prisma = {
+      order: { findUnique: jest.fn().mockResolvedValue(makeOrder()), update: jest.fn() },
+    };
+    const preferences = { resolveForOrg: jest.fn().mockResolvedValue(null) };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      { get: jest.fn() } as unknown as never,
+      { resolve: jest.fn() } as unknown as PaymentsRegistry,
+      {} as never,
+      {} as never,
+      { record: jest.fn() } as unknown as AuditService,
+      preferences as unknown as never,
+    );
+    await expect(svc.createCheckoutForOrder('o1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });

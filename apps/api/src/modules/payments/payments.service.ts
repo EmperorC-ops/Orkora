@@ -5,6 +5,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { TicketSigner } from '../registrations/ticket-signer';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
+import { PaymentPreferencesService } from './preferences.service';
 import type { PaymentMethodName } from './providers/types';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class PaymentsService {
     private readonly notifications: NotificationsService,
     private readonly signer: TicketSigner,
     private readonly audit: AuditService,
+    private readonly preferences: PaymentPreferencesService,
   ) {}
 
   /**
@@ -137,11 +139,18 @@ export class PaymentsService {
         `Order is in status "${order.status}". Only pending orders can be paid.`,
       );
     }
-    if (!order.provider) {
-      throw new BadRequestException('Order has no payment provider set');
+    // Resolve the provider authoritatively from the org's per-currency
+    // preference (Settings > Payments), falling back to the regional default.
+    // We do not trust the provider chosen at registration time, so an org
+    // override actually takes effect and the client cannot force a provider.
+    const providerName = await this.preferences.resolveForOrg(
+      order.event.organizationId,
+      order.currency,
+    );
+    if (!providerName) {
+      throw new BadRequestException('No payment provider is configured for this currency');
     }
-
-    const provider = this.registry.resolve(order.provider as PaymentMethodName);
+    const provider = this.registry.resolve(providerName);
 
     const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
     const successUrl = `${appUrl}/r/${order.id}/confirm?session_id={CHECKOUT_SESSION_ID}`;
@@ -159,7 +168,7 @@ export class PaymentsService {
 
     await this.prisma.order.update({
       where: { id: order.id },
-      data: { providerRef: session.sessionId },
+      data: { providerRef: session.sessionId, provider: providerName },
     });
 
     return { url: session.url, provider: provider.name };
