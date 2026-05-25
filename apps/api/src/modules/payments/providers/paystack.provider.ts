@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { toSmallestUnit } from '../money';
 import type {
   CheckoutSession,
   CreateCheckoutInput,
@@ -53,7 +54,7 @@ export class PaystackProvider implements PaymentProvider {
       },
       body: JSON.stringify({
         email: input.customerEmail,
-        amount: Number(input.amountMinor),
+        amount: toSmallestUnit(input.amountMinor, input.currency),
         currency: input.currency.toUpperCase(),
         callback_url: input.successUrl,
         // Paystack passes `metadata` straight through to the webhook payload.
@@ -198,7 +199,7 @@ export class PaystackProvider implements PaymentProvider {
       },
       body: JSON.stringify({
         transaction: input.providerRef,
-        amount: Number(input.amountMinor),
+        amount: toSmallestUnit(input.amountMinor, input.currency),
         currency: input.currency.toUpperCase(),
       }),
     });

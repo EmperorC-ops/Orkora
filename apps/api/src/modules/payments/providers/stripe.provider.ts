@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { toSmallestUnit } from '../money';
 import type {
   CheckoutSession,
   CreateCheckoutInput,
@@ -51,7 +52,7 @@ export class StripeProvider implements PaymentProvider {
           quantity: 1,
           price_data: {
             currency: input.currency.toLowerCase(),
-            unit_amount: Number(input.amountMinor),
+            unit_amount: toSmallestUnit(input.amountMinor, input.currency),
             product_data: { name: input.description },
           },
         },
@@ -178,7 +179,7 @@ export class StripeProvider implements PaymentProvider {
     }
     await this.client.refunds.create({
       payment_intent: paymentIntent,
-      amount: Number(input.amountMinor),
+      amount: toSmallestUnit(input.amountMinor, input.currency),
       // We do not pass `currency` because Stripe derives it from the
       // payment intent. Passing a different currency here causes a 400.
     });

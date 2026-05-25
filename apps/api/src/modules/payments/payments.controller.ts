@@ -69,6 +69,39 @@ export class PaymentsController {
     await this.payments.settleOrder(orderId);
     return this.payments.getOrderStatus(orderId);
   }
+
+  /**
+   * Provider webhook endpoint. Public by design: providers authenticate by
+   * signing the payload (verified per-provider inside handleWebhook), not with a
+   * JWT. The raw body is captured globally via `rawBody: true` in main.ts and
+   * read from `req.rawBody` for signature verification. This lives on the
+   * unauthenticated payments controller so provider callbacks are not rejected
+   * by the organizer JWT guard.
+   */
+  @Post('webhook/:provider')
+  @HttpCode(200)
+  async webhook(
+    @Param('provider') providerName: string,
+    @Headers('stripe-signature') stripeSig: string | undefined,
+    @Headers('x-paystack-signature') paystackSig: string | undefined,
+    @Headers('verif-hash') flutterSig: string | undefined,
+    @Req() req: Request & { rawBody?: Buffer },
+  ) {
+    const provider = providerName.toLowerCase() as PaymentMethodName;
+    if (!SUPPORTED.includes(provider)) {
+      throw new BadRequestException(`Unsupported provider: ${providerName}`);
+    }
+    const signature =
+      provider === 'stripe' ? stripeSig : provider === 'paystack' ? paystackSig : flutterSig;
+    if (!signature) {
+      throw new UnauthorizedException('Missing signature header');
+    }
+    const body = req.rawBody;
+    if (!body) {
+      throw new BadRequestException('Webhook body was not captured raw; check main.ts rawBody flag');
+    }
+    return this.payments.handleWebhook(provider, body, signature);
+  }
 }
 
 /**
@@ -96,36 +129,5 @@ export class OrganizerPaymentsController {
       actorUserId: user.userId,
       requestId: req.id,
     });
-  }
-
-  /**
-   * Provider webhook endpoint. The raw request body is required for
-   * signature verification, so the body parser is bypassed for this route in
-   * `main.ts`. We pull `req.rawBody` out of the request object the JSON
-   * parser left there.
-   */
-  @Post('webhook/:provider')
-  @HttpCode(200)
-  async webhook(
-    @Param('provider') providerName: string,
-    @Headers('stripe-signature') stripeSig: string | undefined,
-    @Headers('x-paystack-signature') paystackSig: string | undefined,
-    @Headers('verif-hash') flutterSig: string | undefined,
-    @Req() req: Request & { rawBody?: Buffer },
-  ) {
-    const provider = providerName.toLowerCase() as PaymentMethodName;
-    if (!SUPPORTED.includes(provider)) {
-      throw new BadRequestException(`Unsupported provider: ${providerName}`);
-    }
-    const signature =
-      provider === 'stripe' ? stripeSig : provider === 'paystack' ? paystackSig : flutterSig;
-    if (!signature) {
-      throw new UnauthorizedException('Missing signature header');
-    }
-    const body = req.rawBody;
-    if (!body) {
-      throw new BadRequestException('Webhook body was not captured raw; check main.ts rawBody flag');
-    }
-    return this.payments.handleWebhook(provider, body, signature);
   }
 }

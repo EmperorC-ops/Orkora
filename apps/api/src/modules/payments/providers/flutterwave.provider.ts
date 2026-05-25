@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
+import { toMajorUnit } from '../money';
 import type {
   CheckoutSession,
   CreateCheckoutInput,
@@ -50,7 +51,7 @@ export class FlutterwaveProvider implements PaymentProvider {
     if (!this.secretKey) throw new Error('Flutterwave provider is not configured');
 
     // Flutterwave amount is in major units (e.g. NGN naira), not kobo.
-    const major = Number(input.amountMinor) / 100;
+    const major = toMajorUnit(input.amountMinor);
 
     const res = await fetch('https://api.flutterwave.com/v3/payments', {
       method: 'POST',
@@ -201,7 +202,7 @@ export class FlutterwaveProvider implements PaymentProvider {
           Authorization: `Bearer ${this.secretKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ amount: Number(input.amountMinor) / 100 }),
+        body: JSON.stringify({ amount: toMajorUnit(input.amountMinor) }),
       },
     );
     if (!refund.ok) {
