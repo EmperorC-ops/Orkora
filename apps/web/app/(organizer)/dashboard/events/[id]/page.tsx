@@ -567,18 +567,18 @@ function NewSpeakerForm({
           name="fullName"
           required
           placeholder="Full name"
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
         <input
           name="title"
           placeholder="Role / title (optional)"
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
         <textarea
           name="bio"
           rows={3}
           placeholder="Short bio (optional)"
-          className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
         <div className="flex justify-end">
           <button
@@ -671,7 +671,7 @@ function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
         name="name"
         required
         placeholder="Tier name (e.g. Early bird)"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-2"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-2"
       />
       <input
         name="price"
@@ -681,12 +681,12 @@ function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
         defaultValue="0"
         required
         placeholder="Price"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
       />
       <select
         name="currency"
         defaultValue="NGN"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
       >
         <option>NGN</option>
         <option>USD</option>
@@ -699,7 +699,7 @@ function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
         type="number"
         min="1"
         placeholder="Qty (optional)"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
       />
       <button
         type="submit"
@@ -712,7 +712,7 @@ function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
         name="description"
         rows={2}
         placeholder="Description (optional)"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-6"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-6"
       />
       {err && <p className="text-xs text-red-700 sm:col-span-6">{err}</p>}
     </form>
@@ -755,7 +755,7 @@ function NewTrackForm({ orgId, eventId, onCreated, onError }: NewTrackFormProps)
         name="name"
         required
         placeholder="Track name (e.g. Main stage)"
-        className="flex-1 min-w-[200px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+        className="flex-1 min-w-[200px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
       />
       <input
         name="color"
@@ -827,12 +827,12 @@ function NewSessionForm({
         name="title"
         required
         placeholder="Session title"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-4"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-4"
       />
       <select
         name="trackId"
         defaultValue=""
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-2"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-2"
       >
         <option value="">No track</option>
         {tracks.map((t) => (
@@ -847,7 +847,7 @@ function NewSessionForm({
           name="startAt"
           required
           type="datetime-local"
-          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
       </label>
       <label className="text-xs font-medium text-slate-600 sm:col-span-3">
@@ -856,27 +856,27 @@ function NewSessionForm({
           name="endAt"
           required
           type="datetime-local"
-          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
       </label>
       <input
         name="streamUrl"
         type="url"
         placeholder="Stream URL (https://...)"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-4"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-4"
       />
       <input
         name="capacity"
         type="number"
         min="1"
         placeholder="Capacity (optional)"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-2"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-2"
       />
       <textarea
         name="description"
         rows={2}
         placeholder="Description (optional)"
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-6"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-6"
       />
       <label className="flex items-center gap-2 text-xs font-medium text-slate-600 sm:col-span-4">
         <input name="requiresRsvp" type="checkbox" />

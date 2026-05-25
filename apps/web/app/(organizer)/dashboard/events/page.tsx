@@ -89,7 +89,7 @@ export default function EventsListPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search events"
-            className="w-full rounded-full border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 sm:w-72"
+            className="w-full rounded-full border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 sm:w-72"
           />
         </div>
       </div>

@@ -79,7 +79,7 @@ export default function NewEventPage() {
             <select
               name="kind"
               defaultValue="physical"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
             >
               <option value="physical">In person</option>
               <option value="virtual">Virtual</option>
@@ -139,7 +139,7 @@ interface FieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 function Field({ label, name, textarea, ...rest }: FieldProps) {
   const cls =
-    'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200';
+    'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200';
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
