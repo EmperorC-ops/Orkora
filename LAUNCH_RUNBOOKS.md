@@ -94,12 +94,21 @@ liveness so blips don't restart-loop.
 ## 0.3 Backup + restore drill (Neon PITR)
 
 1. Confirm Neon point-in-time-recovery retention on the prod project (note the
-   window, e.g. 7 days) and that it covers your acceptable data-loss target.
-2. Drill: create a Neon branch from a timestamp ~1 hour ago, point a throwaway
-   API instance (or local) at it, and confirm the data is intact and the app
-   boots. Time how long the whole thing takes.
-3. Write down RPO (max acceptable data loss) and RTO (time to restore) and where
-   the restore steps live.
+   window: 24h on the free plan, 7 days on Launch, 30 days on Scale) and that
+   it covers your acceptable data-loss target.
+2. Drill: create a Neon branch from a timestamp ~1 hour ago. In the SQL Editor,
+   switch the branch selector to the new branch and run
+   `select count(*) from users; select count(*) from events;` to confirm the
+   data is intact. Time the whole thing from "click Create branch" to "verify
+   query returned"; that is your RTO. Delete the branch when done.
+3. Write down RPO (max acceptable data loss = your PITR window) and RTO (time
+   to restore = what you just measured) and where this runbook lives.
+
+Gotcha: Neon's free plan caps total compute hours across branches per month, so
+running this drill (or standing up the staging branch in 0.1) can hit the
+ceiling and lock you out of the verify step mid-drill. The Launch plan
+($19/month) removes the cap and extends PITR retention to 7 days; it's the
+same upgrade Stage 0.1 needs.
 
 Exit: you have personally restored the database once and know your RPO/RTO.
 
@@ -175,3 +184,87 @@ Follow-ups:
   Not in the core beta loop, but close it before enabling live features broadly.
 - Note: memberships are baked into the 15-min access token; removing a member is
   effective on next token refresh, not instantly. Acceptable; document it.
+
+---
+
+## 6.1 NDPR baseline (organizational)
+
+The technical safeguards are mostly in place (TLS, argon2, peppered token
+hashes, RLS-ready schema, tenant scoping audited, audit log, refresh-token
+rotation + reuse detection, rate limits, ValidationPipe). NDPR also asks for
+*organizational* practices. Each item below is a small artifact to commit to
+the repo or to your shared drive; together they form the file you would hand
+NITDA if asked.
+
+1. **Designate a DPO** (or document why you fall below the threshold that
+   requires one). Name, email, and accountability mandate. Put it in the
+   privacy policy (`/legal/privacy`, currently `[FILL IN]`).
+2. **Record of Processing Activities (ROPA)**. One sheet listing each
+   processing activity (account auth, ticketing, payments, live engagement,
+   support, analytics), its lawful basis (contract / legitimate interest /
+   legal obligation), the categories of data, retention, sub-processors, and
+   transfer mechanism if cross-border.
+3. **Sub-processor list** (publish on the privacy page or link to it): Render,
+   Cloudflare R2, Neon, Postmark, Sentry, Stripe, Paystack, Flutterwave.
+   Region + DPA reference per row.
+4. **Data retention defaults** (already drafted in the privacy policy; pin
+   the exact numbers): account 12 months post-closure, audit + webhook
+   events 24 months, server logs 90 days. Anything you keep longer needs a
+   reason.
+5. **Breach response runbook**: detection sources (Sentry 5xx alerts,
+   UptimeRobot, audit-log anomalies), on-call owner, NITDA notification
+   target (within 72 hours of awareness), data-subject notification template,
+   post-incident review template.
+6. **Data Subject Rights (DSR) workflow**: `privacy@orkora.io` intake, 30-day
+   SLA, internal runbook for handling access / deletion / correction
+   requests, log of requests served. Stub the privacy@ mailbox to a real
+   inbox before opening to the public.
+7. **DPIA template** for any new feature that processes new categories of
+   personal data or introduces new sharing.
+8. **Annual review**: refresh DPAs with sub-processors, re-validate the ROPA,
+   re-test the breach runbook, redo a DSR drill.
+
+Exit: each artifact above exists, has an owner, and a calendar reminder for
+the annual refresh. Below the NDPR threshold for a mandatory DPO, you can
+self-assess but the workflow should still exist.
+
+---
+
+## 6.2 Email domain authentication (SPF / DKIM / DMARC)
+
+Why: transactional email from `hello@orkora.io` and `privacy@orkora.io` is
+much more likely to land in inboxes (and harder to spoof) when the sending
+domain is properly authenticated. Without this, Gmail and the major corporate
+filters will downrank you, and you cannot pass NDPR data-subject
+communications via email reliably.
+
+You should set this up against your Postmark sending domain (e.g.
+`mail.orkora.io`).
+
+1. In Postmark dashboard, open your Server -> Sending domain. Add the
+   subdomain you want to send from (`mail.orkora.io`). Postmark shows you the
+   exact DNS records to add.
+2. In your DNS provider (Cloudflare / Namecheap / wherever `orkora.io` lives),
+   add:
+   - **SPF**: a TXT record at `mail.orkora.io` (or at the apex, depending on
+     setup) containing `v=spf1 include:spf.mtasv.net ~all`. Only ONE SPF
+     record per domain; if you already have one for a different sender,
+     merge the includes.
+   - **DKIM**: a CNAME record at `[postmark-prefix]._domainkey.mail.orkora.io`
+     pointing to Postmark's published target. Postmark generates the prefix
+     and target for you.
+   - **Return-Path**: a CNAME from `pm-bounces.mail.orkora.io` to
+     Postmark's bounce host (`pm.mtasv.net` per Postmark's instructions).
+   - **DMARC**: a TXT record at `_dmarc.orkora.io` containing
+     `v=DMARC1; p=quarantine; rua=mailto:dmarc@orkora.io; ruf=mailto:dmarc@orkora.io; pct=100; adkim=s; aspf=s`.
+     Start with `p=quarantine`; tighten to `p=reject` after a couple of weeks
+     of clean reports.
+3. Back in Postmark, click **Verify** on each record. They should flip green
+   within a few minutes.
+4. Send one transactional email (e.g. a sign-in OTP) and inspect the headers
+   in Gmail / Outlook: SPF, DKIM, and DMARC should all show `pass`.
+5. Run `https://www.mail-tester.com` once for a 10/10 sanity check.
+
+Exit: SPF, DKIM, DMARC all pass in the inbox header view; Postmark verify
+page shows all green; a DMARC aggregate report has arrived at `dmarc@` (or
+your chosen mailbox) within 24-48 hours, confirming the policy is live.

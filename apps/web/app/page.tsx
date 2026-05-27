@@ -340,6 +340,23 @@ export default function MarketingHome() {
             <div className="h-5 w-5 rounded bg-brand-gradient" />
             <span className="text-sm font-semibold tracking-tight">Orkora</span>
           </div>
+          <nav
+            aria-label="Legal"
+            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-ink-secondary"
+          >
+            <Link href="/legal/terms" className="transition hover:text-ink-primary">
+              Terms
+            </Link>
+            <Link href="/legal/privacy" className="transition hover:text-ink-primary">
+              Privacy
+            </Link>
+            <Link href="/legal/refunds" className="transition hover:text-ink-primary">
+              Refunds
+            </Link>
+            <Link href="/legal/organizer" className="transition hover:text-ink-primary">
+              Organizer Agreement
+            </Link>
+          </nav>
           <p className="text-xs text-ink-muted">
             &copy; {new Date().getFullYear()} Orkora. Orchestrating every moment.
           </p>

@@ -87,7 +87,7 @@ model Membership {
 model RefreshToken {
   id                String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   userId            String    @map("user_id") @db.Uuid
-  tokenHash         String    @map("token_hash")
+  tokenHash         String    @unique @map("token_hash")
   deviceFingerprint String?   @map("device_fingerprint")
   expiresAt         DateTime  @map("expires_at") @db.Timestamptz
   revokedAt         DateTime? @map("revoked_at") @db.Timestamptz
@@ -95,6 +95,7 @@ model RefreshToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("refresh_tokens")
 }
 
@@ -126,6 +127,7 @@ model OtpCode {
   consumedAt  DateTime? @map("consumed_at") @db.Timestamptz
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
+  @@index([destination, purpose, createdAt(sort: Desc)])
   @@map("otp_codes")
 }
 
@@ -173,6 +175,7 @@ model Track {
   event    Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   sessions Session[]
 
+  @@index([eventId])
   @@map("tracks")
 }
 
@@ -209,6 +212,7 @@ model Speaker {
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
+  @@index([eventId])
   @@map("speakers")
 }
 
@@ -235,6 +239,7 @@ model TicketTier {
   tickets    Ticket[]
   orderItems OrderItem[]
 
+  @@index([eventId, position])
   @@map("ticket_tiers")
 }
 
@@ -301,6 +306,8 @@ model Order {
   registration Registration? @relation(fields: [registrationId], references: [id])
   items        OrderItem[]
 
+  @@index([status, createdAt])
+  @@index([userId, createdAt(sort: Desc)])
   @@map("orders")
 }
 
@@ -314,6 +321,7 @@ model OrderItem {
   order Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tier  TicketTier @relation(fields: [tierId], references: [id])
 
+  @@index([orderId])
   @@map("order_items")
 }
 
@@ -348,6 +356,7 @@ model Channel {
   session  Session?  @relation(fields: [sessionId], references: [id])
   messages Message[]
 
+  @@index([eventId, kind])
   @@map("channels")
 }
 
@@ -425,6 +434,7 @@ model Poll {
   session Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   votes   PollVote[]
 
+  @@index([sessionId])
   @@map("polls")
 }
 

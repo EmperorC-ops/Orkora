@@ -112,10 +112,10 @@ Exit: you can go from alert to mitigation to rollback within target, and you can
 
 Goal: legally able to take payments and hold attendee data across your launch markets.
 
-- [BETA] Legal pages live and linked: Terms of Service, Privacy Policy, Refund/Cancellation policy, and an Organizer Agreement. You cannot take third-party money without these.
-- [BETA] Data-protection baseline: Nigeria NDPR to start (privacy notice, lawful basis, consent where needed, data-subject export/delete flow, breach process). Confirm the Neon data region and document it.
-- [BETA] PCI posture: you use providers' hosted checkout pages (card data never touches Orkora), which keeps you at SAQ-A, the lightest burden. Document this and keep card entry on provider pages (already the case).
-- [BETA] Email compliance: SPF/DKIM/DMARC aligned for the Postmark sending domain (improves deliverability and is expected); unsubscribe handling for any non-transactional mail.
+- [BETA] [DONE] Legal pages live and linked at `/legal/{terms,privacy,refunds,organizer}` with a draft-notice banner; footer links wired from the marketing page. Each `[FILL IN]` placeholder must be replaced (legal entity name, registered address, platform fee posture, governing-law jurisdiction, DPO name, Neon region) before public launch and reviewed by Nigerian counsel.
+- [BETA] [PARTIAL] Data-protection baseline: privacy policy ships with NDPR-aware sections (lawful basis per activity, data-subject rights with 30-day SLA, sub-processor list scaffold, retention defaults). The organizational artifacts (ROPA, DPO designation, breach runbook, DSR workflow, DPIA template, annual review cadence) are scaffolded in LAUNCH_RUNBOOKS section 6.1; produce each artifact and assign an owner before public launch. Confirm Neon region and fill the `[FILL IN]` in the privacy policy.
+- [BETA] [DONE] PCI posture: provider-hosted checkout only (card data never touches Orkora), keeping us at SAQ-A. Documented in the privacy policy.
+- [BETA] [PENDING] Email compliance: SPF/DKIM/DMARC for the Postmark sending domain. Step-by-step DNS + Postmark verification in LAUNCH_RUNBOOKS section 6.2. Pure DNS work, no code involved.
 - [SCALE] Extend data-protection coverage as you enter each market: POPIA (South Africa), Ghana DPA, Kenya DPA. Pan-African is multi-regime, handle per market as you onboard.
 - [FOLLOW] Tax/receipt requirements per market (VAT where applicable).
 

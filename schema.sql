@@ -494,6 +494,53 @@ from event_metrics
 group by event_id, date_trunc('day', occurred_at);
 
 -- ============================================================
+-- HOT-PATH INDEXES
+-- ============================================================
+-- Covers the queries we run on every request or every cron tick. Migration
+-- 0002 ships the same statements (idempotent IF NOT EXISTS) for existing
+-- databases.
+
+-- Refresh tokens: token_hash lookup on every API refresh; user_id scans on
+-- logout / reuse detection.
+create unique index if not exists refresh_tokens_token_hash_key
+  on refresh_tokens (token_hash);
+create index if not exists refresh_tokens_user_id_idx
+  on refresh_tokens (user_id);
+
+-- OTP: cooldown, hourly per-destination cap, and verify all read by
+-- (destination, purpose) with a recency filter.
+create index if not exists otp_codes_destination_purpose_created_at_idx
+  on otp_codes (destination, purpose, created_at desc);
+
+-- Event sub-resources: list/lookup by event_id. Sessions already had
+-- (event_id, start_at).
+create index if not exists tracks_event_id_idx on tracks (event_id);
+create index if not exists speakers_event_id_idx on speakers (event_id);
+create index if not exists ticket_tiers_event_id_position_idx
+  on ticket_tiers (event_id, position);
+
+-- Orders: TTL release + payment reconciliation filter by (status, created_at);
+-- attendee / my-orders pages read by (user_id, created_at desc). The
+-- orders_refund_in_flight partial index from migration 0001 covers the refund
+-- reconciliation sweep separately.
+create index if not exists orders_status_created_at_idx
+  on orders (status, created_at);
+create index if not exists orders_user_id_created_at_idx
+  on orders (user_id, created_at desc);
+
+-- Order items: cascade reads + tier joins are always by order_id.
+create index if not exists order_items_order_id_idx
+  on order_items (order_id);
+
+-- Live engagement: getOrCreateEventChat / getOrCreateEventQa find by
+-- (event_id, kind).
+create index if not exists channels_event_id_kind_idx
+  on channels (event_id, kind);
+
+-- Polls: per-session lookups when shaping individual polls.
+create index if not exists polls_session_id_idx on polls (session_id);
+
+-- ============================================================
 -- ROW LEVEL SECURITY (tenant isolation)
 -- ============================================================
 
