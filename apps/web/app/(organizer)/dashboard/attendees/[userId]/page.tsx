@@ -199,7 +199,7 @@ export default function AttendeeDetailPage() {
             {data.registrations.length === 0 ? (
               <Empty text="No registrations." />
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-surface-border">
+              <div className="overflow-x-auto rounded-2xl border border-surface-border">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-surface/60 text-xs uppercase tracking-wider text-ink-muted">
                     <tr>
@@ -250,7 +250,7 @@ export default function AttendeeDetailPage() {
             {data.orders.length === 0 ? (
               <Empty text="No orders yet." />
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-surface-border">
+              <div className="overflow-x-auto rounded-2xl border border-surface-border">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-surface/60 text-xs uppercase tracking-wider text-ink-muted">
                     <tr>

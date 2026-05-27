@@ -457,7 +457,7 @@ function MembersTab({ orgId }: { orgId: string }) {
         {!members ? (
           <SkeletonRows />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-surface-border">
+          <div className="overflow-x-auto rounded-2xl border border-surface-border">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface/60 text-xs uppercase tracking-wider text-ink-muted">
                 <tr>
@@ -527,7 +527,7 @@ function MembersTab({ orgId }: { orgId: string }) {
         ) : invites.length === 0 ? (
           <Empty text="No pending invitations." />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-surface-border">
+          <div className="overflow-x-auto rounded-2xl border border-surface-border">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface/60 text-xs uppercase tracking-wider text-ink-muted">
                 <tr>
@@ -744,7 +744,7 @@ function ApiKeysTab({ orgId }: { orgId: string }) {
         ) : keys.length === 0 ? (
           <Empty text="No keys yet." />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-surface-border">
+          <div className="overflow-x-auto rounded-2xl border border-surface-border">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface/60 text-xs uppercase tracking-wider text-ink-muted">
                 <tr>
@@ -936,7 +936,7 @@ function PaymentsTab({ orgId }: { orgId: string }) {
         {data.preferences.length === 0 ? (
           <Empty text="No overrides set. Default per-currency ordering applies." />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-surface-border">
+          <div className="overflow-x-auto rounded-2xl border border-surface-border">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface/60 text-xs uppercase tracking-wider text-ink-muted">
                 <tr>
