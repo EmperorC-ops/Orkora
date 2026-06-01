@@ -116,6 +116,20 @@ model Invitation {
   @@map("invitations")
 }
 
+/// Tracks consecutive failed password-login attempts per email so we can enforce
+/// per-account exponential backoff. The per-IP throttler protects against a
+/// single attacker hammering one machine; this table protects a single account
+/// against a slow, distributed brute-force across many IPs. Cleared on first
+/// successful login.
+model LoginFailure {
+  emailLower   String    @id @map("email_lower")
+  failedCount  Int       @default(0) @map("failed_count")
+  lastFailedAt DateTime  @default(now()) @map("last_failed_at") @db.Timestamptz
+  lockedUntil  DateTime? @map("locked_until") @db.Timestamptz
+
+  @@map("login_failures")
+}
+
 model OtpCode {
   id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   destination String

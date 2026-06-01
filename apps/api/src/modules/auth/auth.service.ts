@@ -74,13 +74,38 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<TokenBundle> {
+    // Per-email exponential backoff: the global per-IP throttler stops a single
+    // attacker hammering one machine, but cannot stop a slow distributed
+    // brute-force across many source IPs hitting one account. This check (and
+    // the upsert below on failure) does. The schedule doubles up to 60s.
+    const emailLower = dto.email.trim().toLowerCase();
+    const failure = await this.prisma.loginFailure.findUnique({
+      where: { emailLower },
+    });
+    if (failure?.lockedUntil && failure.lockedUntil > new Date()) {
+      throw new UnauthorizedException(
+        'Too many failed attempts. Please wait a moment and try again.',
+      );
+    }
+
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user || !user.passwordHash) {
+    const valid =
+      !!user && !!user.passwordHash && (await argon2.verify(user.passwordHash, dto.password));
+
+    if (!valid) {
+      const nextCount = (failure?.failedCount ?? 0) + 1;
+      const lockSeconds = Math.min(60, 2 ** (nextCount - 1));
+      const lockedUntil = new Date(Date.now() + lockSeconds * 1000);
+      await this.prisma.loginFailure.upsert({
+        where: { emailLower },
+        create: { emailLower, failedCount: nextCount, lockedUntil },
+        update: { failedCount: nextCount, lockedUntil, lastFailedAt: new Date() },
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
-    const valid = await argon2.verify(user.passwordHash, dto.password);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
 
+    // Success: clear the failure ledger and update last-login.
+    await this.prisma.loginFailure.deleteMany({ where: { emailLower } });
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },

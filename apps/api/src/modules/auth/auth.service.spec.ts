@@ -85,3 +85,88 @@ describe('AuthService.refresh', () => {
     expect(updateMany).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Per-account exponential backoff for password login. The per-IP throttler
+ * stops a single attacker hammering one machine; this defends a single account
+ * against a distributed brute-force across many IPs.
+ */
+describe('AuthService.login backoff', () => {
+  it('rejects with a wait message when the account is still locked', async () => {
+    const future = new Date(Date.now() + 30_000);
+    const prisma = {
+      loginFailure: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ emailLower: 'a@b.co', failedCount: 3, lockedUntil: future }),
+        upsert: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      user: { findUnique: jest.fn(), update: jest.fn() },
+    };
+    const svc = makeService(prisma);
+
+    await expect(svc.login({ email: 'A@B.co', password: 'guess' })).rejects.toMatchObject({
+      message: expect.stringContaining('Too many failed attempts'),
+    });
+    // Password is never checked while the lockout is active.
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.loginFailure.upsert).not.toHaveBeenCalled();
+  });
+
+  it('increments the failure counter and sets an exponential lock on a bad password', async () => {
+    const prisma = {
+      loginFailure: {
+        findUnique: jest.fn().mockResolvedValue({ failedCount: 2, lockedUntil: null }),
+        upsert: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'u1', email: 'a@b.co', passwordHash: '$argon2id$bad-hash' }),
+        update: jest.fn(),
+      },
+    };
+    const svc = makeService(prisma);
+
+    await expect(svc.login({ email: 'a@b.co', password: 'wrong' })).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    // Third failure: lock for 2^(3-1) = 4 seconds.
+    expect(prisma.loginFailure.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { emailLower: 'a@b.co' },
+        update: expect.objectContaining({ failedCount: 3, lockedUntil: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it('clears the failure record on a successful login', async () => {
+    const prisma = {
+      loginFailure: {
+        findUnique: jest.fn().mockResolvedValue({ failedCount: 2, lockedUntil: null }),
+        upsert: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'u1', email: 'a@b.co', passwordHash: '$argon2id$ok' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      refreshToken: { create: jest.fn().mockResolvedValue({}) },
+      membership: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    // Mock argon2.verify directly so we get success without a real password hash.
+    const argon2 = require('argon2');
+    jest.spyOn(argon2, 'verify').mockResolvedValueOnce(true);
+
+    const svc = makeService(prisma);
+    await svc.login({ email: 'a@b.co', password: 'right' });
+
+    expect(prisma.loginFailure.deleteMany).toHaveBeenCalledWith({
+      where: { emailLower: 'a@b.co' },
+    });
+  });
+});

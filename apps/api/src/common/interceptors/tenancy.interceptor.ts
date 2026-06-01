@@ -16,8 +16,11 @@ export class TenancyInterceptor implements NestInterceptor {
     const req = ctx.switchToHttp().getRequest<{ user?: { orgId?: string } }>();
     const orgId = req.user?.orgId;
     if (orgId) {
-      // Safe because orgId comes from the verified JWT, not user input.
-      await this.prisma.$executeRawUnsafe(`SET LOCAL app.org_id = '${orgId}'`);
+      // Use set_config() with a bound parameter rather than `SET LOCAL ...` with
+      // string interpolation. orgId already comes from a verified JWT (so it is
+      // not attacker-controlled), but defense-in-depth: parameterized binding
+      // means no future refactor can accidentally introduce SQL injection here.
+      await this.prisma.$executeRaw`SELECT set_config('app.org_id', ${orgId}, true)`;
     }
     return next.handle();
   }

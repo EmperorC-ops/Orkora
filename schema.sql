@@ -74,6 +74,17 @@ create table refresh_tokens (
   created_at       timestamptz not null default now()
 );
 
+-- Per-account exponential-backoff tracking for password login. One row per
+-- email (lower-cased). Cleared on first successful login. The per-IP throttler
+-- handles single-attacker brute force; this protects a single account against
+-- a slow, distributed brute-force across many IPs.
+create table login_failures (
+  email_lower    text primary key,
+  failed_count   int not null default 0,
+  last_failed_at timestamptz not null default now(),
+  locked_until   timestamptz
+);
+
 create table otp_codes (
   id               uuid primary key default uuidv7(),
   destination      text not null,
