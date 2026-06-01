@@ -142,6 +142,82 @@ export class RegistrationsService {
     // transaction. Postgres FOR UPDATE serializes concurrent registrants for
     // the same tier without falling back to advisory locks or retry loops.
     return this.prisma.$transaction(async (tx) => {
+      // Duplicate-order guard (added after 2026-06-01 dry-run).
+      //
+      // The public page can fire `register` more than once for the same person
+      // (back-button, refresh, double-click on "Continue to payment"). Without
+      // this guard, each call grew a fresh order + fresh ticket rows on the
+      // same registration, so a one-ticket purchase showed up as "3 tickets,
+      // pending" in the dashboard, and the paid-confirmation email shipped a
+      // QR for each pending attempt. We rescope behavior by the (event, user)
+      // pair, which is the same key the registration's UNIQUE constraint uses:
+      //
+      //   - If a paid (non-refunded) order already exists for this person on
+      //     this event, reject with 409. Their tickets are already in their
+      //     inbox.
+      //   - If a pending order already exists for the SAME tier and quantity,
+      //     reuse it: return its registration, its tickets, and its order so
+      //     the front end can mint a fresh checkout URL against it. No new
+      //     ticket rows, no extra inventory bump.
+      //   - If a pending order exists for a different tier or different
+      //     quantity, reject with 409 and ask the buyer to complete or wait
+      //     for the existing hold to expire. We do not silently change their
+      //     selection.
+      //   - Otherwise (no order, or only failed/refunded orders), proceed
+      //     normally.
+      //
+      // Stale pending orders are released by the existing stale-hold cron
+      // (releaseStaleHolds), which is why we do not eagerly fail them here.
+      if (!isFree) {
+        const existingPaid = await tx.order.findFirst({
+          where: { eventId: event.id, userId: user.id, status: 'paid' },
+          select: { id: true },
+        });
+        if (existingPaid) {
+          throw new ConflictException(
+            'You have already paid for this event. Check your email for your tickets.',
+          );
+        }
+        const existingPending = await tx.order.findFirst({
+          where: { eventId: event.id, userId: user.id, status: 'pending' },
+          orderBy: { createdAt: 'desc' },
+          include: { items: true },
+        });
+        if (existingPending) {
+          const item = existingPending.items[0];
+          const sameTier = item && item.tierId === tier.id;
+          const sameQty = item && item.quantity === qty;
+          if (sameTier && sameQty) {
+            const registration = await tx.registration.findUniqueOrThrow({
+              where: { eventId_userId: { eventId: event.id, userId: user.id } },
+            });
+            const tickets = await tx.ticket.findMany({
+              where: { orderId: existingPending.id },
+              orderBy: { issuedAt: 'asc' },
+            });
+            return {
+              registrationId: registration.id,
+              status: registration.status,
+              userId: user.id,
+              eventId: event.id,
+              eventCode: event.code,
+              tickets: tickets.map((t) => this.shapeTicket(t, tier.name, event.id)),
+              order: {
+                id: existingPending.id,
+                status: existingPending.status,
+                currency: existingPending.currency,
+                totalMinor: Number(existingPending.totalMinor),
+                provider: existingPending.provider,
+                checkoutUrl: null,
+              },
+            };
+          }
+          throw new ConflictException(
+            'You already have a pending order for this event. Complete the existing checkout or wait a few minutes and try again.',
+          );
+        }
+      }
+
       const locked = await tx.$queryRawUnsafe<
         Array<{ quantity_total: number | null; quantity_sold: number }>
       >(
@@ -178,24 +254,10 @@ export class RegistrationsService {
         data: { quantitySold: { increment: qty } },
       });
 
-      // Issue ticket rows. For a free tier they are immediately 'issued'. For
-      // a paid tier we still create them as 'pending' so they exist in state
-      // and can be flipped on payment success.
-      const tickets = await Promise.all(
-        dto.attendees.map((a) =>
-          tx.ticket.create({
-            data: {
-              registrationId: registration.id,
-              tierId: tier.id,
-              code: generateTicketCode(),
-              holderName: a.fullName.trim(),
-              holderEmail: a.email.trim().toLowerCase(),
-              status: isFree ? 'issued' : 'pending',
-            },
-          }),
-        ),
-      );
-
+      // Paid path needs the order created BEFORE the tickets so we can stamp
+      // tickets.order_id at insert time. The order id is the join key that
+      // lets the payments service scope ticket lifecycle changes to a single
+      // attempt instead of every ticket on the registration.
       let order: Awaited<ReturnType<typeof tx.order.create>> | null = null;
       let checkoutUrl: string | null = null;
       if (!isFree) {
@@ -223,11 +285,33 @@ export class RegistrationsService {
           },
           include: { items: true },
         });
-        // The actual hosted-checkout URL is wired in Slice 3.2 (payments
-        // module). Until then, the front end shows a "Payment provider not
-        // yet wired" state when paymentMethod is non-free.
+        // The actual hosted-checkout URL is minted by the payments module on
+        // demand (createCheckoutForOrder). We deliberately return `null` here
+        // so the front end always goes through `paymentsApi.startCheckout`,
+        // which honors the org's per-currency provider preference.
         checkoutUrl = null;
       }
+
+      // Issue ticket rows, now with the order id when paid. For a free tier
+      // they are immediately `issued`. For a paid tier we still create them
+      // as `pending` so they exist in state and can be flipped on payment
+      // success, but they are bound to THIS order via orderId so an
+      // abandoned sibling order cannot poison this attempt's tickets.
+      const tickets = await Promise.all(
+        dto.attendees.map((a) =>
+          tx.ticket.create({
+            data: {
+              registrationId: registration.id,
+              tierId: tier.id,
+              orderId: order?.id ?? null,
+              code: generateTicketCode(),
+              holderName: a.fullName.trim(),
+              holderEmail: a.email.trim().toLowerCase(),
+              status: isFree ? 'issued' : 'pending',
+            },
+          }),
+        ),
+      );
 
       // Confirmation email for free tier. For paid tier, send after payment
       // success in 3.2.
@@ -330,6 +414,11 @@ export class RegistrationsService {
     }
     if (ticket.status === 'pending') {
       throw new BadRequestException('Ticket is not yet paid for');
+    }
+    // Order was refunded after payment - the QR no longer admits the holder.
+    // Lifecycle introduced in migration 0004 and enforced by markOrderRefunded.
+    if (ticket.status === 'void') {
+      throw new BadRequestException('Ticket was refunded and is no longer valid');
     }
 
     if (ticket.checkedInAt) {

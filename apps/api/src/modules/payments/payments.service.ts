@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TicketSigner } from '../registrations/ticket-signer';
@@ -401,23 +402,76 @@ export class PaymentsService {
       return;
     }
 
-    await this.prisma.$transaction([
-      this.prisma.order.update({
-        where: { id: orderId },
-        data: { status: 'paid', paidAt },
-      }),
-      this.prisma.registration.update({
-        where: { id: order.registration.id },
-        data: { status: 'confirmed' },
-      }),
-      this.prisma.ticket.updateMany({
-        where: { registrationId: order.registration.id, status: 'pending' },
-        data: { status: 'issued' },
-      }),
-    ]);
+    // Scope the ticket flip to THIS order's tickets when the link exists
+    // (tickets.order_id, added in migration 0004). Falling back to the
+    // registration-wide scope is only safe for legacy tickets that predate
+    // the column; otherwise a paid order would flip sibling pending tickets
+    // (from abandoned attempts) to 'issued' and the confirmation email below
+    // would mail QR codes the buyer never paid for. Dry-run 2026-06-01 fix.
+    const hasOrderLink = order.registration.tickets.some((t) => t.orderId === orderId);
+    const ticketScope = hasOrderLink
+      ? { orderId, status: 'pending' as const }
+      : { registrationId: order.registration.id, status: 'pending' as const };
 
-    // Confirmation email after the state flip succeeds.
-    const tickets = order.registration.tickets;
+    // Send the order-side emails only if no path has already sent them. The
+    // notification_log insert lives inside the same transaction as the order
+    // flip so a competing settle path (verify-on-action + webhook + reconcile)
+    // sees the unique-violation and silently skips its send. We choose the
+    // `paid` kind for the combined receipt + ticket pair so both arrive
+    // exactly once together.
+    let shouldSendPaidEmail = false;
+    try {
+      await this.prisma.$transaction([
+        this.prisma.order.update({
+          where: { id: orderId },
+          data: { status: 'paid', paidAt },
+        }),
+        this.prisma.registration.update({
+          where: { id: order.registration.id },
+          data: { status: 'confirmed' },
+        }),
+        this.prisma.ticket.updateMany({
+          where: ticketScope,
+          data: { status: 'issued' },
+        }),
+        this.prisma.notificationLog.create({
+          data: { orderId, kind: 'paid' },
+        }),
+      ]);
+      shouldSendPaidEmail = true;
+    } catch (err) {
+      // Unique violation on notification_log means another path already won
+      // the race and shipped the email. The state flip above also rolled back
+      // with the txn, so we re-run the flip without the log insert.
+      const isUniqueViolation =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+      if (!isUniqueViolation) throw err;
+      this.logger.log({ orderId }, 'Paid email already sent for this order by another path');
+      await this.prisma.$transaction([
+        this.prisma.order.update({
+          where: { id: orderId },
+          data: { status: 'paid', paidAt },
+        }),
+        this.prisma.registration.update({
+          where: { id: order.registration.id },
+          data: { status: 'confirmed' },
+        }),
+        this.prisma.ticket.updateMany({
+          where: ticketScope,
+          data: { status: 'issued' },
+        }),
+      ]);
+    }
+
+    if (!shouldSendPaidEmail) return;
+
+    // Confirmation email after the state flip succeeds. Filter to THIS order's
+    // tickets when the link is set; sibling tickets from other attempts must
+    // not appear in the email, since the buyer did not pay for them.
+    const allTickets = order.registration.tickets;
+    const tickets = hasOrderLink
+      ? allTickets.filter((t) => t.orderId === orderId)
+      : allTickets;
     if (tickets.length > 0) {
       const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
       await this.notifications
@@ -468,8 +522,19 @@ export class PaymentsService {
     if (!order) return;
     if (order.status !== 'pending') return;
 
-    // Release the seat hold by decrementing tier sold counters, marking
-    // tickets as cancelled, and flipping the order to failed.
+    // Scope ticket cancel to THIS order's tickets when the link is set
+    // (migration 0004). The registration-wide scope is only safe for legacy
+    // tickets without an orderId; otherwise this failed/expired order would
+    // cancel sibling pending tickets from a fresh attempt that the user is
+    // about to pay for. Likewise, only flip the registration to 'cancelled'
+    // when no other paid or in-flight orders exist on it.
+    const ticketsHaveOrderLink = order.registration?.tickets.some((t) => t.orderId === orderId) ?? false;
+    const ticketCancelScope = ticketsHaveOrderLink
+      ? { orderId, status: 'pending' as const }
+      : order.registration
+      ? { registrationId: order.registration.id, status: 'pending' as const }
+      : null;
+
     await this.prisma.$transaction(async (tx) => {
       for (const item of order.items) {
         await tx.ticketTier.update({
@@ -477,15 +542,29 @@ export class PaymentsService {
           data: { quantitySold: { decrement: item.quantity } },
         });
       }
-      if (order.registration) {
+      if (ticketCancelScope) {
         await tx.ticket.updateMany({
-          where: { registrationId: order.registration.id, status: 'pending' },
+          where: ticketCancelScope,
           data: { status: 'cancelled' },
         });
-        await tx.registration.update({
-          where: { id: order.registration.id },
-          data: { status: 'cancelled' },
+      }
+      if (order.registration) {
+        // Only flip the registration to 'cancelled' if no surviving paid or
+        // in-flight orders remain on it. This stops a single failed attempt
+        // from clobbering a sibling order's confirmed status.
+        const surviving = await tx.order.count({
+          where: {
+            registrationId: order.registration.id,
+            id: { not: orderId },
+            status: { in: ['pending', 'paid'] },
+          },
         });
+        if (surviving === 0) {
+          await tx.registration.update({
+            where: { id: order.registration.id },
+            data: { status: 'cancelled' },
+          });
+        }
       }
       await tx.order.update({
         where: { id: orderId },
@@ -501,19 +580,88 @@ export class PaymentsService {
    * reconciliation sweep), so it records a single `refund_settled` audit event
    * regardless of which path won the race. A no-op for an already-refunded
    * order, so duplicate webhook + reconcile + sync settlement do not double-log.
+   *
+   * On settlement we also:
+   *
+   *  - VOID this order's tickets (status='void'), so the QR codes mailed to
+   *    the attendee no longer admit at check-in. We scope by tickets.order_id
+   *    when set, falling back to the registration scope for legacy rows.
+   *  - Send a refund-confirmation email to the buyer, exactly once per order,
+   *    guarded by an INSERT into notification_log (orderId, 'refund') in the
+   *    same transaction that flips the order. A competing path that tries to
+   *    send the same email hits the unique constraint and skips.
    */
   private async markOrderRefunded(orderId: string): Promise<void> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { event: { select: { organizationId: true } } },
+      include: {
+        event: { include: { organization: { select: { name: true } } } },
+        registration: {
+          include: {
+            user: true,
+            tickets: { select: { id: true, orderId: true, status: true } },
+          },
+        },
+      },
     });
     if (!order) return;
     if (order.status === 'refunded') return;
-    await this.prisma.order.update({
-      where: { id: orderId },
-      data: { status: 'refunded' },
-    });
+
+    // Decide ticket void scope the same way markOrderPaid decides the issue
+    // scope, so behavior is symmetric.
+    const ticketsHaveOrderLink = order.registration?.tickets.some((t) => t.orderId === orderId) ?? false;
+    const ticketVoidScope = ticketsHaveOrderLink
+      ? { orderId, status: { not: 'cancelled' } }
+      : order.registration
+      ? { registrationId: order.registration.id, status: { not: 'cancelled' } }
+      : null;
+
+    let shouldSendRefundEmail = false;
+    try {
+      const ops: Prisma.PrismaPromise<unknown>[] = [
+        this.prisma.order.update({
+          where: { id: orderId },
+          data: { status: 'refunded' },
+        }),
+        this.prisma.notificationLog.create({
+          data: { orderId, kind: 'refund' },
+        }),
+      ];
+      if (ticketVoidScope) {
+        ops.push(
+          this.prisma.ticket.updateMany({
+            where: ticketVoidScope,
+            data: { status: 'void' },
+          }),
+        );
+      }
+      await this.prisma.$transaction(ops);
+      shouldSendRefundEmail = true;
+    } catch (err) {
+      const isUniqueViolation =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+      if (!isUniqueViolation) throw err;
+      this.logger.log({ orderId }, 'Refund email already sent for this order by another path');
+      // Re-run the state flip without the log insert so the order still moves
+      // to 'refunded' and its tickets still get voided in this code path.
+      const ops: Prisma.PrismaPromise<unknown>[] = [
+        this.prisma.order.update({
+          where: { id: orderId },
+          data: { status: 'refunded' },
+        }),
+      ];
+      if (ticketVoidScope) {
+        ops.push(
+          this.prisma.ticket.updateMany({
+            where: ticketVoidScope,
+            data: { status: 'void' },
+          }),
+        );
+      }
+      await this.prisma.$transaction(ops);
+    }
     this.logger.log({ orderId }, 'Order marked refunded');
+
     // record() swallows its own errors, so this can never fail the refund flip.
     await this.audit.record({
       organizationId: order.event.organizationId,
@@ -527,6 +675,25 @@ export class PaymentsService {
         currency: order.currency,
       },
     });
+
+    if (!shouldSendRefundEmail) return;
+    if (!order.registration?.user?.email) return;
+
+    const refundedAtLine = new Intl.DateTimeFormat('en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: order.event.timezone,
+    }).format(new Date());
+    await this.notifications
+      .sendRefundEmail(order.registration.user.email, {
+        orderId: order.id,
+        eventTitle: order.event.title,
+        orgName: order.event.organization.name,
+        refundedAtLine,
+        provider: order.provider ?? 'unknown',
+        totalFormatted: formatMoney(order.totalMinor, order.currency),
+      })
+      .catch((err) => this.logger.warn({ err, orderId }, 'Failed to send refund email'));
   }
 
   /**

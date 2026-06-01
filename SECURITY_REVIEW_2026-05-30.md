@@ -396,3 +396,43 @@ The dry-run script in `LAUNCH_CHECKLIST.md` section 2 surfaced three issues that
 | 13.3 | Stripe test key expired | HIGH (operational) | Operator action required |
 
 The dry-run is the right discipline here: it found three real things the static audit could not, and two of them were code defects we have shipped. After 13.3 is rotated, the dry-run should be resumed from step 4 (paid registration + refund) to verify the new error-handling and password-storage paths in their real flow.
+
+---
+
+## 14. Addendum (2026-06-01, resumed) — refund + ticket lifecycle bugs caught after key rotation
+
+After Finding 13.3 was rotated, the dry-run resumed at step 4. Stripe checkout completed, the receipt email landed, and the refund button moved the order from PAID to REFUNDED inside the dashboard. Three more bugs surfaced once we had a real paid+refunded order to inspect, all coupled to the same root cause: the ticket lifecycle was driven by the registration, not by the order that issued the tickets.
+
+### Finding 14.1 — Tickets allocated before payment and never invalidated on refund [HIGH, fixed]
+
+- **What we saw**: the test attendee had three rows of "Standard / pending" tickets after one paid + two abandoned attempts, the "you are registered" email shipped with two ticket QR codes for a one-ticket purchase, and after the refund the QR codes were still scannable.
+- **Root cause**: `tickets` joined back to `orders` only via `registrations`. So every retry on a paid registration grew a fresh ticket row, the paid-confirmation email pulled `registration.tickets` (not "tickets for this order"), and `markOrderRefunded` updated `orders.status` without touching `tickets`.
+- **Fix shipped**: migration `0004_ticket_order_link_and_refund.sql` adds `tickets.order_id` (NULL-tolerant FK to `orders(id)`), a best-effort backfill linking each ticket to the most recent matching order on its registration, and an index. `RegistrationsService.register` stamps `order_id` on every new ticket. `PaymentsService.markOrderPaid` now scopes the ticket flip and the confirmation email to THIS order's tickets when the link is set, falling back to the registration scope only for legacy rows. `PaymentsService.markOrderRefunded` now flips the order's tickets to a new `void` status, and the public check-in path rejects `void` with "Ticket was refunded and is no longer valid". A `markOrderFailed` change only flips the registration to `cancelled` if no surviving paid or pending sibling orders remain on it, so an abandoned attempt cannot clobber a paid sibling.
+- **Files**: `apps/api/migrations/0004_ticket_order_link_and_refund.sql`, `apps/api/prisma/schema.prisma`, `schema.sql`, `apps/api/src/modules/registrations/registrations.service.ts`, `apps/api/src/modules/payments/payments.service.ts`. Tests: `apps/api/src/modules/payments/payments.service.spec.ts` (`describe('PaymentsService.markOrderRefunded', ...)`), `apps/api/src/modules/registrations/registrations.service.spec.ts` (new).
+
+### Finding 14.2 — Refund settled silently to the attendee [MEDIUM, fixed]
+
+- **What we saw**: the order moved to REFUNDED in the dashboard, Stripe confirmed the refund out of band, but `temmychoo+attendee@gmail.com` received no email about it. The attendee learns from their bank statement, eventually.
+- **Fix shipped**: new `refundTemplate` in `notifications/templates.ts` and `sendRefundEmail` on `NotificationsService`. The email is explicit about the three things the dry-run showed people care about (when the money arrives, where it lands, and that the QR is no longer valid). Sent from `markOrderRefunded` with strict idempotency: a new `notification_log (orderId, kind)` table (unique constraint) is inserted in the same transaction as the order flip. The verify-on-action settle, the webhook handler, and the refund-reconciliation sweep can each settle the same refund; whichever wins the txn ships the email, the others see a P2002 unique violation, re-run the order flip without the log insert, and skip the send. Symmetric guard added to `markOrderPaid` for the receipt + ticket pair so the verify-on-return + webhook race produces exactly one paid email per order.
+- **Files**: `apps/api/src/modules/notifications/templates.ts`, `apps/api/src/modules/notifications/notifications.service.ts`, `apps/api/src/modules/payments/payments.service.ts`. Tests: `payments.service.spec.ts` (`'skips the email when a competing path already inserted the log'`).
+
+### Finding 14.3 — Duplicate orders for the same (event, user) registration [MEDIUM, fixed]
+
+- **What we saw**: three orders for the same registration (FAILED 19:28, PAID 22:27, PENDING 22:38). Each retry of `register()` minted a new pending order and a new ticket row, even though only one purchase was intended.
+- **Fix shipped**: `RegistrationsService.register` now checks for sibling orders on the same `(event, user)` before creating a new one. A paid (non-refunded) order returns `409 Conflict` with "You have already paid for this event." A pending order on the same tier and quantity is reused: the service returns the existing order id and tickets so the front end can mint a fresh Stripe Checkout URL against it without bumping inventory again. A pending order on a different tier or quantity returns `409 Conflict` with "You already have a pending order for this event. Complete the existing checkout or wait a few minutes and try again." Stale pending orders continue to be released by the existing 20-minute `releaseStaleHolds` cron, so the user is never stuck for long.
+- **Files**: `apps/api/src/modules/registrations/registrations.service.ts`. Tests: `registrations.service.spec.ts` (`'rejects a registration attempt when a paid order already exists'`, `'reuses the existing pending order when tier and quantity match'`, `'rejects with 409 when a pending order exists with a different quantity'`).
+
+### Updated risk register
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 14.1 | Tickets created pre-payment and not voided on refund | HIGH | **Fixed in addendum** |
+| 14.2 | Refund settles without notifying the attendee | MEDIUM | **Fixed in addendum** |
+| 14.3 | Duplicate orders + ticket rows for the same (event, user) | MEDIUM | **Fixed in addendum** |
+
+### Ship checklist for this batch
+
+1. `git add` the migration, schema files, three service files, two spec files, and this review. Commit message: `security: tie tickets to orders, void on refund, idempotent refund email`.
+2. Push. Render auto-deploys; the entrypoint runs `migrate.mjs`, which applies `0004` inside a transaction under `pg_advisory_lock`.
+3. After deploy, the next refund test should: (a) email the attendee within ~30 seconds, (b) flip the order's ticket(s) to `void`, (c) be rejected at the check-in scanner with the new "ticket was refunded" message.
+4. Existing data: the migration's backfill step links most legacy tickets to their orders via `(registration_id, tier_id, most-recent-order)`. Ambiguous legacy tickets stay `order_id = NULL` and continue to use the registration-wide scope. The fallback is intentional and safe; the new behavior kicks in for every ticket created after the migration runs.

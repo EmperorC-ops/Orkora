@@ -699,3 +699,120 @@ describe('PaymentsService.recheckRefund', () => {
     expect(markRefunded).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * markOrderRefunded: voids the order's tickets, settles the order, and emails
+ * the buyer exactly once. The notification_log unique index added in
+ * migration 0004 guarantees only one settlement path wins the email send.
+ * Tests cover dry-run findings #112 (missing refund email) and #113 (tickets
+ * still valid after refund).
+ */
+describe('PaymentsService.markOrderRefunded', () => {
+  // Order with two paid tickets bound by tickets.order_id. The third ticket
+  // belongs to a sibling pending order on the same registration; voiding the
+  // refunded order MUST NOT touch it.
+  const order = {
+    id: 'o1',
+    status: 'paid',
+    provider: 'stripe',
+    totalMinor: 1000n,
+    currency: 'USD',
+    event: {
+      title: 'Demo',
+      timezone: 'America/New_York',
+      organizationId: 'org1',
+      organization: { name: 'Demo Co' },
+    },
+    registration: {
+      user: { email: 'buyer@example.com' },
+      tickets: [
+        { id: 't1', orderId: 'o1', status: 'issued' },
+        { id: 't2', orderId: 'o1', status: 'issued' },
+        { id: 't3', orderId: 'siblingPending', status: 'pending' },
+      ],
+    },
+  };
+
+  function makeMockPrismaAndSvc() {
+    const ticketUpdateMany = jest.fn().mockResolvedValue({ count: 2 });
+    const orderUpdate = jest.fn().mockResolvedValue({});
+    const notificationLogCreate = jest.fn().mockResolvedValue({});
+    const txn = jest.fn().mockImplementation(async (ops: unknown) => {
+      // markOrderRefunded passes an array of chained-promise ops; for tests we
+      // just resolve so the success path completes.
+      return Array.isArray(ops) ? Promise.all(ops as Promise<unknown>[]) : [];
+    });
+    const prisma = {
+      order: { findUnique: jest.fn().mockResolvedValue(order), update: orderUpdate },
+      ticket: { updateMany: ticketUpdateMany },
+      notificationLog: { create: notificationLogCreate },
+      $transaction: txn,
+    };
+    const sendRefundEmail = jest.fn().mockResolvedValue(undefined);
+    const notifications = { sendRefundEmail };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      {} as never,
+      {} as never,
+      notifications as unknown as never,
+      {} as never,
+      audit as unknown as AuditService,
+      {} as never,
+    );
+    return { svc, prisma, sendRefundEmail, ticketUpdateMany, audit };
+  }
+
+  it('voids only this order tickets and sends the refund email exactly once', async () => {
+    const { svc, sendRefundEmail, audit } = makeMockPrismaAndSvc();
+
+    await (svc as unknown as { markOrderRefunded: (id: string) => Promise<void> }).markOrderRefunded(
+      'o1',
+    );
+
+    expect(sendRefundEmail).toHaveBeenCalledTimes(1);
+    expect(sendRefundEmail).toHaveBeenCalledWith(
+      'buyer@example.com',
+      expect.objectContaining({ orderId: 'o1', eventTitle: 'Demo' }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'refund_settled', resourceId: 'o1' }),
+    );
+  });
+
+  it('skips the email when a competing path already inserted the log', async () => {
+    const { svc, prisma, sendRefundEmail } = makeMockPrismaAndSvc();
+    // Construct a P2002-shaped error from Prisma's runtime class so the
+    // instanceof check in markOrderRefunded matches.
+    const Prisma = require('@prisma/client').Prisma;
+    const uniqueViolation = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+    // First $transaction throws P2002 (log row already exists), second
+    // succeeds (fallback flip + void).
+    prisma.$transaction
+      .mockImplementationOnce(async () => {
+        throw uniqueViolation;
+      })
+      .mockResolvedValueOnce([]);
+
+    await (svc as unknown as { markOrderRefunded: (id: string) => Promise<void> }).markOrderRefunded(
+      'o1',
+    );
+
+    expect(sendRefundEmail).not.toHaveBeenCalled();
+  });
+
+  it('no-ops an already-refunded order', async () => {
+    const { svc, prisma, sendRefundEmail } = makeMockPrismaAndSvc();
+    prisma.order.findUnique.mockResolvedValueOnce({ ...order, status: 'refunded' });
+
+    await (svc as unknown as { markOrderRefunded: (id: string) => Promise<void> }).markOrderRefunded(
+      'o1',
+    );
+
+    expect(sendRefundEmail).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});

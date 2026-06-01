@@ -278,18 +278,29 @@ model Ticket {
   id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   registrationId String    @map("registration_id") @db.Uuid
   tierId         String    @map("tier_id") @db.Uuid
+  // The order that issued this ticket. Set whenever a paid registration
+  // creates tickets; NULL for free-tier tickets and legacy rows backfilled
+  // by migration 0004. The payments service scopes ticket lifecycle updates
+  // by this column when set, so an abandoned order's cancel or a refund only
+  // touches its own tickets, not siblings from the same registration.
+  orderId        String?   @map("order_id") @db.Uuid
   code           String    @unique
   holderName     String    @map("holder_name")
   holderEmail    String    @map("holder_email") @db.Citext
+  // Lifecycle: 'pending' (held for a paid order awaiting payment), 'issued'
+  // (valid for check-in), 'cancelled' (issuing order failed before payment),
+  // 'void' (issuing order was refunded after payment, QR no longer admits).
   status         String    @default("issued")
   issuedAt       DateTime  @default(now()) @map("issued_at") @db.Timestamptz
   checkedInAt    DateTime? @map("checked_in_at") @db.Timestamptz
 
   registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   tier         TicketTier   @relation(fields: [tierId], references: [id])
+  order        Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@index([registrationId])
   @@index([status])
+  @@index([orderId])
   @@map("tickets")
 }
 
@@ -315,14 +326,34 @@ model Order {
   // This is the in-flight marker reconcileRefunds() scans for.
   refundInitiatedAt DateTime? @map("refund_initiated_at") @db.Timestamptz
 
-  event        Event         @relation(fields: [eventId], references: [id])
-  user         User          @relation(fields: [userId], references: [id])
-  registration Registration? @relation(fields: [registrationId], references: [id])
+  event        Event              @relation(fields: [eventId], references: [id])
+  user         User               @relation(fields: [userId], references: [id])
+  registration Registration?      @relation(fields: [registrationId], references: [id])
   items        OrderItem[]
+  tickets      Ticket[]
+  notifications NotificationLog[]
 
   @@index([status, createdAt])
   @@index([userId, createdAt(sort: Desc)])
   @@map("orders")
+}
+
+/// Idempotency log for order-side notifications. Inserted in the same
+/// transaction that flips order status (paid / refunded), so any competing
+/// settlement path (verify-on-action, webhook, reconcile) that tries to send
+/// the same `kind` for the same `orderId` will hit the unique constraint and
+/// silently skip the send. Guarantees exactly-one email per (order, kind).
+model NotificationLog {
+  id      String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orderId String   @map("order_id") @db.Uuid
+  kind    String
+  sentAt  DateTime @default(now()) @map("sent_at") @db.Timestamptz
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, kind])
+  @@index([orderId])
+  @@map("notification_log")
 }
 
 model OrderItem {

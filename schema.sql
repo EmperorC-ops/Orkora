@@ -85,6 +85,21 @@ create table login_failures (
   locked_until   timestamptz
 );
 
+-- Per-(order, notification kind) idempotency log. Inserted in the same
+-- transaction that ships an order-side email (paid receipt, ticket
+-- confirmation, refund confirmation). A second settlement path that tries to
+-- send the same kind hits the unique constraint and skips the send, so the
+-- verify-on-action + webhook + reconcile race produces exactly one email.
+create table notification_log (
+  id        uuid primary key default uuidv7(),
+  order_id  uuid not null references orders(id) on delete cascade,
+  kind      text not null,
+  sent_at   timestamptz not null default now(),
+  unique (order_id, kind)
+);
+
+create index notification_log_order_id_idx on notification_log (order_id);
+
 create table otp_codes (
   id               uuid primary key default uuidv7(),
   destination      text not null,
@@ -232,9 +247,18 @@ create table tickets (
   id               uuid primary key default uuidv7(),
   registration_id  uuid not null references registrations(id) on delete cascade,
   tier_id          uuid not null references ticket_tiers(id),
+  -- The order that issued this ticket. Set whenever a paid registration
+  -- creates tickets (registrations.service.register). NULL is tolerated for
+  -- legacy rows; the payments service falls back to registration_id scoping
+  -- when this is NULL. See migration 0004 and SECURITY_REVIEW addendum 13.
+  order_id         uuid references orders(id) on delete set null,
   code             text unique not null,
   holder_name      text not null,
   holder_email     citext not null,
+  -- Lifecycle: 'pending' (held for a paid order awaiting payment), 'issued'
+  -- (valid for check-in), 'cancelled' (the order that issued it failed or
+  -- expired before payment), 'void' (the order that issued it was refunded
+  -- after payment, so the QR no longer admits the attendee).
   status           text not null default 'issued',
   issued_at        timestamptz not null default now(),
   checked_in_at    timestamptz
@@ -242,6 +266,7 @@ create table tickets (
 
 create index tickets_reg_idx on tickets (registration_id);
 create index tickets_status_idx on tickets (status);
+create index tickets_order_id_idx on tickets (order_id);
 
 create table checkins (
   id               uuid primary key default uuidv7(),

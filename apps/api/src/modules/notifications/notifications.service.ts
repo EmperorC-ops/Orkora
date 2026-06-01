@@ -5,6 +5,7 @@ import {
   inviteEmailTemplate,
   ticketConfirmationTemplate,
   receiptTemplate,
+  refundTemplate,
   type TicketEmailTicket,
   type ReceiptLine,
 } from './templates';
@@ -59,6 +60,28 @@ export class NotificationsService {
     },
   ): Promise<void> {
     const { subject, html, text } = receiptTemplate(input);
+    await this.email.send({ to, subject, html, text });
+  }
+
+  /**
+   * Refund confirmation, emailed to the attendee once a refund has settled.
+   * Caller is responsible for idempotency: payments.service.markOrderRefunded
+   * inserts a `notification_log (orderId, 'refund')` row inside the same
+   * transaction that flips the order, so a competing settlement path that
+   * tries to send the same email hits the unique constraint and skips it.
+   */
+  async sendRefundEmail(
+    to: string,
+    input: {
+      orderId: string;
+      eventTitle: string;
+      orgName: string;
+      refundedAtLine: string;
+      provider: string;
+      totalFormatted: string;
+    },
+  ): Promise<void> {
+    const { subject, html, text } = refundTemplate(input);
     await this.email.send({ to, subject, html, text });
   }
 }

@@ -166,6 +166,48 @@ export function receiptTemplate(input: {
   };
 }
 
+/**
+ * Refund confirmation, emailed to the attendee whose order was refunded.
+ * Mirrors the receipt template's visual language so attendees recognize it as
+ * a follow-up to the same purchase, and is explicit about three things the
+ * dry-run showed people care about: how long the money takes to arrive, where
+ * it lands (their original payment method), and that their ticket QRs are no
+ * longer valid for check-in.
+ */
+export function refundTemplate(input: {
+  orderId: string;
+  eventTitle: string;
+  orgName: string;
+  refundedAtLine: string;
+  provider: string;
+  totalFormatted: string;
+}) {
+  const { orderId, eventTitle, orgName, refundedAtLine, provider, totalFormatted } = input;
+  const html = wrap(`
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Your refund has been issued</h1>
+    <p style="margin:0 0 4px 0;color:#0F172A;font-size:16px;font-weight:600;">${escapeHtml(eventTitle)}</p>
+    <p style="margin:0 0 20px 0;color:#64748B;">${escapeHtml(orgName)} refunded your purchase on ${escapeHtml(refundedAtLine)}.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;margin-bottom:16px;">
+      <tr><td style="padding:18px 20px;">
+        <div style="font-size:13px;color:#7C3AED;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">Refunded</div>
+        <div style="font-size:24px;color:#0F172A;font-weight:700;margin-top:4px;">${escapeHtml(totalFormatted)}</div>
+        <div style="font-size:13px;color:#64748B;margin-top:6px;">Back to your ${escapeHtml(provider)} payment method.</div>
+      </td></tr>
+    </table>
+    <p style="margin:8px 0 0 0;color:#0F172A;font-size:14px;">
+      The funds typically arrive within 5 to 10 business days, depending on your bank. Your ticket QR codes for this purchase have been voided.
+    </p>
+    <p style="margin:20px 0 0 0;color:#94A3B8;font-size:13px;">
+      Refund reference: ${escapeHtml(orderId)}. If you did not request this refund, contact ${escapeHtml(orgName)} directly.
+    </p>
+  `);
+  return {
+    subject: `Refund issued - ${eventTitle}`,
+    html,
+    text: `${orgName} refunded your purchase for ${eventTitle} on ${refundedAtLine}. Amount refunded: ${totalFormatted}, back to your ${provider} payment method. Funds typically arrive in 5 to 10 business days. Your ticket QR codes have been voided. Reference: ${orderId}.`,
+  };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
