@@ -61,9 +61,26 @@ function OtpPageInner() {
     try {
       if (purpose === 'signup') {
         await authApi.verifyOtp({ destination, code, purpose });
-        const fullName = params.get('fullName') ?? destination.split('@')[0] ?? destination;
-        const phone = params.get('phone') ?? '';
-        const password = params.get('password') ?? '';
+        // Prefer the sessionStorage stash written by /signup. URL params remain
+        // a fallback for one release window (older signups in flight) and for
+        // browsers that block sessionStorage. We wipe the stash on success or
+        // failure so the password does not linger.
+        let stashed: { fullName?: string; phone?: string; password?: string } = {};
+        try {
+          const raw = sessionStorage.getItem('orkora_pending_signup');
+          if (raw) stashed = JSON.parse(raw) as typeof stashed;
+        } catch {
+          // ignore parse / storage errors and fall through to URL params
+        }
+        const fullName =
+          stashed.fullName ?? params.get('fullName') ?? destination.split('@')[0] ?? destination;
+        const phone = stashed.phone ?? params.get('phone') ?? '';
+        const password = stashed.password ?? params.get('password') ?? '';
+        try {
+          sessionStorage.removeItem('orkora_pending_signup');
+        } catch {
+          // ignore
+        }
         const tokens = await authApi.signup({
           email: destination,
           password,

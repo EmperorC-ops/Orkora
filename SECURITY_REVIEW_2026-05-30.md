@@ -359,3 +359,40 @@ Two human-action items before public launch:
 As of 2026-05-30, after the patches in section 10, the codebase has no findings I would consider blocking for a private beta launch. The remaining items are either pre-public-launch (CSP enforce flip, signup enumeration, CSRF on refresh, JWT key rotation) or operational decisions (Neon plan, Render plan, DNS, DPO, counsel). All are tracked, none are silent.
 
 Recommend: run `pnpm test` to confirm green, push, redeploy, then proceed to private-beta participant onboarding using `TESTER_GUIDE.{md,pdf,docx}`.
+
+---
+
+## 13. Addendum (2026-06-01) — findings surfaced during the production dry-run
+
+The dry-run script in `LAUNCH_CHECKLIST.md` section 2 surfaced three issues that the static audit missed. Two were code defects, fixed in this addendum; one is operational, handed back to the operator.
+
+### Finding 13.1 — Signup posted the password in the URL query string [HIGH, fixed]
+
+- **Where**: `apps/web/app/(auth)/signup/page.tsx` handed the password forward to `/otp?...&password=...` via `URLSearchParams` so the OTP page could complete the signup after verification.
+- **Why HIGH**: query strings end up in (a) Vercel and Render access logs, (b) browser history, (c) Referer headers on any outbound link click, (d) any browser-extension that reads URLs. Even a short window of exposure is unacceptable for a credential.
+- **Fix shipped**: signup now stashes `{ fullName, phone, password }` in `sessionStorage` under `orkora_pending_signup`. Only `destination` and `purpose` stay in the URL. The OTP page reads from sessionStorage first (URL params kept as a one-release legacy fallback so signups already in flight do not break), then wipes the stash on success or failure. SessionStorage is same-origin, same-tab, and cleared when the tab closes; the credential never enters any log line, history entry, or Referer header.
+- **Files**: `apps/web/app/(auth)/signup/page.tsx`, `apps/web/app/(auth)/otp/page.tsx`.
+
+### Finding 13.2 — Raw provider error messages leaked to the response body [MEDIUM, fixed]
+
+- **Where**: `apps/api/src/common/filters/all-exceptions.filter.ts` serialised `exception.message` directly into the wire response for every non-`HttpException` error.
+- **What it leaked**: during the dry-run, a stale `STRIPE_SECRET_KEY` triggered a Stripe SDK error whose message contained `Expired API Key provided: sk_test_***...s6KR3w` (first 8 + last 6 characters of the key, plus the test-mode signal). That string was rendered on the public registration page. Same path would leak `prisma.PrismaClientKnownRequestError` SQL fragments, programming errors with PII in the stack, etc.
+- **Fix shipped**: the filter now only forwards messages from `HttpException` subclasses (which are author-controlled and assumed safe). Any other error returns a generic `"An unexpected error occurred. Please try again in a moment."` to the wire. The real exception is still captured to Sentry and to the logger above with full stack + request id, so debugging is unaffected.
+- **Files**: `apps/api/src/common/filters/all-exceptions.filter.ts`.
+
+### Finding 13.3 — Stripe test key expired on the prod env [HIGH, operational]
+
+- **What broke**: with the stale `STRIPE_SECRET_KEY`, every paid checkout fails with HTTP 500. No paid registration could complete.
+- **Owner**: operator. Rotate the key in the Stripe Dashboard → Developers → API keys (Sandbox / Test mode toggle on), then update `STRIPE_SECRET_KEY` on the `orkora-api` Render service. Render auto-redeploys.
+- **Why this kept happening**: test-mode keys can be rotated quietly from the Stripe dashboard and the env never gets updated. Worth adding a monthly calendar reminder to verify the key still works (one curl to `/v1/payments/orders/<id>/checkout` against a known-paid order).
+- **Defensive follow-up (logged)**: surface a one-line "Payments configuration warning" banner on the dashboard when the most recent checkout-creation attempt errored, so future expirations are caught from inside Orkora rather than from a tester report. Not implemented in this pass.
+
+### Updated risk register
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 13.1 | Password in URL query string at signup | HIGH | **Fixed in addendum** |
+| 13.2 | Raw provider error messages on the wire | MEDIUM | **Fixed in addendum** |
+| 13.3 | Stripe test key expired | HIGH (operational) | Operator action required |
+
+The dry-run is the right discipline here: it found three real things the static audit could not, and two of them were code defects we have shipped. After 13.3 is rotated, the dry-run should be resumed from step 4 (paid registration + refund) to verify the new error-handling and password-storage paths in their real flow.

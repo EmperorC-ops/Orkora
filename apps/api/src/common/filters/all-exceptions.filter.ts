@@ -25,12 +25,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const status =
       exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
+    // Wire-safe message: HttpExceptions are author-controlled and assumed safe.
+    // Untyped Errors (provider SDKs throwing Stripe/Paystack/Flutterwave errors,
+    // Prisma errors, programming bugs) can carry sensitive payload, including
+    // partial API keys, internal SQL, or user PII. We never serialise raw
+    // Error.message: the real text is captured below by the logger and Sentry,
+    // and the caller gets a generic message instead.
+    const message: string | object =
       exception instanceof HttpException
         ? exception.getResponse()
-        : exception instanceof Error
-          ? exception.message
-          : 'Internal server error';
+        : 'An unexpected error occurred. Please try again in a moment.';
 
     if (status >= 500) {
       this.logger.error(

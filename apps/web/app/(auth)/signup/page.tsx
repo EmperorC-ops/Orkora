@@ -29,13 +29,22 @@ export default function SignupPage() {
     setError(null);
     try {
       await authApi.sendOtp({ channel: 'email', destination: email, purpose: 'signup' });
-      const params = new URLSearchParams({
-        destination: email,
-        purpose: 'signup',
-        fullName,
-        phone,
-        password,
-      });
+      // Credentials must NOT travel in the URL: query strings are written to
+      // browser history, edge / CDN logs, Vercel access logs, and outgoing
+      // Referer headers on any link click. Stash them in sessionStorage (same
+      // origin, same tab, cleared on tab close) and let the OTP page consume +
+      // wipe them. Only non-sensitive routing values stay in the URL.
+      try {
+        sessionStorage.setItem(
+          'orkora_pending_signup',
+          JSON.stringify({ fullName, phone, password }),
+        );
+      } catch {
+        // Storage unavailable (Safari private mode, embedded contexts): fall
+        // back to in-URL credentials so the flow does not silently break. The
+        // OTP page reads either source.
+      }
+      const params = new URLSearchParams({ destination: email, purpose: 'signup' });
       router.push(`/otp?${params.toString()}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
