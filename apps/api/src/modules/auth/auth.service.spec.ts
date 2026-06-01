@@ -124,10 +124,16 @@ describe('AuthService.login backoff', () => {
       user: {
         findUnique: jest
           .fn()
-          .mockResolvedValue({ id: 'u1', email: 'a@b.co', passwordHash: '$argon2id$bad-hash' }),
+          .mockResolvedValue({ id: 'u1', email: 'a@b.co', passwordHash: '$argon2id$placeholder' }),
         update: jest.fn(),
       },
     };
+    // argon2.verify throws on a malformed hash; mock it to a clean `false` so the
+    // test exercises the "bad password" branch of login() rather than the
+    // accidental "malformed stored hash" branch.
+    const argon2 = require('argon2');
+    jest.spyOn(argon2, 'verify').mockResolvedValueOnce(false);
+
     const svc = makeService(prisma);
 
     await expect(svc.login({ email: 'a@b.co', password: 'wrong' })).rejects.toBeInstanceOf(
