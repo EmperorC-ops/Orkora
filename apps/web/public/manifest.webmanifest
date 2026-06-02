@@ -1,0 +1,51 @@
+{
+  "name": "Orkora",
+  "short_name": "Orkora",
+  "description": "Orchestrate every moment. Registration, paid checkout, attendee tickets, and live chat for events.",
+  "id": "/?source=pwa",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F1222",
+  "theme_color": "#4C1D95",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "events"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My tickets",
+      "short_name": "Tickets",
+      "description": "Open your event tickets.",
+      "url": "/me/tickets?source=pwa",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Open your organizer dashboard.",
+      "url": "/dashboard?source=pwa",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}

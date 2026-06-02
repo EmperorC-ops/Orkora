@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
+import InstallPrompt from '../../../_components/InstallPrompt';
 
 interface PublicTier {
   id: string;
@@ -153,6 +154,14 @@ export default async function PublicEventPage({ params }: { params: { code: stri
 
   return (
     <main className="bg-surface-deep text-ink-primary">
+      {/* PWA install banner. Sits as a sticky bottom card on phones, hides
+          once the user installs or dismisses (7-day window), and is silent
+          on the desktop unless the browser supports the install prompt.
+          Surfaced here on the public event page because that is exactly
+          the moment an attendee is engaging with Orkora for the first
+          time and is most likely to want it on their home screen. */}
+      <InstallPrompt variant="banner" />
+
       <header className="relative isolate overflow-hidden bg-brand-gradient text-white">
         {event.bannerUrl && (
           // eslint-disable-next-line @next/next/no-img-element

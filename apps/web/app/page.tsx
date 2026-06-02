@@ -364,6 +364,9 @@ export default function MarketingHome() {
             <Link href="/pricing" className="transition hover:text-ink-primary">
               Pricing
             </Link>
+            <Link href="/install" className="transition hover:text-ink-primary">
+              Install
+            </Link>
             <Link href="/legal/terms" className="transition hover:text-ink-primary">
               Terms
             </Link>

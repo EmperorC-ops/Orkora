@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Orkora master brand icon. Used by browsers, the PWA manifest, and the
+       iOS apple-touch-icon. The geometry: a square with the brand purple
+       gradient, rounded to ~22% radius (matches Apple touch-icon style), and
+       an "O" lockup centered, white. The "O" has a small notch on the right
+       edge so it reads as a play button hint when small. -->
+  <defs>
+    <linearGradient id="orkora-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8B5CF6" />
+      <stop offset="60%" stop-color="#6D28D9" />
+      <stop offset="100%" stop-color="#4C1D95" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#orkora-grad)" />
+  <!-- The O: white stroked ring, slightly thick. Inner radius tuned so the
+       counter feels confident at small sizes (down to 48px). -->
+  <circle cx="256" cy="256" r="138" fill="none" stroke="#ffffff" stroke-width="46" />
+  <!-- Play-button hint: a small triangle nudged inside the right edge of the
+       ring. Reads as "live event" at large sizes and disappears at 48px. -->
+  <path d="M286 220 L286 292 L342 256 Z" fill="#ffffff" />
+</svg>
