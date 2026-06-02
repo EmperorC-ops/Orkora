@@ -51,10 +51,10 @@ export default function ContactPage() {
             Or reach us directly
           </p>
           <a
-            href="mailto:hello@orkora.io"
+            href="mailto:hello@orkora.events"
             className="mt-2 inline-flex items-center gap-2 text-sm text-ink-primary hover:text-brand-300"
           >
-            <Mail className="h-4 w-4" /> hello@orkora.io
+            <Mail className="h-4 w-4" /> hello@orkora.events
           </a>
         </div>
 

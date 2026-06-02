@@ -8,7 +8,7 @@
     "base": {
       "node": "20.12.2",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.orkora.io"
+        "EXPO_PUBLIC_API_URL": "https://api.orkora.events"
       }
     },
     "development": {
@@ -17,7 +17,7 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.dev.orkora.io"
+        "EXPO_PUBLIC_API_URL": "https://api.dev.orkora.events"
       },
       "ios": {
         "simulator": true
@@ -28,7 +28,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.staging.orkora.io"
+        "EXPO_PUBLIC_API_URL": "https://api.staging.orkora.events"
       },
       "ios": {
         "simulator": false
@@ -41,7 +41,7 @@
       "extends": "base",
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.orkora.io"
+        "EXPO_PUBLIC_API_URL": "https://api.orkora.events"
       },
       "autoIncrement": true,
       "android": {

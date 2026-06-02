@@ -54,7 +54,7 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-The seed creates a demo organization, an owner account (`owner@demo.orkora.io` / `Demo1234!`), and an event with code `DEMO2026`.
+The seed creates a demo organization, an owner account (`owner@demo.orkora.events` / `Demo1234!`), and an event with code `DEMO2026`.
 
 ## Run it
 

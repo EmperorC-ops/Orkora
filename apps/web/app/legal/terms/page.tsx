@@ -36,7 +36,7 @@ export default function TermsPage() {
           registered at [address]]
         </strong>{' '}
         (&quot;Orkora&quot;, &quot;we&quot;, &quot;us&quot;). They cover your
-        use of orkora.io, our mobile app, and our APIs (together, the
+        use of orkora.events, our mobile app, and our APIs (together, the
         &quot;Service&quot;). By creating an account or otherwise using the
         Service, you agree to these Terms. If you do not agree, do not use
         Orkora.
@@ -77,7 +77,7 @@ export default function TermsPage() {
         that revokes the whole family, and the login endpoint has per-account
         exponential back-off on failed attempts), but none of these substitute
         for password hygiene at your end. Tell us at{' '}
-        <a href="mailto:security@orkora.io">security@orkora.io</a> as soon as
+        <a href="mailto:security@orkora.events">security@orkora.events</a> as soon as
         you suspect any unauthorised access.
       </p>
 
@@ -124,183 +124,4 @@ export default function TermsPage() {
         post). You grant Orkora a non-exclusive, worldwide, royalty-free
         licence to host, display, store, back up, and process that content as
         necessary to operate the Service for you. You represent that you have
-        the rights to upload the content and that it does not violate any
-        third party&apos;s intellectual property, privacy, or other rights.
-      </p>
-
-      <h2>7. Payments and fees</h2>
-      <p>
-        Ticket payments are processed by third-party payment service providers
-        you connect (currently <strong>Stripe</strong>,{' '}
-        <strong>Paystack</strong>, and <strong>Flutterwave</strong>). Orkora
-        does not hold funds on your behalf at any point; the payment provider
-        settles directly to the bank account you configure on its own
-        schedule. Provider processing fees (typically 1.5% to 3.9% plus a flat
-        per-transaction component, depending on the provider, currency, and
-        card type) are paid out of your settlement at the provider&apos;s
-        published rate.
-      </p>
-      <p>
-        Orkora&apos;s platform fee is{' '}
-        <strong>
-          [PLATFORM FEE, default: &quot;no platform fee during private
-          beta&quot;]
-        </strong>
-        . Any future Orkora fee will be announced in writing at least 60 days
-        in advance, will only apply to paid tickets, and will leave free
-        events free forever.
-      </p>
-
-      <h2>8. Refunds</h2>
-      <p>
-        Refunds are governed by our{' '}
-        <a href="/legal/refunds">Refund Policy</a>. In short: each Organizer
-        sets the refund terms for their own event and decides whether to
-        approve a refund. Orkora&apos;s role is to faithfully execute that
-        decision through the payment provider and to keep the local ticket and
-        order state in sync. When a paid order is refunded, the associated
-        ticket QR codes are automatically voided and no longer admit the
-        holder at check-in.
-      </p>
-
-      <h2>9. Intellectual property</h2>
-      <p>
-        The Orkora name, logo, software, and design system are owned by{' '}
-        <strong>[LEGAL ENTITY NAME]</strong>. Nothing in these Terms grants you
-        a licence to use them other than to access the Service as a normal
-        user. If you build integrations using our public APIs, the integration
-        you write is yours; the API itself is ours.
-      </p>
-
-      <h2>10. Suspension and termination</h2>
-      <p>You may close your account at any time:</p>
-      <ul>
-        <li>
-          from <strong>Settings &gt; Account &gt; Close account</strong> in the
-          dashboard; or
-        </li>
-        <li>
-          by emailing <a href="mailto:hello@orkora.io">hello@orkora.io</a> from
-          the address on file.
-        </li>
-      </ul>
-      <p>
-        Closure triggers the data-retention schedule in section 6 of our{' '}
-        <a href="/legal/privacy">Privacy Policy</a>. Pending refunds and any
-        in-flight payouts are completed before final closure.
-      </p>
-      <p>
-        We may suspend or terminate access to all or part of the Service if
-        you breach these Terms, if we are required to do so by law, if a
-        payment provider terminates our ability to process payments on your
-        behalf, or if we reasonably believe ongoing access creates a risk to
-        the platform, its users, or third parties. Where the circumstances
-        allow, we will give you notice and a chance to cure before terminating.
-      </p>
-
-      <h2>11. Disclaimers</h2>
-      <p>
-        The Service is provided <strong>&quot;as is&quot;</strong> and{' '}
-        <strong>&quot;as available&quot;</strong>. We do not warrant that the
-        Service will be uninterrupted, error-free, or free from security
-        incidents. We do not endorse, vet, verify, or guarantee any event
-        listed on the platform, any Organizer&apos;s representations, or any
-        Attendee&apos;s identity. You use the Service at your own risk.
-      </p>
-
-      <h2>12. Limitation of liability</h2>
-      <p>
-        To the maximum extent permitted by applicable law, neither Orkora nor
-        its officers, employees, or affiliates are liable for any indirect,
-        incidental, special, consequential, or punitive damages (including
-        lost profits, lost revenue, lost data, or business interruption)
-        arising out of or related to your use of the Service, even if we have
-        been advised of the possibility.
-      </p>
-      <p>
-        Our total aggregate liability for any claim arising out of or related
-        to the Service is capped at the greater of: (a) the total platform
-        fees you paid to Orkora in the twelve (12) months immediately
-        preceding the event giving rise to the claim, or (b){' '}
-        <strong>
-          [LIABILITY CAP, default: the equivalent of US$1,000 in your local
-          currency]
-        </strong>
-        . Nothing in these Terms limits liability that cannot be limited under
-        applicable law (for example, fraud, gross negligence, or death and
-        personal injury caused by negligence).
-      </p>
-
-      <h2>13. Security disclosure</h2>
-      <p>
-        If you believe you have found a security vulnerability in Orkora,
-        please report it to{' '}
-        <a href="mailto:security@orkora.io">security@orkora.io</a>. We commit
-        to acknowledging your report within 3 business days, providing a
-        status update within 14 days, and not pursuing legal action against
-        researchers who: (a) report in good faith, (b) do not exfiltrate data
-        beyond what is needed to demonstrate the issue, (c) do not degrade
-        the Service for other users, and (d) give us a reasonable time to
-        remediate before public disclosure.
-      </p>
-
-      <h2>14. Governing law and disputes</h2>
-      <p>
-        These Terms are governed by the laws of the{' '}
-        <strong>
-          [GOVERNING LAW, default: Federal Republic of Nigeria]
-        </strong>
-        , without regard to its conflict-of-laws rules.
-      </p>
-      <p>
-        The parties will first try to resolve any dispute informally by
-        contacting{' '}
-        <a href="mailto:hello@orkora.io">hello@orkora.io</a>. If the dispute
-        cannot be resolved within 30 days, it will be referred to the
-        exclusive jurisdiction of the courts of{' '}
-        <strong>[VENUE, default: Lagos, Nigeria]</strong>, except where
-        applicable consumer protection law gives a consumer a non-waivable
-        right to a different forum.
-      </p>
-
-      <h2>15. Changes to these Terms</h2>
-      <p>
-        We may update these Terms from time to time. Material changes will be
-        notified by email to the address on file and surfaced in the
-        dashboard at least 14 days before they take effect. Continued use of
-        the Service after the effective date constitutes acceptance of the
-        updated Terms. If you do not accept a material change, you may close
-        your account before the effective date with no further obligation.
-      </p>
-
-      <h2>16. Miscellaneous</h2>
-      <p>
-        These Terms, together with the Privacy Policy, the Refund Policy, and
-        (if applicable) the Organizer Agreement, are the entire agreement
-        between you and Orkora regarding the Service. If any clause is held
-        unenforceable, the rest stays in force. Our failure to enforce a
-        clause once is not a waiver of our right to enforce it later. You may
-        not assign or transfer your rights under these Terms without our
-        consent; we may assign ours to a successor in connection with a merger,
-        acquisition, or sale of substantially all of our assets.
-      </p>
-
-      <h2>17. Contact</h2>
-      <p>
-        General questions:{' '}
-        <a href="mailto:hello@orkora.io">hello@orkora.io</a>.<br />
-        Security:{' '}
-        <a href="mailto:security@orkora.io">security@orkora.io</a>.<br />
-        Abuse:{' '}
-        <a href="mailto:abuse@orkora.io">abuse@orkora.io</a>.<br />
-        Privacy:{' '}
-        <a href="mailto:privacy@orkora.io">privacy@orkora.io</a>.<br />
-        Legal notices:{' '}
-        <strong>
-          [REGISTERED ADDRESS for service of legal notices]
-        </strong>
-        .
-      </p>
-    </>
-  );
-}
+        the rights to upload the content 

@@ -57,7 +57,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       .status(status)
       .type('application/problem+json')
       .json({
-        type: `https://api.orkora.io/problems/${status}`,
+        type: `https://api.orkora.events/problems/${status}`,
         title: statusTitle(status),
         status,
         detail: typeof message === 'string' ? message : (message as { message?: string }).message,

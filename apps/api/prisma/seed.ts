@@ -21,10 +21,10 @@ async function main() {
 
   const passwordHash = await argon2.hash('Demo1234!');
   const owner = await prisma.user.upsert({
-    where: { email: 'owner@demo.orkora.io' },
+    where: { email: 'owner@demo.orkora.events' },
     update: {},
     create: {
-      email: 'owner@demo.orkora.io',
+      email: 'owner@demo.orkora.events',
       fullName: 'Demo Owner',
       passwordHash,
       emailVerified: true,
@@ -87,7 +87,7 @@ async function main() {
   });
 
   // eslint-disable-next-line no-console
-  console.log('Seed complete. Login: owner@demo.orkora.io / Demo1234!  Code: DEMO2026');
+  console.log('Seed complete. Login: owner@demo.orkora.events / Demo1234!  Code: DEMO2026');
 }
 
 main()

@@ -61,7 +61,7 @@ The service worker layer lives in `apps/web/public/sw.js`. It is intentionally h
 
 #### Verify
 
-1. Open `https://orkora.io/t/<some-real-ticket-code>` on a phone, with signal.
+1. Open `https://orkora.events/t/<some-real-ticket-code>` on a phone, with signal.
 2. Wait 2 seconds for the SW to install (one-time, silent).
 3. Toggle airplane mode on, close and reopen the tab. The ticket page renders, the QR draws, the data is correct.
 4. Airplane mode off, navigate around. Everything still feels native: cache hit on assets, fresh fetch on dynamic data.
@@ -112,7 +112,7 @@ That URL is the install link. You share it with beta organizers (email, WhatsApp
 
 ### Distribute the APK link
 
-Update `apps/web/app/install/page.tsx` to point the "Want the APK?" section at the actual artifact URL (or a stable redirect like `https://orkora.io/apk/latest`). A small follow-up script can copy the latest EAS artifact to a stable Cloudflare R2 URL on each build.
+Update `apps/web/app/install/page.tsx` to point the "Want the APK?" section at the actual artifact URL (or a stable redirect like `https://orkora.events/apk/latest`). A small follow-up script can copy the latest EAS artifact to a stable Cloudflare R2 URL on each build.
 
 ### Verify the APK works
 
@@ -177,10 +177,10 @@ The fix is permanent: use the dev-client. The dev-client is built against our pr
 Concrete sequence the operator runs when onboarding a new beta event:
 
 1. Organizer publishes the event in the dashboard.
-2. Organizer shares the public event link (`https://orkora.io/e/ABCD12`).
+2. Organizer shares the public event link (`https://orkora.events/e/ABCD12`).
 3. Attendee opens the link on their phone.
 4. **PWA path (everyone, immediately):** install banner appears, attendee installs Orkora, opens it, registers, gets a ticket.
-5. **APK path (optional):** the organizer (or attendee) downloads the APK from `https://orkora.io/apk/latest`. Installs once. Uses Orkora natively.
+5. **APK path (optional):** the organizer (or attendee) downloads the APK from `https://orkora.events/apk/latest`. Installs once. Uses Orkora natively.
 6. **iOS native path (after Apple onboarding):** attendee installs from TestFlight invite.
 
 The first two paths are live today after this push. The third needs a $99 Apple Developer Program enrollment and one EAS build.
@@ -192,7 +192,7 @@ The first two paths are live today after this push. The third needs a $99 Apple 
 Tracked so we do not lose them, in the priority I would attack:
 
 1. ~~**Service worker for offline ticket QR.**~~ **Shipped.** See "Offline ticket QR" in Part A above. The service worker at `apps/web/public/sw.js` precaches the app shell, network-firsts ticket pages with a cache fallback, and the offline page at `/offline.html` is the last-resort landing.
-2. **Stable APK distribution URL.** Set `https://orkora.io/apk/latest` to redirect to the latest EAS artifact. A small CI step on every preview build keeps it current.
+2. **Stable APK distribution URL.** Set `https://orkora.events/apk/latest` to redirect to the latest EAS artifact. A small CI step on every preview build keeps it current.
 3. **Push notifications.** `expo-notifications` is already in the mobile dependencies. Wiring it requires the FCM server key for Android and the APNs auth key for iOS, both available from the respective developer consoles.
 4. **App Store + Play Store submission.** Production builds + the EAS submit pipeline. Gated on Apple Developer Program ($99) and Google Play Console ($25).
 5. **PNG icon set for older iOS.** Render the SVG masters at 180x180 (apple-touch), 192x192 (PWA), 512x512 (PWA splash). One command with `rsvg-convert` or a small Node script.

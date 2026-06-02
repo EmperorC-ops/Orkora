@@ -24,7 +24,7 @@ export class PostmarkEmailProvider implements EmailProvider {
 
   constructor(
     private readonly token: string,
-    private readonly from = 'no-reply@orkora.io',
+    private readonly from = 'no-reply@orkora.events',
   ) {}
 
   async send(input: { to: string; subject: string; html: string; text?: string }): Promise<void> {

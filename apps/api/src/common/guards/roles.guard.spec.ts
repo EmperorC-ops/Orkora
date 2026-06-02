@@ -107,7 +107,7 @@ describe('RolesGuard tenancy contract', () => {
   it('lets a platform superadmin act on ANY org without a membership (sole cross-org bypass)', () => {
     const guard = makeGuard(['owner']);
     const req: FakeReq = {
-      user: { userId: 'root', email: 'admin@orkora.io', platformRole: 'superadmin', memberships: [] },
+      user: { userId: 'root', email: 'admin@orkora.events', platformRole: 'superadmin', memberships: [] },
       headers: { 'x-organization-id': ORG_B },
     };
     expect(guard.canActivate(makeCtx(req))).toBe(true);

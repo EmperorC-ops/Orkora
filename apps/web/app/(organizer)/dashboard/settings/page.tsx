@@ -273,7 +273,7 @@ function BrandingTab({ orgId }: { orgId: string }) {
             type="url"
             value={logoUrl}
             onChange={(e) => setLogoUrl(e.target.value)}
-            placeholder="https://media.orkora.io/logo.png"
+            placeholder="https://media.orkora.events/logo.png"
             className="w-full rounded-lg border border-surface-border bg-surface/40 px-3 py-2 text-sm text-ink-primary outline-none focus:border-brand-500/60"
           />
         </Field>

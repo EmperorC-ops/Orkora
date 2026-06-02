@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client';
  * passwordless "Email me a sign-in code" flow.
  *
  * Run against the target database, e.g.:
- *   SUPERADMIN_EMAIL=admin@orkora.io pnpm --filter @orkora/api run seed:superadmin
+ *   SUPERADMIN_EMAIL=admin@orkora.events pnpm --filter @orkora/api run seed:superadmin
  *
  * It is idempotent and safe to re-run.
  */

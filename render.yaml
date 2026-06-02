@@ -94,7 +94,7 @@ services:
       - key: S3_BUCKET_MEDIA
         sync: false  # e.g. orkora-media
       - key: S3_PUBLIC_BASE_URL
-        sync: false  # https://media.orkora.io  (custom domain pointed at the R2 bucket)
+        sync: false  # https://media.orkora.events  (custom domain pointed at the R2 bucket)
       - key: S3_FORCE_PATH_STYLE
         value: 'true'
       - key: AWS_REGION

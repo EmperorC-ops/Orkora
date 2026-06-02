@@ -14,7 +14,7 @@ import { ConsoleSmsProvider, TermiiSmsProvider, TwilioSmsProvider } from './prov
       useFactory: (cfg: ConfigService) => {
         const token = cfg.get<string>('POSTMARK_TOKEN');
         if (token) {
-          const from = cfg.get<string>('EMAIL_FROM_ADDRESS') ?? 'no-reply@orkora.io';
+          const from = cfg.get<string>('EMAIL_FROM_ADDRESS') ?? 'no-reply@orkora.events';
           return new PostmarkEmailProvider(token, from);
         }
         return new ConsoleEmailProvider();

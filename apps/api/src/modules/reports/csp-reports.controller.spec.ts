@@ -25,7 +25,7 @@ describe('CspReportsController.report', () => {
   it('captures a legacy csp-report envelope as a Sentry warning', () => {
     ctrl.report({
       'csp-report': {
-        'document-uri': 'https://app.orkora.io/dashboard',
+        'document-uri': 'https://app.orkora.events/dashboard',
         'violated-directive': "script-src 'self'",
         'effective-directive': "script-src 'self'",
         'blocked-uri': 'https://evil.example.com/x.js',
@@ -47,9 +47,9 @@ describe('CspReportsController.report', () => {
       {
         type: 'csp-violation',
         age: 0,
-        url: 'https://app.orkora.io/dashboard',
+        url: 'https://app.orkora.events/dashboard',
         body: {
-          documentURL: 'https://app.orkora.io/dashboard',
+          documentURL: 'https://app.orkora.events/dashboard',
           blockedURL: 'inline',
           effectiveDirective: 'script-src-elem',
           originalPolicy: "default-src 'self'",

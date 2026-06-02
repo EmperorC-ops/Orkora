@@ -142,8 +142,8 @@ export default function InstallPage() {
           </p>
           <p className="mt-3 text-sm text-ink-secondary">
             Want the APK? Email{' '}
-            <a href="mailto:hello@orkora.io" className="text-brand-300 hover:text-brand-200">
-              hello@orkora.io
+            <a href="mailto:hello@orkora.events" className="text-brand-300 hover:text-brand-200">
+              hello@orkora.events
             </a>{' '}
             from the address on your Orkora account. We will send you a signed
             link.

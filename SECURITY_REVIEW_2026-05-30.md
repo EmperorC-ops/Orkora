@@ -220,7 +220,7 @@ Web only exposes `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_API_URL` to the client. 
 | X-Content-Type-Options | `nosniff` | enforced |
 | Referrer-Policy | `strict-origin-when-cross-origin` | enforced |
 | Permissions-Policy | `camera=(self), microphone=(), geolocation=()` | enforced |
-| Content-Security-Policy-Report-Only | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://cdn.orkora.io; font-src 'self' data:; connect-src 'self' <API>; report-uri <API>/v1/csp-reports` | report-only |
+| Content-Security-Policy-Report-Only | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://cdn.orkora.events; font-src 'self' data:; connect-src 'self' <API>; report-uri <API>/v1/csp-reports` | report-only |
 | Strict-Transport-Security | served by Vercel automatically | enforced |
 
 ### Finding 7.1 — Web CSP is intentionally Report-Only [LOW]
@@ -350,7 +350,7 @@ Two human-action items before public launch:
 
 - **Replace `[FILL IN]` in `/legal/*`** and run them past Nigerian counsel (#107).
 - **SPF / DKIM / DMARC** on the Postmark sending domain (#107).
-- **Designate a DPO** and stub `privacy@orkora.io` (#107).
+- **Designate a DPO** and stub `privacy@orkora.events` (#107).
 
 ---
 
@@ -436,3 +436,30 @@ After Finding 13.3 was rotated, the dry-run resumed at step 4. Stripe checkout c
 2. Push. Render auto-deploys; the entrypoint runs `migrate.mjs`, which applies `0004` inside a transaction under `pg_advisory_lock`.
 3. After deploy, the next refund test should: (a) email the attendee within ~30 seconds, (b) flip the order's ticket(s) to `void`, (c) be rejected at the check-in scanner with the new "ticket was refunded" message.
 4. Existing data: the migration's backfill step links most legacy tickets to their orders via `(registration_id, tier_id, most-recent-order)`. Ambiguous legacy tickets stay `order_id = NULL` and continue to use the registration-wide scope. The fallback is intentional and safe; the new behavior kicks in for every ticket created after the migration runs.
+
+---
+
+## 15. Addendum (2026-06-02) — first-party domain switch to orkora.events
+
+We adopted `orkora.events` as the primary first-party domain (selected over `orkora.org` and `orkora.net` for category clarity; .org's non-profit connotation and .net's "fallback" perception both work against a paid-event SaaS positioning). A defensive registration of `orkora.org` and `orkora.net` is recommended; both 301-redirect to `orkora.events`.
+
+### Codebase swap
+
+Every reference to `orkora.io` in source, configuration, environment templates, docs, and Cloudflare Storage URLs has been replaced with `orkora.events`. Touched paths include:
+
+- `apps/api/`: notification sender defaults, CSP report controller specs, seed scripts, all-exceptions filter problem-type URI.
+- `apps/web/`: layout metadata, CSP `img-src`, all four legal pages, contact page, install page, settings placeholder, onboarding org-slug helper, Next.js image `remotePatterns`.
+- `apps/mobile/`: `eas.json` API URLs for development, preview, and production profiles.
+- Docs: `README`, `DEPLOY`, `LAUNCH_CHECKLIST`, `LAUNCH_RUNBOOKS`, `MOBILE_RELEASE`, `LEGAL_REVIEW_PACKET`, `EVENTAPP_BLUEPRINT`, `render.yaml`.
+
+### DNS, SPF, DKIM, DMARC
+
+The full record set is in `DNS_RECORDS.md`. The shape: Cloudflare DNS, Vercel-fronted apex + www, Render API at `api.orkora.events`, Cloudflare R2 at `cdn.orkora.events`, Postmark-authenticated email (SPF include + DKIM CNAME + Return-Path CNAME), DMARC starting at `p=none` for two weeks then `p=quarantine` then `p=reject`. CAA records lock cert issuance to Let's Encrypt + Sectigo.
+
+### Hosting-provider env updates
+
+Per-provider environment updates are listed in `DNS_RECORDS.md` Part 6. The CORS origin and the Stripe / Paystack / Flutterwave webhook destinations must be updated on the providers before the cutover.
+
+### Operator verification gate
+
+Section 7 of `DNS_RECORDS.md` lists the dig / curl / mxtoolbox checks the operator must walk before declaring the cutover complete. The legal pages render the new host inline (we just verified); a successful Postmark send to a Gmail account with passing SPF + DKIM + DMARC is the final gate.

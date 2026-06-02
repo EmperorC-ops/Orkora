@@ -49,7 +49,7 @@ not reuse values across environments.
 
 1. Cloudflare Dashboard -> **R2** -> **Create bucket**: `orkora-media`.
 2. Click the bucket -> **Settings** -> **Public access** -> **Connect domain**.
-   Add a custom subdomain such as `media.orkora.io`. Cloudflare creates the
+   Add a custom subdomain such as `media.orkora.events`. Cloudflare creates the
    CNAME and the bucket is now publicly readable through that hostname.
 3. **R2** -> **Manage R2 API Tokens** -> **Create API token**. Permission:
    "Object Read & Write", scoped to the `orkora-media` bucket.
@@ -100,7 +100,7 @@ it after the first successful deploy so future restarts don't try to re-run.
      `S3_BUCKET_MEDIA`, `S3_PUBLIC_BASE_URL` from step 2
    - `POSTMARK_TOKEN` (Postmark Server API token)
    - `EMAIL_FROM_ADDRESS` (a confirmed Postmark sender signature, e.g.
-     `no-reply@yourdomain.com`). If unset, defaults to `no-reply@orkora.io`,
+     `no-reply@yourdomain.com`). If unset, defaults to `no-reply@orkora.events`,
      which Postmark will reject unless you own that domain.
    - `LOG_OTP_TO_CONSOLE=true` is an operator break-glass for the rare case
      where the email provider is rejecting sends (Postmark "under review"
@@ -364,9 +364,9 @@ For Google Play, drop the service account JSON at
 
 | Profile       | Distribution       | API URL                        | Use                               |
 | ------------- | ------------------ | ------------------------------ | --------------------------------- |
-| `development` | Internal, dev-client | `https://api.dev.orkora.io`     | Day-to-day debugging on a device  |
-| `preview`     | Internal (APK + IPA) | `https://api.staging.orkora.io` | Stakeholder review builds         |
-| `production`  | Store-ready (AAB + IPA) | `https://api.orkora.io`         | App Store / Play Store submission |
+| `development` | Internal, dev-client | `https://api.dev.orkora.events`     | Day-to-day debugging on a device  |
+| `preview`     | Internal (APK + IPA) | `https://api.staging.orkora.events` | Stakeholder review builds         |
+| `production`  | Store-ready (AAB + IPA) | `https://api.orkora.events`         | App Store / Play Store submission |
 
 Run a build:
 

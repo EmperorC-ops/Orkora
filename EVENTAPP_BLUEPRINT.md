@@ -887,7 +887,7 @@ This is a 16 week plan to reach a revenue generating V1 with one paying design p
 6. Provision staging AWS environment via Terraform (VPC, RDS, Elasticache, S3, ECR, ECS Fargate, ALB, Route53). Do not do this by hand.
 7. Ship a "hello world" deploy end to end so the pipeline is real before feature work starts.
 
-**Exit criteria:** a commit on main triggers a deploy to staging, an attendee app build appears in Expo Go, the admin web is reachable at staging.orkora.io.
+**Exit criteria:** a commit on main triggers a deploy to staging, an attendee app build appears in Expo Go, the admin web is reachable at staging.orkora.events.
 
 ### Phase 1: Identity and Tenancy (Week 2 to 3)
 
@@ -986,8 +986,8 @@ Create `.env` files per environment. The API enforces a Zod schema on boot and r
 ```
 # Core
 NODE_ENV=production
-APP_URL=https://app.orkora.io
-API_URL=https://api.orkora.io
+APP_URL=https://app.orkora.events
+API_URL=https://api.orkora.events
 LOG_LEVEL=info
 
 # Database
@@ -1048,13 +1048,13 @@ Migrations run as a one off ECS task before the new API tasks start serving traf
 
 ### 7.3 Domain and SSL
 
-1. Register domain (e.g. orkora.io) with a registrar that supports DNSSEC.
+1. Register domain (e.g. orkora.events) with a registrar that supports DNSSEC.
 2. Create a Route 53 hosted zone.
-3. Request ACM certificates in `us-east-1` (for CloudFront) and in the API region for the ALB. Use wildcard `*.orkora.io` plus apex.
+3. Request ACM certificates in `us-east-1` (for CloudFront) and in the API region for the ALB. Use wildcard `*.orkora.events` plus apex.
 4. Point A / AAAA alias records:
-   - `app.orkora.io` and `orkora.io` to the CloudFront distribution fronting the Next.js app.
-   - `api.orkora.io` to the API ALB.
-   - `ws.orkora.io` to a second ALB tuned for long lived WebSocket connections.
+   - `app.orkora.events` and `orkora.events` to the CloudFront distribution fronting the Next.js app.
+   - `api.orkora.events` to the API ALB.
+   - `ws.orkora.events` to a second ALB tuned for long lived WebSocket connections.
 5. Enable HSTS with a one year max age after SSL is verified in production.
 
 ### 7.4 Backend Deploy (ECS Fargate)

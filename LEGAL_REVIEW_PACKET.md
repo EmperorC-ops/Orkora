@@ -47,7 +47,7 @@ The four documents share a small set of bracketed values. Setting these once bel
 
 ### Data protection (Privacy s.13)
 
-- **Data Protection Officer name and email** — default suggestion: `dpo@orkora.io`. NDPR requires a DPO for controllers processing personal data of more than 1,000 data subjects in 6 months; we are above that threshold, so a real DPO appointment is required.
+- **Data Protection Officer name and email** — default suggestion: `dpo@orkora.events`. NDPR requires a DPO for controllers processing personal data of more than 1,000 data subjects in 6 months; we are above that threshold, so a real DPO appointment is required.
 - **EU representative**, if we accept EU residents at launch. If we do, GDPR Art. 27 requires an EU-based representative.
 
 ### Sub-processor regions (Privacy s.4)

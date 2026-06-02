@@ -215,7 +215,7 @@ NITDA if asked.
    UptimeRobot, audit-log anomalies), on-call owner, NITDA notification
    target (within 72 hours of awareness), data-subject notification template,
    post-incident review template.
-6. **Data Subject Rights (DSR) workflow**: `privacy@orkora.io` intake, 30-day
+6. **Data Subject Rights (DSR) workflow**: `privacy@orkora.events` intake, 30-day
    SLA, internal runbook for handling access / deletion / correction
    requests, log of requests served. Stub the privacy@ mailbox to a real
    inbox before opening to the public.
@@ -232,31 +232,31 @@ self-assess but the workflow should still exist.
 
 ## 6.2 Email domain authentication (SPF / DKIM / DMARC)
 
-Why: transactional email from `hello@orkora.io` and `privacy@orkora.io` is
+Why: transactional email from `hello@orkora.events` and `privacy@orkora.events` is
 much more likely to land in inboxes (and harder to spoof) when the sending
 domain is properly authenticated. Without this, Gmail and the major corporate
 filters will downrank you, and you cannot pass NDPR data-subject
 communications via email reliably.
 
 You should set this up against your Postmark sending domain (e.g.
-`mail.orkora.io`).
+`mail.orkora.events`).
 
 1. In Postmark dashboard, open your Server -> Sending domain. Add the
-   subdomain you want to send from (`mail.orkora.io`). Postmark shows you the
+   subdomain you want to send from (`mail.orkora.events`). Postmark shows you the
    exact DNS records to add.
-2. In your DNS provider (Cloudflare / Namecheap / wherever `orkora.io` lives),
+2. In your DNS provider (Cloudflare / Namecheap / wherever `orkora.events` lives),
    add:
-   - **SPF**: a TXT record at `mail.orkora.io` (or at the apex, depending on
+   - **SPF**: a TXT record at `mail.orkora.events` (or at the apex, depending on
      setup) containing `v=spf1 include:spf.mtasv.net ~all`. Only ONE SPF
      record per domain; if you already have one for a different sender,
      merge the includes.
-   - **DKIM**: a CNAME record at `[postmark-prefix]._domainkey.mail.orkora.io`
+   - **DKIM**: a CNAME record at `[postmark-prefix]._domainkey.mail.orkora.events`
      pointing to Postmark's published target. Postmark generates the prefix
      and target for you.
-   - **Return-Path**: a CNAME from `pm-bounces.mail.orkora.io` to
+   - **Return-Path**: a CNAME from `pm-bounces.mail.orkora.events` to
      Postmark's bounce host (`pm.mtasv.net` per Postmark's instructions).
-   - **DMARC**: a TXT record at `_dmarc.orkora.io` containing
-     `v=DMARC1; p=quarantine; rua=mailto:dmarc@orkora.io; ruf=mailto:dmarc@orkora.io; pct=100; adkim=s; aspf=s`.
+   - **DMARC**: a TXT record at `_dmarc.orkora.events` containing
+     `v=DMARC1; p=quarantine; rua=mailto:dmarc@orkora.events; ruf=mailto:dmarc@orkora.events; pct=100; adkim=s; aspf=s`.
      Start with `p=quarantine`; tighten to `p=reject` after a couple of weeks
      of clean reports.
 3. Back in Postmark, click **Verify** on each record. They should flip green

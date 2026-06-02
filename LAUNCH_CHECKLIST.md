@@ -56,7 +56,7 @@ Update this file as you learn things. Keep it living.
 
 - [ ] Every `[FILL IN]` placeholder in `/legal/{terms,privacy,refunds,organizer}` replaced with real company values (legal entity name, registered address, governing-law jurisdiction, platform fee posture, Neon region, DPO name + email, liability cap currency / amount).
 - [ ] Nigerian counsel has reviewed the four pages; draft banner removed from `apps/web/app/legal/layout.tsx`.
-- [ ] `privacy@orkora.io` stubbed to a real inbox, 30-day DSR SLA documented; DPO designation recorded.
+- [ ] `privacy@orkora.events` stubbed to a real inbox, 30-day DSR SLA documented; DPO designation recorded.
 - [ ] SPF / DKIM / DMARC for the Postmark sending domain all `pass` in an inbox header view (Gmail "Show original" or mail-tester.com).
 - [ ] ROPA + breach runbook + DSR workflow artifacts produced and owners assigned (see LAUNCH_RUNBOOKS section 6.1).
 
@@ -154,6 +154,6 @@ Daily for seven days after T-0:
 - **UptimeRobot**: any flapping or false alarms? If so, tune.
 - **Reconciliation logs**: search for `"drift detected"`. Investigate every hit.
 - **Audit log**: skim `audit_events` for unexpected admin actions, especially refunds, role changes, suspensions. `select action, count(*) from audit_events where occurred_at > now() - interval '24 hours' group by action order by 2 desc;`.
-- **Support**: reply to every `support@orkora.io` within 24h. Track recurring themes in a single doc; they become the next sprint.
+- **Support**: reply to every `support@orkora.events` within 24h. Track recurring themes in a single doc; they become the next sprint.
 
 After seven clean days the private beta has graduated to "stable." Schedule the post-mortem, write the public-launch sub-plan (which mostly means closing the SCALE-tagged items from LAUNCH_READINESS), and decide the public-launch date.

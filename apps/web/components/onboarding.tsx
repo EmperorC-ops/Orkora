@@ -129,7 +129,7 @@ export function Onboarding({ onCreated }: { onCreated?: () => void }) {
               URL slug
             </label>
             <div className="mt-2 flex items-center rounded-xl border border-surface-border bg-surface-deep/50 px-4 py-3">
-              <span className="select-none pr-1 text-sm text-ink-muted">orkora.io/o/</span>
+              <span className="select-none pr-1 text-sm text-ink-muted">orkora.events/o/</span>
               <input
                 id="org-slug"
                 type="text"
