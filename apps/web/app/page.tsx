@@ -420,8 +420,14 @@ function BackgroundGlow() {
 function ProblemPoint({ label }: { label: string }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-surface-border/60 bg-surface-deep/40 p-4 text-left">
-      <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-[#FF7675]" />
-      <span className="text-sm text-ink-secondary">{label}</span>
+      {/* Align the dot's vertical center with the midline of the first line
+          of text. With text-sm + leading-6, the first line is 24px tall, so
+          its midline sits at y=12. The dot is 8px tall (h-2), so a mt-2
+          (8px) push lands the dot's center at y=12 - identical alignment on
+          single- and multi-line labels. Without this, the dot anchored to
+          the container top and floated several pixels above the text. */}
+      <span className="mt-2 inline-block h-2 w-2 flex-none rounded-full bg-[#FF7675]" />
+      <span className="text-sm leading-6 text-ink-secondary">{label}</span>
     </div>
   );
 }
