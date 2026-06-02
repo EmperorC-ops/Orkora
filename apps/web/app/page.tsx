@@ -98,12 +98,6 @@ export default function MarketingHome() {
           <Link href="/login" className="text-sm text-ink-secondary transition hover:text-ink-primary">
             Sign in
           </Link>
-          <Link
-            href="/signup"
-            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
-          >
-            Start planning
-          </Link>
         </div>
       </header>
 
@@ -138,16 +132,9 @@ export default function MarketingHome() {
             </div>
 
             <div className="mt-12">
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-secondary">
                 Used by event teams, corporate organizers, and high-growth brands
               </p>
-              <div className="mt-5 flex flex-wrap items-center gap-x-8 gap-y-3 text-ink-muted/70">
-                <LogoMark label="NORTHWIND" />
-                <LogoMark label="LATTICE" />
-                <LogoMark label="MERIDIAN" />
-                <LogoMark label="HARBOUR&Co." />
-                <LogoMark label="VANTAGE" />
-              </div>
             </div>
           </div>
 
@@ -391,14 +378,6 @@ function BackgroundGlow() {
       <div className="pointer-events-none absolute right-[-10%] top-[40%] h-[420px] w-[420px] rounded-full bg-[#FF7675]/10 blur-3xl" />
       <div className="pointer-events-none absolute left-[-10%] top-[70%] h-[420px] w-[420px] rounded-full bg-[#00C896]/10 blur-3xl" />
     </>
-  );
-}
-
-function LogoMark({ label }: { label: string }) {
-  return (
-    <span className="text-xs font-bold tracking-[0.18em] text-ink-muted/60 hover:text-ink-secondary">
-      {label}
-    </span>
   );
 }
 
