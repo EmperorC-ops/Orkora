@@ -10,6 +10,9 @@ import {
   Radio,
   TicketCheck,
   Sparkles,
+  ShieldCheck,
+  Globe2,
+  Download,
 } from 'lucide-react';
 
 const capabilities = [
@@ -93,6 +96,9 @@ export default function MarketingHome() {
           <a href="#built-for" className="transition hover:text-ink-primary">
             Built for
           </a>
+          <Link href="/pricing" className="transition hover:text-ink-primary">
+            Pricing
+          </Link>
         </nav>
         <div className="flex items-center gap-3">
           <Link href="/login" className="text-sm text-ink-secondary transition hover:text-ink-primary">
@@ -107,14 +113,13 @@ export default function MarketingHome() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-ink-secondary backdrop-blur">
               <Sparkles className="h-3 w-3 text-brand-300" />
-              Real-time event orchestration
+              The event platform for organizers who run paid events
             </span>
             <h1 className="mt-6 text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
               Orchestrate every moment.
             </h1>
             <p className="mt-6 max-w-xl text-lg text-ink-secondary">
-              Orkora gives you real-time control over your event. From registration to live
-              execution, every moving part stays aligned.
+              Registration, paid checkout, attendee tickets, and live chat in one place. Built for organizers who sell tickets in dollars, naira, cedi, and shillings, side by side.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Link
@@ -124,17 +129,31 @@ export default function MarketingHome() {
                 Start planning <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/contact"
+                href="/pricing"
                 className="rounded-full border border-white/15 px-7 py-3 text-sm font-semibold text-ink-primary transition hover:bg-white/5"
               >
-                Request a demo
+                See pricing
               </Link>
             </div>
 
-            <div className="mt-12">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-secondary">
-                Used by event teams, corporate organizers, and high-growth brands
-              </p>
+            {/* Trust strip. The empty logo wall is gone. These three lines
+                are the three things organizers actually want to know before
+                handing us their ticket revenue: who handles the money, what
+                currencies we settle in, and whether they can leave with
+                their data. */}
+            <div className="mt-12 flex flex-wrap gap-x-8 gap-y-3 text-xs text-ink-secondary">
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-brand-300" />
+                Payments via Stripe and Paystack (PCI DSS Level 1)
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <Globe2 className="h-4 w-4 text-brand-300" />
+                USD, NGN, GHS, KES checkout
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <Download className="h-4 w-4 text-brand-300" />
+                Export your event data anytime
+              </span>
             </div>
           </div>
 
@@ -289,11 +308,16 @@ export default function MarketingHome() {
                 </div>
               ))}
             </div>
-            <div className="mt-12 flex items-center justify-center gap-4">
-              <AvatarStack />
+            <div className="mt-12 flex flex-col items-center justify-center gap-4 text-center">
               <p className="text-sm text-ink-secondary">
-                Trusted by organizers preparing their next defining moment.
+                In private beta with a focused cohort of organizers. Public sign-ups open soon.
               </p>
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 px-6 py-2 text-sm font-semibold text-ink-primary transition hover:bg-white/5"
+              >
+                Request beta access <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
         </div>
@@ -328,9 +352,12 @@ export default function MarketingHome() {
             <span className="text-sm font-semibold tracking-tight">Orkora</span>
           </div>
           <nav
-            aria-label="Legal"
+            aria-label="Footer"
             className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-ink-secondary"
           >
+            <Link href="/pricing" className="transition hover:text-ink-primary">
+              Pricing
+            </Link>
             <Link href="/legal/terms" className="transition hover:text-ink-primary">
               Terms
             </Link>
@@ -386,25 +413,6 @@ function ProblemPoint({ label }: { label: string }) {
     <div className="flex items-start gap-3 rounded-xl border border-surface-border/60 bg-surface-deep/40 p-4 text-left">
       <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-[#FF7675]" />
       <span className="text-sm text-ink-secondary">{label}</span>
-    </div>
-  );
-}
-
-function AvatarStack() {
-  const colors = [
-    'from-brand-400 to-brand-700',
-    'from-[#FF7675] to-[#FF5757]',
-    'from-[#00C896] to-[#00A074]',
-    'from-[#5B8DEF] to-[#3F69D1]',
-  ];
-  return (
-    <div className="flex -space-x-2">
-      {colors.map((c, i) => (
-        <span
-          key={i}
-          className={`h-9 w-9 rounded-full border-2 border-surface-deep bg-gradient-to-br ${c}`}
-        />
-      ))}
     </div>
   );
 }
