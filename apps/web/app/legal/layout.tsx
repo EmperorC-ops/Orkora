@@ -5,8 +5,7 @@ import { ArrowLeft } from 'lucide-react';
  * Shared layout for every page under /legal. Wraps content in the dark theme
  * shared with the rest of the app, prepends a draft-notice banner so reviewers
  * see at a glance that these are pre-counsel-review templates, and pins a
- * "questions" contact line at the bottom. Individual /legal/<doc>/page.tsx
- * files render the document body and set their own <h1> + last-updated line.
+ * "questions" contact line at the bottom.
  */
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,19 +28,11 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       <div className="mx-auto max-w-3xl px-6 py-12">
         <div className="mb-10 rounded-xl border border-[#FF7675]/30 bg-[#FF7675]/5 px-4 py-3 text-xs leading-6 text-[#FFC8C8]">
           <strong className="text-[#FF7675]">Draft for review by counsel.</strong>{' '}
-          Every clause is grounded in current product behavior (refund
-          settlement flow, ticket voiding, audit log, sub-processor list,
-          retention schedule). Items in square brackets like{' '}
-          <code className="mx-1 rounded bg-[#FF7675]/15 px-1.5 py-0.5 text-[10px]">
-            [BRACKETED]
-          </code>{' '}
-          need a company-specific value before public launch; the suggested
-          defaults inside the brackets are starting points the lawyer can
-          accept or rewrite. Each file&apos;s top-level comment includes a
-          counsel-review checklist. Privacy clauses are aligned to the
-          Nigeria Data Protection Regulation (NDPR), the Nigeria Data
-          Protection Act 2023, and the EU/UK GDPR; counsel should confirm
-          the dual posture matches our market reality.
+          Every clause is grounded in current product behavior. Items in square brackets like{' '}
+          <code className="mx-1 rounded bg-[#FF7675]/15 px-1.5 py-0.5 text-[10px]">[BRACKETED]</code>{' '}
+          need a company-specific value before public launch. Privacy clauses are aligned to the
+          Nigeria Data Protection Regulation (NDPR), the Nigeria Data Protection Act 2023, and the
+          EU/UK GDPR.
         </div>
 
         <article className="space-y-5 text-sm leading-7 text-ink-secondary [&_h1]:mb-2 [&_h1]:mt-0 [&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:text-ink-primary [&_h2]:mb-2 [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-ink-primary [&_strong]:text-ink-primary [&_a]:text-brand-300 [&_a:hover]:text-brand-200 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_code]:rounded [&_code]:bg-surface/60 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs">
@@ -52,9 +43,9 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
           Questions about this document?{' '}
           <a
             className="text-ink-secondary transition hover:text-ink-primary"
-            href="mailto:hello@orkora.io"
+            href="mailto:hello@orkora.events"
           >
-            hello@orkora.io
+            hello@orkora.events
           </a>
         </footer>
       </div>
