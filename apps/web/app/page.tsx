@@ -14,6 +14,7 @@ import {
   Globe2,
   Download,
 } from 'lucide-react';
+import HeroDashboardLive from './_components/HeroDashboardLive';
 
 const capabilities = [
   {
@@ -158,7 +159,12 @@ export default function MarketingHome() {
           </div>
 
           <div className="relative">
-            <HeroDashboardMock />
+            {/* Live, looping product preview. Renders client-side and tells
+                the 32s story of an event running: counters ticking,
+                attendance bars surging, schedule advancing. See
+                _components/HeroDashboardLive.tsx for the keyframe details
+                and the reduced-motion behavior. */}
+            <HeroDashboardLive />
           </div>
         </div>
       </section>
@@ -419,115 +425,9 @@ function ProblemPoint({ label }: { label: string }) {
 
 /* ----------------------------- visuals ----------------------------- */
 
-function HeroDashboardMock() {
-  return (
-    <div className="relative">
-      {/* glow underlay */}
-      <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-gradient-to-br from-brand-500/30 via-transparent to-[#FF7675]/20 blur-2xl" />
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-surface/80 shadow-2xl backdrop-blur">
-        {/* topbar */}
-        <div className="flex items-center justify-between border-b border-surface-border px-5 py-3">
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-5 rounded bg-brand-gradient" />
-            <span className="text-xs font-semibold tracking-tight text-ink-primary">
-              Orkora / Tech Summit 2026
-            </span>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#00C896]/15 px-2 py-1 text-[10px] font-semibold text-[#00C896]">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00C896]" />
-            LIVE
-          </span>
-        </div>
-        {/* content */}
-        <div className="grid grid-cols-3 gap-3 p-4">
-          <StatTile label="Registered" value="1,284" tone="brand" />
-          <StatTile label="Checked in" value="947" tone="success" />
-          <StatTile label="Active sessions" value="6" tone="warm" />
-        </div>
-        <div className="px-4 pb-4">
-          <div className="rounded-xl border border-surface-border bg-surface-deep/60 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-semibold text-ink-primary">Live attendance</span>
-              <span className="text-[10px] text-ink-muted">last 60 min</span>
-            </div>
-            <BarChartMock />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3 px-4 pb-4">
-          <ScheduleRow time="10:30" title="Opening keynote" room="Main hall" status="live" />
-          <ScheduleRow time="11:15" title="Product breakouts" room="Rooms A to D" status="next" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: 'brand' | 'success' | 'warm';
-}) {
-  const toneClass =
-    tone === 'brand'
-      ? 'from-brand-500/30 to-brand-700/10'
-      : tone === 'success'
-        ? 'from-[#00C896]/30 to-[#00A074]/10'
-        : 'from-[#FF7675]/25 to-[#FF5757]/5';
-  return (
-    <div className={`rounded-xl border border-surface-border bg-gradient-to-br ${toneClass} p-3`}>
-      <div className="text-[10px] uppercase tracking-wider text-ink-muted">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-ink-primary">{value}</div>
-    </div>
-  );
-}
-
-function BarChartMock() {
-  const heights = [40, 56, 48, 70, 62, 84, 78, 92, 88, 96, 82, 90];
-  return (
-    <div className="flex h-16 items-end gap-1.5">
-      {heights.map((h, i) => (
-        <div
-          key={i}
-          className="flex-1 rounded-sm bg-gradient-to-t from-brand-500/40 to-brand-400/80"
-          style={{ height: `${h}%` }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ScheduleRow({
-  time,
-  title,
-  room,
-  status,
-}: {
-  time: string;
-  title: string;
-  room: string;
-  status: 'live' | 'next';
-}) {
-  const tone =
-    status === 'live'
-      ? 'bg-[#00C896]/15 text-[#00C896]'
-      : 'bg-brand-500/15 text-brand-300';
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-deep/60 px-3 py-2">
-      <div>
-        <div className="text-[10px] text-ink-muted">{time}</div>
-        <div className="text-xs font-semibold text-ink-primary">{title}</div>
-        <div className="text-[10px] text-ink-secondary">{room}</div>
-      </div>
-      <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${tone}`}>
-        {status}
-      </span>
-    </div>
-  );
-}
+/* HeroDashboardMock removed: the animated client component
+ * _components/HeroDashboardLive.tsx now owns the hero preview and its
+ * presentational helpers (StatTile / BarChart / ScheduleRow). */
 
 function SetupVisual() {
   return (

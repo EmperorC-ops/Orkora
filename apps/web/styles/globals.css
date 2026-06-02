@@ -38,3 +38,30 @@
     @apply inline-flex items-center gap-2 rounded-full bg-brand-500/15 px-3 py-1 text-xs font-semibold text-brand-200;
   }
 }
+
+/* Animated hero-dashboard counter cross-fade. Triggered by re-keying the
+   span on value change in HeroDashboardLive. Honors reduced-motion by simply
+   doing nothing on the first paint (the JS already freezes state). */
+@keyframes orkora-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes orkora-fade-in {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
