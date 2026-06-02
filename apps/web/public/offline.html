@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#4C1D95" />
+    <title>Offline - Orkora</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      /* Inline so the page works with zero network. No external font - we
+         fall back to the system stack rather than pull Inter from Google
+         Fonts (which would itself need network). */
+      :root {
+        --bg: #0f1222;
+        --surface: #1a1f3a;
+        --surface-border: rgba(255, 255, 255, 0.08);
+        --ink-primary: #ffffff;
+        --ink-secondary: #a0a4c0;
+        --brand-300: #c4b5fd;
+        --brand-500: #7c3aed;
+        --brand-700: #6d28d9;
+        --brand-gradient: linear-gradient(135deg, #8b5cf6, #6d28d9 60%, #4c1d95);
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink-primary);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-height: 100%;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 24px;
+        text-align: center;
+        gap: 24px;
+      }
+      .mark {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        background: var(--brand-gradient);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .mark svg { width: 28px; height: 28px; }
+      h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: -0.02em;
+      }
+      p {
+        margin: 0;
+        max-width: 28em;
+        color: var(--ink-secondary);
+        font-size: 15px;
+        line-height: 1.55;
+      }
+      .card {
+        background: rgba(26, 31, 58, 0.5);
+        border: 1px solid var(--surface-border);
+        border-radius: 16px;
+        padding: 20px 22px;
+        max-width: 28em;
+        width: 100%;
+        text-align: left;
+      }
+      .card strong { color: var(--ink-primary); }
+      .card ul {
+        margin: 12px 0 0;
+        padding-left: 20px;
+        color: var(--ink-secondary);
+      }
+      .card li + li { margin-top: 6px; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        padding: 12px 22px;
+        border-radius: 999px;
+        cursor: pointer;
+        border: 0;
+      }
+      .btn-primary {
+        background: var(--brand-gradient);
+        color: #fff;
+      }
+      .btn-secondary {
+        background: transparent;
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+      footer {
+        margin-top: 16px;
+        font-size: 12px;
+        color: var(--ink-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="16" stroke="#fff" stroke-width="6" />
+      </svg>
+    </div>
+    <h1>You are offline.</h1>
+    <p>
+      Orkora cannot reach the network right now. The page you tried to open is not in your device&apos;s cache yet.
+    </p>
+    <div class="card">
+      <strong>If you came here for a ticket:</strong>
+      <ul>
+        <li>Open the ticket once while you have a connection. Orkora caches it on your device automatically.</li>
+        <li>Then this page works even with no signal at the venue.</li>
+      </ul>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="window.location.reload()">Try again</button>
+      <a class="btn btn-secondary" href="/">Go home</a>
+    </div>
+    <footer>Orkora &mdash; orchestrating every moment.</footer>
+    <script>
+      // Auto-retry the original destination once the browser reports it is
+      // back online. We use a one-shot listener so we do not loop on flaky
+      // connections.
+      window.addEventListener('online', function () {
+        window.location.reload();
+      }, { once: true });
+    </script>
+  </body>
+</html>

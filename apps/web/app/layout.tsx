@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import '../styles/globals.css';
 import { ToastProvider } from '@/components/toast';
+import RegisterServiceWorker from './_components/RegisterServiceWorker';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen bg-surface-deep font-sans text-ink-primary">
+        <RegisterServiceWorker />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

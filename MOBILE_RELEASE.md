@@ -46,8 +46,26 @@ No SDK mismatch is possible with either. Both are SDK-agnostic.
 
 ### What is intentionally not in this push
 
-- **No service worker yet.** Service workers add offline support (offline ticket QR, splash screen, push notifications). They are a separate piece of work because they must be tested carefully against the auth flow (a service worker that caches /login is a footgun). Planned for the next iteration; tracked in OUTSTANDING.md.
 - **No PNG icons.** All icons are SVG. iOS Safari 16+ renders them. Older iOS will fall back to no icon, which is acceptable. If a perfect-pixel PNG set is wanted later, render the SVGs at 192px, 512px, and 180px (apple-touch).
+
+### Offline ticket QR (shipped in the follow-up push)
+
+The service worker layer lives in `apps/web/public/sw.js`. It is intentionally hand-rolled (no Workbox, no next-pwa dependency) so we can read and reason about the caching strategy directly.
+
+- **App shell** (Next.js build assets, brand icons, manifest, `/offline.html`) is precached on install and cache-first thereafter.
+- **Ticket pages** (`/t/<code>`) are network-first with a 7-day cache fallback, so a returning user gets the latest copy on signal and the cached copy on bad wifi.
+- **Ticket API** (`GET /api/v1/registrations/tickets/<code>`) is network-first with a 24-hour cache fallback. This is the load-bearing path: the qrToken payload is what the client renders into a QR. Caching it means the page works at the venue with no signal.
+- **Auth, dashboard, payments, webhooks** are explicitly excluded. A service worker that caches `/login` is a footgun; we never let that happen.
+- **Cross-user cache safety:** we only cache `/t/<code>` (where the code itself is the auth, anyone with the URL gets the ticket) and the public app shell. We never cache `/me/tickets` or any user-scoped endpoint. Logging out cannot expose a sibling user's QR.
+- The fallback page at `/offline.html` is inline-styled and zero-dependency, so it renders even when the user has never loaded Orkora before.
+
+#### Verify
+
+1. Open `https://orkora.io/t/<some-real-ticket-code>` on a phone, with signal.
+2. Wait 2 seconds for the SW to install (one-time, silent).
+3. Toggle airplane mode on, close and reopen the tab. The ticket page renders, the QR draws, the data is correct.
+4. Airplane mode off, navigate around. Everything still feels native: cache hit on assets, fresh fetch on dynamic data.
+5. Hit a never-visited URL with airplane mode on. The branded `/offline.html` renders with a "Try again" button and an `online` event listener that auto-reloads when the connection returns.
 
 ### Real fallback if a user cannot install
 
@@ -173,10 +191,10 @@ The first two paths are live today after this push. The third needs a $99 Apple 
 
 Tracked so we do not lose them, in the priority I would attack:
 
-1. **Service worker for offline ticket QR.** The PWA is online-only today. A service worker that caches `/me/tickets` and the QR payloads makes Orkora work in a venue with bad wifi (which is most of them).
+1. ~~**Service worker for offline ticket QR.**~~ **Shipped.** See "Offline ticket QR" in Part A above. The service worker at `apps/web/public/sw.js` precaches the app shell, network-firsts ticket pages with a cache fallback, and the offline page at `/offline.html` is the last-resort landing.
 2. **Stable APK distribution URL.** Set `https://orkora.io/apk/latest` to redirect to the latest EAS artifact. A small CI step on every preview build keeps it current.
 3. **Push notifications.** `expo-notifications` is already in the mobile dependencies. Wiring it requires the FCM server key for Android and the APNs auth key for iOS, both available from the respective developer consoles.
 4. **App Store + Play Store submission.** Production builds + the EAS submit pipeline. Gated on Apple Developer Program ($99) and Google Play Console ($25).
 5. **PNG icon set for older iOS.** Render the SVG masters at 180x180 (apple-touch), 192x192 (PWA), 512x512 (PWA splash). One command with `rsvg-convert` or a small Node script.
 
-The last three are nice-to-haves; the PWA already covers the install promise for every device.
+The last four are nice-to-haves; the PWA already covers the install promise plus the offline-ticket promise for every device.
