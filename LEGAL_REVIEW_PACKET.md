@@ -129,12 +129,12 @@ These are operational steps that must precede or accompany the legal-review sign
 
 - [ ] Real entity registered with companies registry; registration number on hand.
 - [ ] Registered address confirmed.
-- [ ] Email aliases resolve: `hello@`, `security@`, `privacy@`, `support@`, `abuse@`, `dpo@`.
+- [ ] Email aliases resolve: `hello@`, `security@`, `privacy@`, `support@`, `dpo@`. **Abuse reports route to `security@orkora.events`** — no separate `abuse@` alias; we deliberately fold abuse triage into the security inbox so a single team owns both vulnerability disclosure and trust-and-safety takedowns. When we re-land the full legal documents after counsel review, every reference to `abuse@orkora.events` must be swapped to `security@orkora.events` (Terms s.17, Organizer Agreement s.6 and s.16).
 - [ ] DPO appointed (named individual or contracted DPO-as-a-service).
 - [ ] EU representative appointed if we admit EU residents at launch.
 - [ ] SPF, DKIM, and DMARC records published on the new domain.
 - [ ] DPA template drafted (or a decision recorded that the Privacy Policy sub-processor table is sufficient).
-- [ ] Trust & Safety inbox monitored, abuse SLA committed to internally.
+- [ ] Trust & Safety inbox monitored at `security@orkora.events`, abuse SLA committed to internally (1 business day acknowledge, 3 business days review).
 - [ ] Insurance posture confirmed (E&O, cyber).
 - [ ] Bank-account-ownership verification flow for organizers in place.
 
