@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { Brand } from '@/components/brand';
 
 /**
  * Shared layout for every page under /legal. Wraps content in the dark theme
@@ -12,9 +13,8 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
     <main className="relative min-h-screen bg-surface-deep text-ink-primary">
       <header className="border-b border-surface-border">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded bg-brand-gradient" />
-            <span className="text-sm font-semibold tracking-tight">Orkora</span>
+          <Link href="/" className="flex items-center" aria-label="Orkora home">
+            <Brand variant="lockup" width={110} className="h-7 w-auto" />
           </Link>
           <Link
             href="/"

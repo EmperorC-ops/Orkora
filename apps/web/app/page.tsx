@@ -15,6 +15,7 @@ import {
   Download,
 } from 'lucide-react';
 import HeroDashboardLive from './_components/HeroDashboardLive';
+import { Brand } from '@/components/brand';
 
 const capabilities = [
   {
@@ -83,9 +84,8 @@ export default function MarketingHome() {
 
       {/* Header */}
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-brand-gradient" />
-          <span className="text-base font-semibold tracking-tight">Orkora</span>
+        <Link href="/" className="flex items-center" aria-label="Orkora home">
+          <Brand variant="lockup" width={160} priority className="h-10 w-auto" />
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-ink-secondary md:flex">
           <a href="#capabilities" className="transition hover:text-ink-primary">
@@ -354,7 +354,7 @@ export default function MarketingHome() {
       <footer className="relative z-10 border-t border-surface-border">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
           <div className="flex items-center gap-2">
-            <div className="h-5 w-5 rounded bg-brand-gradient" />
+            <Brand variant="mark" width={20} className="h-5 w-5" />
             <span className="text-sm font-semibold tracking-tight">Orkora</span>
           </div>
           <nav

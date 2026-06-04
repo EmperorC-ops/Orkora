@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Phone, User } from 'lucide-react';
 import { ApiError, authApi } from '@/lib/auth';
+import { Brand } from '@/components/brand';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -65,9 +66,8 @@ export default function SignupPage() {
       <div className="pointer-events-none absolute -bottom-32 left-[-10%] h-[420px] w-[420px] rounded-full bg-[#FF7675]/10 blur-3xl" />
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-brand-gradient" />
-          <span className="text-base font-semibold tracking-tight">Orkora</span>
+        <Link href="/" className="flex items-center" aria-label="Orkora home">
+          <Brand variant="lockup" width={140} priority className="h-9 w-auto" />
         </Link>
         <Link
           href="/"

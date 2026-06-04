@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
 import { ApiError, authApi, persistTokens } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin';
 import { useToast } from '@/components/toast';
+import { Brand } from '@/components/brand';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -150,9 +151,8 @@ function AuthShell({
       <div className="pointer-events-none absolute -bottom-32 right-[-10%] h-[420px] w-[420px] rounded-full bg-[#0EA5A5]/10 blur-3xl" />
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-brand-gradient" />
-          <span className="text-base font-semibold tracking-tight">Orkora</span>
+        <Link href="/" className="flex items-center" aria-label="Orkora home">
+          <Brand variant="lockup" width={140} priority className="h-9 w-auto" />
         </Link>
         <Link
           href="/"

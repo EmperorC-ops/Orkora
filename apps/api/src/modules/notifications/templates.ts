@@ -1,7 +1,17 @@
 /**
  * Inline email templates. Brand styling must work in every major email client,
  * which means tables, inline CSS, and no flexbox. Keep it simple.
+ *
+ * The header pulls the wordmark from the public web origin
+ * (`APP_URL/brand/orkora-wordmark-on-dark.png`) which lives in
+ * `apps/web/public/brand/`. `width` is fixed so Outlook does not resize, and
+ * the surrounding `<div>` text fallback covers clients that block remote
+ * images by default (Gmail proxies images, so this is rare; the fallback is
+ * for "show images" being off).
  */
+
+const APP_URL = (process.env.APP_URL ?? 'https://orkora.events').replace(/\/$/, '');
+const WORDMARK_URL = `${APP_URL}/brand/orkora-wordmark-on-dark.png`;
 
 const wrap = (body: string) => `
 <!doctype html>
@@ -10,8 +20,8 @@ const wrap = (body: string) => `
     <table width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr><td align="center" style="padding:32px 16px;">
         <table width="520" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 12px rgba(76,29,149,0.08);">
-          <tr><td style="background:linear-gradient(180deg,#6D28D9 0%,#4C1D95 100%);padding:24px;">
-            <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Orkora</div>
+          <tr><td align="center" style="background:linear-gradient(180deg,#6D28D9 0%,#4C1D95 100%);padding:24px;">
+            <img src="${WORDMARK_URL}" alt="Orkora" width="140" height="auto" style="display:inline-block;border:0;outline:none;text-decoration:none;max-width:140px;height:auto;" />
           </td></tr>
           <tr><td style="padding:32px 28px 28px 28px;color:#0F172A;font-size:15px;line-height:1.55;">
             ${body}
@@ -63,6 +73,39 @@ export function inviteEmailTemplate(orgName: string, acceptUrl: string) {
     subject: `Join ${orgName} on Orkora`,
     html,
     text: `${orgName} invited you to Orkora. Accept here: ${acceptUrl}`,
+  };
+}
+
+/**
+ * Sent to a *verified* existing account when someone (possibly the owner,
+ * possibly an attacker probing for account existence) submits a signup with
+ * the same email. Part of the non-enumerating signup flow: the API response
+ * is identical to the new-user case, but the real owner of the email gets a
+ * heads-up here so they can spot suspicious activity. The copy must:
+ *   - not leak whether the request came from the real user or someone else,
+ *   - be reassuring and self-contained (no link, no action required),
+ *   - point at password reset as the right next step if it was not them.
+ */
+export function signupCollisionNoticeTemplate() {
+  const html = wrap(`
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Heads up about your account</h1>
+    <p style="margin:0 0 16px 0;color:#0F172A;">
+      Someone just tried to sign up for Orkora using this email address. Because you already have an Orkora account, we did not create a new one.
+    </p>
+    <p style="margin:0 0 16px 0;color:#0F172A;">
+      If that was you, no action is needed - just sign in like you normally would.
+    </p>
+    <p style="margin:0 0 16px 0;color:#0F172A;">
+      If that was not you, your account is safe: nothing has changed. If you have forgotten your password, use the "Forgot password" link on the sign-in page to reset it.
+    </p>
+    <p style="margin:20px 0 0 0;color:#94A3B8;font-size:13px;">
+      You are receiving this once-off notice so you can spot suspicious activity. We do not send this email repeatedly.
+    </p>
+  `);
+  return {
+    subject: 'Heads up: a signup was attempted with your email',
+    html,
+    text: `Someone just tried to sign up for Orkora using this email. Because you already have an account, we did not create a new one. If it was you, sign in as usual. If it was not, your account is safe and unchanged. If you have forgotten your password, use the "Forgot password" link on the sign-in page.`,
   };
 }
 

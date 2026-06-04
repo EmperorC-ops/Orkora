@@ -17,6 +17,7 @@ import { useToast } from '@/components/toast';
 import { readActiveOrgId } from '@/lib/events';
 import { isSuperAdmin } from '@/lib/admin';
 import { Onboarding } from '@/components/onboarding';
+import { Brand } from '@/components/brand';
 
 const nav = [
   { href: '/dashboard', label: 'Overview', Icon: Home },
@@ -97,7 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-app-gradient text-ink-primary">
       <aside className="hidden w-64 flex-col border-r border-surface-border bg-surface lg:flex">
         <div className="flex h-16 items-center gap-2 border-b border-surface-border px-6">
-          <div className="h-8 w-8 rounded-lg bg-brand-gradient" />
+          <Brand variant="mark" width={32} className="h-8 w-8" />
           <span className="font-bold text-ink-primary">Orkora</span>
         </div>
         <nav className="flex-1 space-y-1 p-4">

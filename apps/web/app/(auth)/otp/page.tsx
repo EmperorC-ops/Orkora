@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, authApi, persistTokens } from '@/lib/auth';
 import type { TokenBundle } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin';
+import { Brand } from '@/components/brand';
 
 const RESEND_SECONDS = 30;
 
@@ -135,7 +136,8 @@ function OtpPageInner() {
 
   if (!destination) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-brand-gradient px-6">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand-gradient px-6">
+        <Brand variant="lockup" width={180} priority className="h-12 w-auto" />
         <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
           <h1 className="text-xl font-bold text-slate-900">Missing context</h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -147,7 +149,8 @@ function OtpPageInner() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-gradient px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand-gradient px-6">
+      <Brand variant="lockup" width={180} priority className="h-12 w-auto" />
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
         <h1 className="mb-1 text-2xl font-bold text-slate-900">Check your email</h1>
         <p className="mb-6 text-sm text-slate-500">

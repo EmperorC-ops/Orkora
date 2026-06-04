@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import '../styles/globals.css';
 import { ToastProvider } from '@/components/toast';
 import RegisterServiceWorker from './_components/RegisterServiceWorker';
+import StagingBanner from './_components/StagingBanner';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -19,13 +20,17 @@ export const metadata: Metadata = {
   // surface an "Install Orkora" prompt. iOS Safari uses the apple-* fields
   // below in addition to the manifest.
   manifest: '/manifest.webmanifest',
+  // Icons are PNG-derived from the brand symbol (apps/web/scripts/generate-brand-assets.mjs)
+  // so the same artwork ships to browser tabs, iOS home-screen, PWA, and OG.
   icons: {
     icon: [
+      { url: '/icons/icon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
     ],
-    shortcut: '/favicon.svg',
-    apple: [{ url: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }],
+    shortcut: '/icons/icon-32.png',
+    apple: [{ url: '/icons/icon-180.png', sizes: '180x180', type: 'image/png' }],
   },
   appleWebApp: {
     capable: true,
@@ -38,13 +43,13 @@ export const metadata: Metadata = {
       'Registration, paid checkout, attendee tickets, and live chat for events. Built for organizers who sell tickets in dollars, naira, cedi, and shillings.',
     type: 'website',
     siteName: 'Orkora',
-    images: [{ url: '/icon.svg' }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Orkora - Professional Event Platform' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'Orkora',
     description: 'Registration, paid checkout, attendee tickets, and live chat for events.',
-    images: ['/icon.svg'],
+    images: ['/og-image.png'],
   },
 };
 
@@ -68,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen bg-surface-deep font-sans text-ink-primary">
+        <StagingBanner />
         <RegisterServiceWorker />
         <ToastProvider>{children}</ToastProvider>
       </body>

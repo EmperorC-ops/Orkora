@@ -11,6 +11,7 @@ import {
   Download,
 } from 'lucide-react';
 import InstallPrompt from '../_components/InstallPrompt';
+import { Brand } from '@/components/brand';
 
 export const metadata = { title: 'Install Orkora' };
 
@@ -37,9 +38,8 @@ export default function InstallPage() {
       <div className="pointer-events-none absolute -top-48 left-1/2 h-[480px] w-[920px] -translate-x-1/2 rounded-full bg-brand-500/20 blur-3xl" />
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-brand-gradient" />
-          <span className="text-base font-semibold tracking-tight">Orkora</span>
+        <Link href="/" className="flex items-center" aria-label="Orkora home">
+          <Brand variant="lockup" width={150} priority className="h-10 w-auto" />
         </Link>
         <Link
           href="/"

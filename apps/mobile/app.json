@@ -7,10 +7,17 @@
     "scheme": "orkora",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": ["**/*"],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D1029"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "io.orkora.attendee",
       "buildNumber": "1",
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Scan event QR codes.",
         "ITSAppUsesNonExemptEncryption": false
@@ -19,10 +26,15 @@
     "android": {
       "package": "io.orkora.attendee",
       "versionCode": 1,
-      "permissions": ["CAMERA", "NOTIFICATIONS"]
+      "permissions": ["CAMERA", "NOTIFICATIONS"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D1029"
+      }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
