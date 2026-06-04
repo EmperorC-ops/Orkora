@@ -85,7 +85,7 @@ export default function MarketingHome() {
       {/* Header */}
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center" aria-label="Orkora home">
-          <Brand variant="lockup" width={160} priority className="h-10 w-auto" />
+          <Brand variant="lockup" width={640} priority className="h-40 w-auto" />
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-ink-secondary md:flex">
           <a href="#capabilities" className="transition hover:text-ink-primary">
@@ -660,19 +660,4 @@ function AttendeePhoneMock() {
           <div className="rounded-xl border border-surface-border bg-surface/60 p-3">
             <div className="text-[10px] uppercase tracking-wider text-ink-muted">Your ticket</div>
             <div className="mt-2 flex items-center justify-center rounded-lg bg-surface-deep/60 p-3">
-              <QrCode className="h-12 w-12 text-ink-primary" />
-            </div>
-            <div className="mt-2 text-center text-[10px] text-ink-muted">Scan at entry</div>
-          </div>
-          <div className="rounded-xl border border-surface-border bg-surface/60 p-3">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00C896]" />
-              <span className="text-[10px] font-semibold text-[#00C896]">UPDATE</span>
-            </div>
-            <div className="mt-1 text-xs text-ink-primary">Doors are now open.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+            

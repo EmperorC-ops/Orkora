@@ -14,7 +14,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       <header className="border-b border-surface-border">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
           <Link href="/" className="flex items-center" aria-label="Orkora home">
-            <Brand variant="lockup" width={110} className="h-7 w-auto" />
+            <Brand variant="lockup" width={440} className="h-28 w-auto" />
           </Link>
           <Link
             href="/"
@@ -47,8 +47,4 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
           >
             hello@orkora.events
           </a>
-        </footer>
-      </div>
-    </main>
-  );
-}
+ 

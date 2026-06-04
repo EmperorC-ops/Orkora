@@ -22,7 +22,7 @@ export default function ContactPage() {
       {/* Header */}
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center" aria-label="Orkora home">
-          <Brand variant="lockup" width={150} priority className="h-10 w-auto" />
+          <Brand variant="lockup" width={600} priority className="h-40 w-auto" />
         </Link>
         <Link
           href="/"
@@ -191,15 +191,4 @@ function Select({
         className="w-full rounded-xl border border-surface-border bg-surface-deep/60 px-4 py-3 text-sm text-ink-primary outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
         defaultValue=""
       >
-        <option value="" disabled>
-          Select size
-        </option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
+        <option value="" disabled

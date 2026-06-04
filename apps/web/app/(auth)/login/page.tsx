@@ -152,7 +152,7 @@ function AuthShell({
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center" aria-label="Orkora home">
-          <Brand variant="lockup" width={140} priority className="h-9 w-auto" />
+          <Brand variant="lockup" width={560} priority className="h-36 w-auto" />
         </Link>
         <Link
           href="/"
@@ -216,9 +216,4 @@ function Field({
           required={required}
           value={value}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className={`w-full rounded-xl border border-surface-border bg-surface-deep/60 ${icon ? 'pl-11' : 'pl-4'} py-3 pr-4 text-sm text-ink-primary placeholder-ink-muted outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30`}
-        />
-      </div>
-    </label>
-  );
-}
+          className={`w-full rounded-xl border border-surface-border bg-surface-deep
