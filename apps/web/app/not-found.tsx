@@ -39,4 +39,8 @@ export default function NotFound() {
           >
             Open dashboard
           </Link>
-        </
+        </div>
+      </section>
+    </main>
+  );
+}

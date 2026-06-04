@@ -47,4 +47,8 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
           >
             hello@orkora.events
           </a>
- 
+        </footer>
+      </div>
+    </main>
+  );
+}
