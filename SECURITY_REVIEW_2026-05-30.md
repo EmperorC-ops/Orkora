@@ -463,3 +463,52 @@ Per-provider environment updates are listed in `DNS_RECORDS.md` Part 6. The CORS
 ### Operator verification gate
 
 Section 7 of `DNS_RECORDS.md` lists the dig / curl / mxtoolbox checks the operator must walk before declaring the cutover complete. The legal pages render the new host inline (we just verified); a successful Postmark send to a Gmail account with passing SPF + DKIM + DMARC is the final gate.
+
+---
+
+## 16. Addendum (2026-06-03) — pre-public-launch security follow-ups closed (#109)
+
+Six follow-ups logged in earlier sections of this review (and in `OUTSTANDING.md`) shipped in a single batch. Each item below maps back to the original finding number and risk-register row, with the implementation + tests + docs that closed it.
+
+### 16.1 Finding 3.1 — CSRF on `/v1/auth/refresh` [LOW -> closed]
+
+Double-submit cookie pattern. On every cookie-issuing path the API now also sets `orkora_csrf` (NOT httpOnly, same `SameSite=None; Secure` shape as the refresh cookie, scoped to `/v1/auth`). The web client reads it from `document.cookie` and echoes it back as `X-CSRF-Token`. `/auth/refresh` rejects the cookie path with 403 unless `header == cookie` (constant-time compare via `crypto.timingSafeEqual`). Body-token path (mobile, older web) is exempt: a cross-site CSRF cannot put JSON in the body without a CORS preflight, and our CORS denies untrusted origins. Tests in `auth.controller.spec.ts` cover: missing header, missing cookie, mismatched values, matching values, and the body-token skip. Touched: `apps/api/src/modules/auth/auth.controller.ts`, `apps/web/lib/auth.ts`.
+
+### 16.2 Finding 4.2 — JWT signing-key rotation overlap [LOW -> closed]
+
+`JWT_PUBLIC_KEY_PREVIOUS` is now read by `JwtStrategy.secretOrKeyProvider` and used to verify tokens whose `kid` matches the previous key. Tokens are signed with `keyid: jwtKidFor(JWT_PUBLIC_KEY)` so every new access token carries its key id. The dispatcher rejects tokens whose `kid` matches neither current nor previous key (no fallback, no key-confusion oracle). Rotation runbook documented in `DEPLOY.md` (zero-downtime + emergency variants). Kid contract tested in `jwt.strategy.spec.ts` (deterministic, whitespace-insensitive, 16 hex chars, distinct keys yield distinct kids). Touched: `apps/api/src/modules/auth/strategies/jwt.strategy.ts`, `apps/api/src/modules/auth/auth.module.ts`, `apps/api/src/config/env.schema.ts`, `render.yaml`, `render.staging.yaml`.
+
+### 16.3 Finding 9.3 — Signup email enumeration [LOW -> closed]
+
+`/v1/auth/signup` now returns the same `202 { status: 'verification_sent', destination }` body regardless of branch. Service-side logic (`AuthService.signupRequest`):
+
+- *New email*: create unverified user + send signup OTP.
+- *Pending unverified email*: update password hash + profile, resend OTP. (Recovery path for "I started signup, never finished" without leaking partial-state to the caller.)
+- *Verified email*: do NOT mutate the user. Send a one-off "someone tried to sign up with your email" notice to the real owner (template `signupCollisionNoticeTemplate`).
+
+Argon2 hashing runs in every branch so response timing does not distinguish them. Notification + OTP failures are swallowed and logged so a transient mailer outage cannot leak account existence by responding differently. Three-branch test coverage in `auth.signup.spec.ts`; HTTP shape test in `auth.controller.spec.ts`. Touched: `apps/api/src/modules/auth/auth.service.ts`, `apps/api/src/modules/auth/auth.controller.ts`, `apps/api/src/modules/notifications/templates.ts`, `apps/api/src/modules/notifications/notifications.service.ts`.
+
+### 16.4 Finding 9.6 — Dependency CVE scan [INFO -> closed]
+
+Weekly GitHub Actions workflow `.github/workflows/security.yml`: runs `pnpm audit --prod --audit-level=high` on a cron (Monday 6am UTC) and on every push that touches `package.json` or the lockfile. High+ findings fail CI; an informational `audit-level=low` pass is also run (non-gating) so we can see the long tail without it blocking work. Out-of-cycle compromises (Snyk advisory, Renovate alert) still need a manual `pnpm audit` but the weekly baseline is now automatic.
+
+### 16.5 Finding 7.1 — CSP enforce flip [LOW -> closed]
+
+`apps/web/middleware.ts` now generates a per-request CSP nonce (`crypto.randomUUID()`), builds the policy with `'nonce-${nonce}' 'strict-dynamic'` on `script-src`, and ships it as a real `Content-Security-Policy` header (no longer Report-Only). Next propagates the nonce via the `x-nonce` request header to its own inline scripts. Emergency rollback: set `CSP_REPORT_ONLY=1` and redeploy; the same policy is emitted as `Content-Security-Policy-Report-Only` instead. The Report-Only header in `next.config.mjs` is removed; the middleware is the single source of truth.
+
+### 16.6 Finding 9.2 — Upload size cap on presigned PUT [INFO -> closed]
+
+`PresignUploadDto` now requires `sizeBytes` (positive int). `UploadsService.presign` rejects anything above `MAX_UPLOAD_BYTES` (default `8 * 1024 * 1024`, env-tunable) with `PayloadTooLargeException` and anything <= 0 with `BadRequestException`. `StorageService.presignUpload` accepts the `contentLength` and passes it to `PutObjectCommand`; the signer is told to treat `content-length` as a signable header via `signableHeaders: new Set(['content-length'])`. The client (web `image-upload.tsx`) sends the same `Content-Length` on the PUT or S3/R2 reject with 403 `SignatureDoesNotMatch`. Test coverage in `uploads.service.spec.ts`: within-limit OK, over-limit rejected, zero/negative rejected, contentLength reaches storage. Touched: `apps/api/src/modules/uploads/{dto/upload.dto.ts, uploads.service.ts, uploads.controller.ts, storage.service.ts}`, `apps/web/components/image-upload.tsx`, `apps/api/src/config/env.schema.ts`, `render.yaml`, `render.staging.yaml`.
+
+### Updated risk register
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 3.1 | Refresh-cookie CSRF surface | LOW | **Fixed in 16.1** |
+| 4.2 | JWT signing-key rotation overlap | LOW | **Fixed in 16.2** |
+| 7.1 | Web CSP enforce vs Report-Only | LOW | **Fixed in 16.5** |
+| 9.2 | Upload size cap on presigned PUT | INFO | **Fixed in 16.6** |
+| 9.3 | Email enumeration via signup | LOW | **Fixed in 16.3** |
+| 9.6 | Dependency CVE scan | INFO | **Fixed in 16.4** |
+
+No new findings opened in this pass.

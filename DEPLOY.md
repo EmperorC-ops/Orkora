@@ -428,3 +428,60 @@ node apps/api/scripts/migrate.mjs --url "<DATABASE_URL>" --status   # dry run
 Authoring a change: edit `schema.sql` (fresh installs) AND add a numbered,
 idempotent file in `apps/api/migrations/` (existing installs). See
 LAUNCH_RUNBOOKS.md section 1.1 for the full workflow.
+
+## JWT key rotation (overlap window)
+
+The API verifies access tokens against `JWT_PUBLIC_KEY`. When you rotate the
+signing keypair you cannot just swap the env var: there are still
+unexpired access tokens out there signed by the OLD key, and the moment
+the new instance comes up they all start failing with 401 until each
+client forces a refresh. That hits everyone at once and is loud in Sentry.
+
+The rotation overlap fixes this. Both env vars are read on boot; the
+verifier picks the right one per-request using the `kid` (key id) embedded
+in the JWT header.
+
+**Rotation procedure (zero-downtime):**
+
+1. Generate the new keypair locally:
+
+   ```powershell
+   openssl genrsa -out jwt_new_private.pem 4096
+   openssl rsa -in jwt_new_private.pem -pubout -out jwt_new_public.pem
+   ```
+
+2. In Render -> `orkora-api` -> Environment, set:
+   - `JWT_PUBLIC_KEY_PREVIOUS` = the CURRENT `JWT_PUBLIC_KEY` value (the old
+     public key, kept for verification).
+   - `JWT_PRIVATE_KEY` = contents of `jwt_new_private.pem`.
+   - `JWT_PUBLIC_KEY` = contents of `jwt_new_public.pem`.
+
+   Hit **Save Changes**. Render rolls a new instance.
+
+3. The new instance signs every newly issued access token with the new
+   private key, stamped with the new `kid`. It can still verify old tokens
+   in flight against `JWT_PUBLIC_KEY_PREVIOUS`.
+
+4. Wait for `JWT_ACCESS_TTL` (15 minutes by default) PLUS a safety margin.
+   After that, no surviving access tokens can have been signed by the old
+   key (refresh has already rotated everyone to the new one).
+
+5. Remove `JWT_PUBLIC_KEY_PREVIOUS`. The next deploy stops accepting
+   anything signed by the old key.
+
+**Emergency rotation (suspected key compromise):**
+
+Same procedure but skip step 4. Anyone holding an access token signed by
+the compromised key will hit 401 on their next request and will be
+silently refreshed via cookie or prompted to sign in again. Refresh tokens
+are unaffected (they are pepper-hashed, not signed).
+
+**How the dispatcher picks the right key.** Every signed JWT carries a
+`kid` claim derived from the SHA-256 of the public key (first 16 hex
+chars). `JwtStrategy.secretOrKeyProvider` reads the kid from the incoming
+token header, indexes into `{currentKid: currentKey, previousKid:
+previousKey}`, and verifies. A token whose kid matches neither is rejected
+without fallback (no key-confusion oracle).
+
+See `apps/api/src/modules/auth/strategies/jwt.strategy.ts` for the
+implementation and `jwt.strategy.spec.ts` for the kid contract tests.

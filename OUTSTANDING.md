@@ -39,6 +39,29 @@ Closed since the original Apr 29 revision (kept here for the changelog):
   since Stripe rejects unknown versions with "Invalid Stripe API version").
 - `scripts/rotate-secrets.sh` mints JWT keypair + pepper + ticket secret.
 - README "What's next" refreshed to reflect the actual phase status.
+- Pre-public-launch security follow-ups (task #109) shipped as one batch.
+  Six items closed; see `SECURITY_REVIEW_2026-05-30.md` section 16 for
+  per-item detail.
+  - CSRF on `/v1/auth/refresh` (double-submit cookie `orkora_csrf` +
+    `X-CSRF-Token` header, constant-time compare). Mobile body-token path
+    exempt.
+  - JWT signing-key rotation overlap via `JWT_PUBLIC_KEY_PREVIOUS` env +
+    `kid`-based dispatcher in `JwtStrategy`. Zero-downtime + emergency
+    rotation runbook in `DEPLOY.md`.
+  - Signup non-enumeration: `/auth/signup` always returns 202
+    `{ status: 'verification_sent', destination }`. Verified existing
+    accounts get a one-off "someone tried to sign up with your email"
+    notice; pending unverified users get OTP resent with new credentials.
+    Argon2 hash runs in every branch for constant-time response.
+  - Weekly dep CVE scan via `.github/workflows/security.yml` (cron Monday
+    6am UTC + on-push when `package.json` or lockfile changes). High+
+    findings fail CI.
+  - CSP enforce flip: per-request nonce via `apps/web/middleware.ts`,
+    real `Content-Security-Policy` header. `CSP_REPORT_ONLY=1` rolls
+    back to Report-Only without code changes.
+  - Upload size cap: `MAX_UPLOAD_BYTES` (default 8 MB) gate at presign;
+    `Content-Length` signed into the presigned URL so signature mismatch
+    rejects oversized PUTs at S3/R2.
 
 ## Mobile (deferred at user's request, now mostly closed)
 
@@ -87,6 +110,7 @@ Closed since the original Apr 29 revision (kept here for the changelog):
 | --------------------------------------------------- | ---- | ---------------------------------------------------------------------- |
 | Password complexity / breach-list check             | S    | Use `zxcvbn` or HIBP k-anonymity.                                      |
 | R2 bucket CORS `MaxObjectSize`                      | S    | Verify after first deploy. Defense in depth around the 8 MB client cap. |
+| Staging visual tell (yellow `StagingBanner`)        | S    | Scaffolded in `apps/web/app/_components/StagingBanner.tsx`, mounted in `apps/web/app/layout.tsx`, gated on `NEXT_PUBLIC_APP_ENV=staging`. Banner did not render after 2026-06-03 deploy: either the scaffold did not land on the `staging` branch, or Vercel reused a cached build. Verify by checking the file on `staging` via GitHub UI, then either commit-and-push or trigger a Redeploy with "Use existing Build Cache" unchecked. Not a launch blocker; staging stack works without it. |
 
 ## Loose-end docs that drift quickly
 

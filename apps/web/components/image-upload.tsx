@@ -46,13 +46,24 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
     }
     setBusy(true);
     try {
+      // sizeBytes is declared up-front so the API can sign Content-Length
+      // as a required header. We MUST send the same Content-Length on the
+      // PUT or S3 rejects with SignatureDoesNotMatch.
       const presign = await apiFetch<PresignResponse>('/v1/uploads/presign', {
         method: 'POST',
-        json: { kind, filename: file.name, contentType: file.type },
+        json: {
+          kind,
+          filename: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+        },
       });
       const put = await fetch(presign.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type },
+        headers: {
+          'Content-Type': file.type,
+          'Content-Length': String(file.size),
+        },
         body: file,
       });
       if (!put.ok) {

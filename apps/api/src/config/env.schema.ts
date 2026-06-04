@@ -18,11 +18,29 @@ export const envSchema = z.object({
 
   JWT_PRIVATE_KEY: z.string().min(1),
   JWT_PUBLIC_KEY: z.string().min(1),
+  /**
+   * Optional second public key used during a JWT signing-key rotation. While
+   * set, the API accepts tokens signed by either the current key (verified
+   * first) or this previous key, so access tokens minted before the rotation
+   * stay valid through the cutover. Operator playbook: bump the active key,
+   * paste the old public key here, wait one JWT_ACCESS_TTL window (default
+   * 15m), then unset. See DEPLOY.md "Rotating JWT signing keys".
+   */
+  JWT_PUBLIC_KEY_PREVIOUS: z.string().optional(),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('30d'),
   REFRESH_TOKEN_PEPPER: z.string().min(16),
   TICKET_SIGNING_SECRET: z.string().min(32),
   ORDER_HOLD_TTL_MIN: z.coerce.number().min(1).default(20),
+
+  /**
+   * Server-side ceiling on direct-to-S3 uploads. The presign endpoint requires
+   * the client to declare sizeBytes in the request, refuses sizes above this
+   * limit, and signs the Content-Length as a required header so the resulting
+   * URL is single-use for that exact byte count. Defaults to 8 MiB (banners,
+   * avatars, logos); raise per-kind if larger media types are added.
+   */
+  MAX_UPLOAD_BYTES: z.coerce.number().int().min(1).default(8 * 1024 * 1024),
 
   AWS_REGION: z.string().default('eu-west-1'),
   S3_BUCKET_MEDIA: z.string().optional(),

@@ -83,14 +83,25 @@ function refreshAccessToken(): Promise<boolean> {
   if (inflightRefresh) return inflightRefresh;
   inflightRefresh = (async () => {
     try {
-      // The refresh token lives in an httpOnly cookie now; we just POST
-      // with `credentials: 'include'` and the browser sends it for us.
+      // The refresh token lives in an httpOnly cookie now; we POST with
+      // `credentials: 'include'` and the browser sends it for us. The API
+      // also requires an X-CSRF-Token header that matches the non-httpOnly
+      // `orkora_csrf` companion cookie set on every login/refresh response.
+      // A cross-site attacker cannot read that cookie (Same-Origin Policy
+      // on document.cookie), so cannot forge the header. The double-submit
+      // pattern blocks the cookie-only CSRF path even though the refresh
+      // cookie is SameSite=None (required because web and API are on
+      // different origins in production).
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      };
+      const csrf = readCsrfCookie();
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+
       const res = await fetch(`${API}/v1/auth/refresh`, {
         method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: '{}',
       });
@@ -107,6 +118,23 @@ function refreshAccessToken(): Promise<boolean> {
     }
   })();
   return inflightRefresh;
+}
+
+/**
+ * Reads the `orkora_csrf` cookie via document.cookie. Returns null if the
+ * cookie is not present (server-side render, fresh browser, or pre-login).
+ * The cookie is set non-httpOnly precisely so we can read it here; the
+ * value is then echoed in `X-CSRF-Token` to defeat cross-site CSRF on
+ * /v1/auth/refresh.
+ */
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const pairs = document.cookie.split(';');
+  for (const raw of pairs) {
+    const [k, v] = raw.split('=').map((s) => s.trim());
+    if (k === 'orkora_csrf' && v) return decodeURIComponent(v);
+  }
+  return null;
 }
 
 export class ApiError extends Error {

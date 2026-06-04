@@ -3,6 +3,7 @@ import { EMAIL_PROVIDER, SMS_PROVIDER, type EmailProvider, type SmsProvider } fr
 import {
   otpEmailTemplate,
   inviteEmailTemplate,
+  signupCollisionNoticeTemplate,
   ticketConfirmationTemplate,
   receiptTemplate,
   refundTemplate,
@@ -31,6 +32,17 @@ export class NotificationsService {
 
   async sendInviteEmail(to: string, orgName: string, acceptUrl: string): Promise<void> {
     const { subject, html, text } = inviteEmailTemplate(orgName, acceptUrl);
+    await this.email.send({ to, subject, html, text });
+  }
+
+  /**
+   * Notice sent to a verified account when a signup is attempted with their
+   * email. Part of the non-enumerating signup flow (auth.service.ts).
+   * Failure here must not surface back to the caller; see the catch in
+   * AuthService.sendSignupCollisionNoticeQuietly.
+   */
+  async sendSignupCollisionNotice(to: string): Promise<void> {
+    const { subject, html, text } = signupCollisionNoticeTemplate();
     await this.email.send({ to, subject, html, text });
   }
 

@@ -73,6 +73,14 @@ export class StorageService implements OnModuleInit {
   async presignUpload(input: {
     key: string;
     contentType: string;
+    /**
+     * Exact byte length the client will upload. When set, the resulting
+     * presigned URL signs `Content-Length` as a required header, so an
+     * attacker who stole the URL cannot reuse it to upload an object of a
+     * different size. The client MUST send the same Content-Length on the
+     * PUT or S3 rejects with 403 SignatureDoesNotMatch.
+     */
+    contentLength?: number;
     expiresIn?: number;
   }): Promise<{ uploadUrl: string; publicUrl: string }> {
     if (!this.client || !this.bucket) {
@@ -82,12 +90,22 @@ export class StorageService implements OnModuleInit {
       Bucket: this.bucket,
       Key: input.key,
       ContentType: input.contentType,
+      // When the caller declares an exact size, embed it as ContentLength
+      // so it becomes part of the signed canonical request. S3 (and R2)
+      // will reject a PUT whose actual content-length differs from the
+      // signed value, which is the property we want.
+      ...(input.contentLength !== undefined ? { ContentLength: input.contentLength } : {}),
       // Cache hard. Object keys are content-derived UUIDs, so the URL is
       // immutable for our purposes.
       CacheControl: 'public, max-age=31536000, immutable',
     });
     const uploadUrl = await getSignedUrl(this.client, cmd, {
       expiresIn: input.expiresIn ?? 60 * 5,
+      // Belt-and-braces: ask the signer to treat content-length as a
+      // signable header even if the underlying SDK version does not
+      // include it by default for PutObject. R2 + S3 both honour this.
+      signableHeaders:
+        input.contentLength !== undefined ? new Set(['content-length']) : undefined,
     });
     return { uploadUrl, publicUrl: this.publicUrlFor(input.key) };
   }

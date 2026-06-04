@@ -8,10 +8,15 @@ import { UploadsService } from './uploads.service';
 
 /**
  * Presigned-upload flow:
- *   1. Client calls POST /v1/uploads/presign with { kind, filename, contentType }
- *   2. API returns { uploadUrl, publicUrl }
+ *   1. Client calls POST /v1/uploads/presign with
+ *      { kind, filename, contentType, sizeBytes }.
+ *   2. API enforces sizeBytes <= MAX_UPLOAD_BYTES and returns
+ *      { uploadUrl, publicUrl, contentLength }. Content-Length is part of
+ *      the signature, so the URL is single-use for that exact byte count.
  *   3. Client PUTs the file bytes to uploadUrl with the same Content-Type
- *   4. Client persists publicUrl on the parent resource (event banner, speaker avatar, ...)
+ *      AND the same Content-Length. Any deviation makes S3 reject the PUT.
+ *   4. Client persists publicUrl on the parent resource (event banner,
+ *      speaker avatar, organization logo, ...).
  */
 @ApiTags('uploads')
 @ApiBearerAuth()
@@ -27,6 +32,7 @@ export class UploadsController {
       kind: dto.kind,
       filename: dto.filename,
       contentType: dto.contentType,
+      sizeBytes: dto.sizeBytes,
       userId: user.userId,
     });
   }

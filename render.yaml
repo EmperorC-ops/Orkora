@@ -74,6 +74,13 @@ services:
         sync: false  # paste full PEM (multi-line, double-quoted)
       - key: JWT_PUBLIC_KEY
         sync: false  # paste full PEM (multi-line, double-quoted)
+      # Set ONLY during a JWT signing-key rotation (the OLD public key,
+      # while the new pair runs). Unset once one JWT_ACCESS_TTL window
+      # has elapsed. See DEPLOY.md "Rotating JWT signing keys" and
+      # apps/api/src/modules/auth/strategies/jwt.strategy.ts for the
+      # rationale; this is a no-op when unset.
+      - key: JWT_PUBLIC_KEY_PREVIOUS
+        sync: false
       - key: JWT_ACCESS_TTL
         value: 15m
       - key: JWT_REFRESH_TTL
@@ -82,6 +89,12 @@ services:
         generateValue: true
       - key: TICKET_SIGNING_SECRET
         generateValue: true
+      # Server-side upload size ceiling. The presign endpoint rejects any
+      # sizeBytes above this value and signs Content-Length as required so
+      # the URL is single-use for that exact byte count. 8 MiB is enough
+      # for banners/avatars/logos.
+      - key: MAX_UPLOAD_BYTES
+        value: '8388608'
       - key: ORDER_HOLD_TTL_MIN
         value: '20'
 

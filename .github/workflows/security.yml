@@ -1,0 +1,91 @@
+name: Security
+
+# Weekly dependency CVE scan + per-push gate. The cron catches advisories
+# published against pinned dependencies after the lockfile was last
+# updated; the on-push job catches new vulnerable deps the moment they
+# land on main or staging.
+#
+# Failure policy: any high or critical advisory fails the job. Moderate
+# and below are reported but do not break the build, because pnpm's
+# transitive advisory floor would otherwise generate constant noise from
+# tools we never reach at runtime.
+#
+# To investigate a failure: open the job log, see the advisory IDs, run
+# `pnpm audit --json` locally for the full report, then either bump the
+# direct dep, add an `overrides` entry in package.json to force a
+# transitive bump, or document the false positive in
+# SECURITY_REVIEW_*.md with a rationale.
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'apps/**/package.json'
+      - 'packages/**/package.json'
+      - '.github/workflows/security.yml'
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'apps/**/package.json'
+      - 'packages/**/package.json'
+  schedule:
+    # Every Monday at 06:00 UTC. Catches advisories published over the
+    # weekend so the operator finds them at the start of the week.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: pnpm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies (offline-friendly)
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run pnpm audit (production deps, high+)
+        # --prod restricts to runtime dependencies; devDeps are scanned
+        # below at a lower severity so we still see them in the log but
+        # they do not gate the workflow.
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Run pnpm audit (all deps, summary)
+        # Always runs to surface moderate/low signal. Does not fail.
+        if: always()
+        continue-on-error: true
+        run: pnpm audit --audit-level=low
+
+      - name: Summarise to step output
+        if: always()
+        run: |
+          {
+            echo "## Security audit summary"
+            echo ""
+            echo "- Runtime deps gate: \`pnpm audit --prod --audit-level=high\`"
+            echo "- Informational scan: \`pnpm audit --audit-level=low\` (does not fail)"
+            echo ""
+            echo "If this job failed, run \`pnpm audit --json\` locally to see"
+            echo "the advisory IDs and remediation paths."
+          } >> "$GITHUB_STEP_SUMMARY"
