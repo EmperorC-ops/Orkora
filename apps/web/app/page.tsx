@@ -83,9 +83,9 @@ export default function MarketingHome() {
       <BackgroundGlow />
 
       {/* Header */}
-      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
+      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
         <Link href="/" className="flex items-center" aria-label="Orkora home">
-          <Brand variant="lockup" width={640} priority className="h-40 w-auto" />
+          <Brand variant="lockup" width={320} priority className="h-20 w-auto" />
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-ink-secondary md:flex">
           <a href="#capabilities" className="transition hover:text-ink-primary">
@@ -109,7 +109,7 @@ export default function MarketingHome() {
       </header>
 
       {/* 1. HERO */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-12 pt-16 lg:pt-24">
+      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-12 pt-4 lg:pt-6">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-ink-secondary backdrop-blur">
