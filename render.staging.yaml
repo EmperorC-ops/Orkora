@@ -1,0 +1,167 @@
+# Render Blueprint for Orkora STAGING.
+#
+# This is a sibling of render.yaml. Apply it from the Render dashboard as a
+# separate Blueprint, in the same workspace, to stand up a staging stack that
+# is fully isolated from production:
+#
+#   - orkora-api-staging      Node web service (NestJS) running the API
+#   - orkora-redis-staging    managed Redis instance
+#
+# Database: a SEPARATE Neon project (not a branch of prod). Branches of prod
+# inherit prod's data and share prod's WAL window; for a true staging
+# environment we want full isolation: distinct credentials, distinct billing
+# line item, free to wipe and reseed at any moment. The DATABASE_URL is
+# pasted manually in the Render dashboard, the same pattern as prod.
+#
+# Domain layout (set in DNS_RECORDS.md):
+#   - staging.orkora.events       -> Vercel staging deploy (web)
+#   - staging-api.orkora.events   -> orkora-api-staging on Render
+#
+# Why a parallel Blueprint instead of "branch deploys" or env scoping:
+#   1. Blueprint apply is the unit of change; keeping staging in its own file
+#      means a prod-only render.yaml edit cannot accidentally redeploy staging.
+#   2. Each Render service has its own log stream and metric dashboard, so
+#      "is staging broken or prod?" is answered by which tab you are on.
+#   3. Staging on a smaller plan (free / starter mix) is fine; this file lets
+#      us pick that per-service without forcing prod down.
+#
+# What is intentionally different from prod (everything else matches):
+#   - Names suffixed with -staging
+#   - LOG_LEVEL is debug (we want louder logs on staging)
+#   - autoDeploy follows the `staging` git branch instead of `main`
+#   - SEED_ON_BOOT defaults to false but is documented as a manual toggle for
+#     re-seeding the staging DB
+#   - DMARC alignment and webhook URLs are pointed at staging-api.orkora.events
+#     instead of api.orkora.events; see STAGING.md for the corresponding
+#     payment-provider dashboard changes
+
+services:
+  - type: redis
+    name: orkora-redis-staging
+    plan: free
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+  - type: web
+    name: orkora-api-staging
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    branch: staging          # auto-deploy from the `staging` git branch only
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: staging       # honoured by env.schema.ts; gates dev-only paths
+      - key: PORT
+        value: 4000
+      - key: LOG_LEVEL
+        value: debug         # noisier than prod, on purpose
+
+      - key: APP_URL
+        value: https://staging.orkora.events
+      - key: API_URL
+        value: https://staging-api.orkora.events
+      - key: CORS_ORIGINS
+        value: https://staging.orkora.events
+
+      # Staging database lives in its own Neon project. Paste the connection
+      # string from the Neon Console after Blueprint apply. Do NOT use
+      # fromDatabase: (see render.yaml header comment for the history).
+      - key: DATABASE_URL
+        sync: false
+
+      # Migrations run on every boot. Same forward-only runner as prod.
+      - key: BOOTSTRAP_SCHEMA
+        value: 'false'       # flip to 'true' the very first staging boot, then
+                             # back to 'false' once schema_migrations is seeded
+      - key: SEED_ON_BOOT
+        value: 'false'       # flip to 'true' once to seed; flip back immediately
+
+      - key: REDIS_URL
+        fromService:
+          name: orkora-redis-staging
+          type: redis
+          property: connectionString
+
+      # Auth secrets - distinct from prod so a leaked staging key cannot mint
+      # a prod token. Paste fresh PEMs after first apply.
+      - key: JWT_PRIVATE_KEY
+        sync: false
+      - key: JWT_PUBLIC_KEY
+        sync: false
+      # Optional JWT signing-key rotation overlap; see prod render.yaml.
+      - key: JWT_PUBLIC_KEY_PREVIOUS
+        sync: false
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 30d
+      - key: REFRESH_TOKEN_PEPPER
+        generateValue: true
+      - key: TICKET_SIGNING_SECRET
+        generateValue: true
+      - key: ORDER_HOLD_TTL_MIN
+        value: '20'
+      - key: MAX_UPLOAD_BYTES
+        value: '8388608'
+
+      # Object storage - point at a SEPARATE R2 bucket so a staging upload
+      # cannot collide with a prod object key.
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET_MEDIA
+        sync: false           # e.g. orkora-media-staging
+      - key: S3_PUBLIC_BASE_URL
+        sync: false           # e.g. https://staging-cdn.orkora.events
+      - key: S3_FORCE_PATH_STYLE
+        value: 'true'
+      - key: AWS_REGION
+        value: auto
+
+      # Notifications - Postmark Sandbox token, NOT the prod token. The
+      # sandbox accepts API calls but only delivers to verified addresses,
+      # which is exactly what staging needs.
+      - key: POSTMARK_TOKEN
+        sync: false           # paste Postmark sandbox token
+      - key: EMAIL_FROM_ADDRESS
+        value: hello@staging.orkora.events
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TWILIO_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+
+      # Social login - distinct OAuth client IDs registered for the staging
+      # host. Apple in particular ties redirect URLs to a specific client ID.
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: APPLE_OAUTH_CLIENT_ID
+        sync: false
+
+      # Payments - TEST-MODE keys only. Live keys MUST NOT appear in staging.
+      # Stripe webhook should point at https://staging-api.orkora.events/v1/payments/webhook/stripe.
+      - key: STRIPE_SECRET_KEY
+        sync: false           # sk_test_...
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false           # whsec_... for the staging webhook endpoint
+      - key: PAYSTACK_SECRET_KEY
+        sync: false           # sk_test_...
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: FLUTTERWAVE_SECRET_KEY
+        sync: false           # FLWSECK_TEST-...
+      - key: FLUTTERWAVE_WEBHOOK_SECRET
+        sync: false
+
+      # Observability - separate Sentry project ("orkora-staging") so staging
+      # noise does not page on the prod project.
+      - key: SENTRY_DSN
+        sync: false

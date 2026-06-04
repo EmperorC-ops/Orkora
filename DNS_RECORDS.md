@@ -4,13 +4,13 @@
 **Audience:** the operator (you), at the registrar / DNS console.
 **Goal:** point orkora.events at Vercel (web) and Render (API), set up authenticated email, enforce DMARC after a soft warm-up.
 
-This is the literal record set. Paste it into Cloudflare DNS (or your registrar's equivalent) row by row.
+This is the literal record set. Paste it into your DNS host (Lovable's workspace-domain DNS panel for orkora.events) row by row.
 
 ---
 
 ## Part 1 — Buy the domains
 
-**Primary:** `orkora.events` — at Cloudflare Registrar (at-cost, no upsells) or Namecheap. ~$30 to $40/year.
+**Primary:** `orkora.events` — at Lovable workspace DNS Registrar (at-cost, no upsells) or Namecheap. ~$30 to $40/year.
 
 **Defensive (highly recommended, ~$25/year combined):**
 - `orkora.org` — register, 301-redirect to orkora.events.
@@ -19,7 +19,7 @@ This is the literal record set. Paste it into Cloudflare DNS (or your registrar'
 **Backorder for the future:**
 - `orkora.com` — set a backorder at your registrar so you grab it if it ever drops.
 
-After purchase, change the nameservers on each domain to Cloudflare's (free DNS, fastest TTL behavior). For the defensive domains, point them at Cloudflare too so you can manage the 301 redirects from the dashboard's Page Rules / Bulk Redirects.
+After purchase, change the nameservers on each domain to Lovable workspace DNS's (free DNS, fastest TTL behavior). For the defensive domains, point them at Lovable workspace DNS too so you can manage the 301 redirects from the dashboard's Page Rules / Bulk Redirects.
 
 ---
 
@@ -27,9 +27,9 @@ After purchase, change the nameservers on each domain to Cloudflare's (free DNS,
 
 | Type | Name | Content | TTL | Proxy | Purpose |
 |---|---|---|---|---|---|
-| `A` | `@` | `76.76.21.21` | Auto | Proxied | Apex points to Vercel's Anycast IP. Cloudflare proxy adds DDoS + caching. |
+| `A` | `@` | `76.76.21.21` | Auto | Proxied | Apex points to Vercel's Anycast IP. Lovable workspace DNS proxy adds DDoS + caching. |
 | `CNAME` | `www` | `cname.vercel-dns.com` | Auto | Proxied | www subdomain points to Vercel. |
-| `CNAME` | `api` | `<orkora-api>.onrender.com` | Auto | DNS-only | API host on Render. Render terminates TLS; do NOT proxy through Cloudflare (Render handles cert directly). Replace `<orkora-api>` with your actual Render service hostname. |
+| `CNAME` | `api` | `<orkora-api>.onrender.com` | Auto | DNS-only | API host on Render. Render terminates TLS; do NOT proxy through Lovable workspace DNS (Render handles cert directly). Replace `<orkora-api>` with your actual Render service hostname. |
 | `CNAME` | `cdn` | `<r2-public>.r2.dev` | Auto | Proxied | Public R2 bucket for banners and uploads. Replace `<r2-public>` with the bucket's public hostname. |
 | `CNAME` | `media` | `<r2-public>.r2.dev` | Auto | Proxied | Alternate alias for the same R2 bucket if separate brand uses need it. Optional. |
 
@@ -137,7 +137,7 @@ A null MX (`.` with priority 0) explicitly tells receivers there is no mail serv
 | `CAA` | `@` | `0 issue "sectigo.com"` |
 | `CAA` | `@` | `0 issuewild "letsencrypt.org"` |
 
-This prevents a third-party CA from issuing a cert for orkora.events even if an attacker compromises a DNS provider in the chain. Vercel uses Let's Encrypt; Render uses Let's Encrypt; Cloudflare uses Sectigo for its own edge cert.
+This prevents a third-party CA from issuing a cert for orkora.events even if an attacker compromises a DNS provider in the chain. Vercel uses Let's Encrypt; Render uses Let's Encrypt; Lovable workspace DNS uses Sectigo for its own edge cert.
 
 ### MTA-STS (optional, advanced)
 
@@ -147,12 +147,12 @@ If you set up Google Workspace email, publish an MTA-STS policy so receivers onl
 
 ## Part 5 — Redirect orkora.org and orkora.net to orkora.events
 
-Once those defensive domains are on Cloudflare, set up a **Bulk Redirect** (free tier):
+Once those defensive domains are on Lovable workspace DNS, set up a **Bulk Redirect** (free tier):
 
 - Source: `orkora.org/*` → Target: `https://orkora.events/$1`, status 301, preserve query.
 - Source: `orkora.net/*` → Target: `https://orkora.events/$1`, status 301, preserve query.
 
-Cloudflare handles the cert for the source domains automatically (Universal SSL).
+Lovable workspace DNS handles the cert for the source domains automatically (Universal SSL).
 
 ---
 
@@ -201,7 +201,7 @@ The eas.json now points production to `https://api.orkora.events`. Next `eas bui
 
 ## Part 7 — Verification checklist
 
-After DNS propagates (typically 5 to 30 minutes with Cloudflare):
+After DNS propagates (typically 5 to 30 minutes with Lovable workspace DNS):
 
 - [ ] `dig orkora.events A +short` returns Vercel's IP.
 - [ ] `dig api.orkora.events CNAME +short` returns your Render hostname.
@@ -216,6 +216,37 @@ After DNS propagates (typically 5 to 30 minutes with Cloudflare):
 
 ---
 
-## Part 8 — When to delete this doc
+## Part 8 — Staging subdomains (added 3 June 2026)
 
-Once the domain is live, all checklist items are green, and the team has internalised the values, archive this doc to `docs/archive/` for reference. It will be useful again when you stand up the staging domain (`staging.orkora.events`) or migrate email providers.
+Three records to add when standing up the staging environment. These point
+the staging hostnames at the parallel Render + Vercel deploys created via
+`render.staging.yaml` and the Vercel staging project. Full operator
+playbook lives in `docs/staging/STAGING.md`.
+
+| Type    | Name              | Content                              | TTL  | Proxy        | Purpose                                                  |
+| ------- | ----------------- | ------------------------------------ | ---- | ------------ | -------------------------------------------------------- |
+| `CNAME` | `staging`         | `cname.vercel-dns.com`               | Auto | DNS only     | Staging web on Vercel. Add `staging.orkora.events` to the staging Vercel project's domain list. |
+| `CNAME` | `staging-api`     | `orkora-api-staging.onrender.com`    | Auto | DNS only     | Staging API on Render. Render auto-issues a TLS cert.    |
+| `CNAME` | `staging-cdn`     | `<r2-bucket-id>.r2.dev`              | Auto | Proxied      | Staging R2 media bucket. Use a SEPARATE bucket from prod (`orkora-media-staging`). |
+
+After these records propagate (5 to 30 minutes), run the smoke test:
+
+```powershell
+$env:API_BASE = 'https://staging-api.orkora.events'
+node apps/api/scripts/staging_smoke.mjs
+```
+
+Expect `SMOKE OK`. If `event lookup` returns 404, the staging DB was not
+seeded; see `docs/staging/STAGING.md` section 3.4.
+
+**Email on staging.** Do NOT publish SPF/DKIM/DMARC records for
+`staging.orkora.events`. Staging mail flows through the Postmark sandbox
+server, which only delivers to verified addresses and signs from
+`@orkora.events`, not from a staging subdomain. Issuing real DNS auth for a
+staging domain risks pollution of the prod sender reputation.
+
+---
+
+## Part 9 — When to delete this doc
+
+Once the domain is live, all checklist items are green, and the team has internalised the values, archive this doc to `docs/archive/` for reference. Keep this version around until staging has been smoke-tested end-to-end at least once; the staging-subdomain table above is the single source of truth for that work.
