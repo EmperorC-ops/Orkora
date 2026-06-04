@@ -48,18 +48,35 @@
  *     not /me/tickets, so logging out cannot expose a sibling user's data.
  */
 
-const VERSION = 'orkora-v1-2026-06-02';
+// Bumped 2026-06-04 to invalidate caches holding the pre-brand HTML shells.
+// Without the bump, existing PWA installs continue to serve the old
+// gradient-square + Orkora wordmark even after Vercel ships the lockup.
+const VERSION = 'orkora-v2-2026-06-04';
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
 const API_CACHE = `${VERSION}-api`;
 
+// Precache the offline page, manifest, and the brand asset ladder. Keeping
+// these in the shell cache means an attendee's offline ticket page still
+// shows the brand mark + favicon even with zero connectivity. The SVG
+// favicons are retained because some browsers prefer them for the tab
+// favicon over the PNG ladder when both are advertised.
 const SHELL_URLS = [
   '/offline.html',
   '/manifest.webmanifest',
   '/favicon.svg',
   '/icon.svg',
   '/icon-maskable.svg',
+  '/brand/orkora-lockup.png',
+  '/brand/orkora-symbol.png',
+  '/brand/orkora-wordmark.png',
+  '/icons/icon-32.png',
+  '/icons/icon-180.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
+  '/og-image.png',
 ];
 
 const API_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
