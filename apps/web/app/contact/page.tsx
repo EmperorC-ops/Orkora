@@ -191,4 +191,15 @@ function Select({
         className="w-full rounded-xl border border-surface-border bg-surface-deep/60 px-4 py-3 text-sm text-ink-primary outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
         defaultValue=""
       >
-        <option value="" disabled
+        <option value="" disabled>
+          Select size
+        </option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}

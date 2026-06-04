@@ -216,4 +216,9 @@ function Field({
           required={required}
           value={value}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className={`w-full rounded-xl border border-surface-border bg-surface-deep
+          className={`w-full rounded-xl border border-surface-border bg-surface-deep/60 ${icon ? 'pl-11' : 'pl-4'} py-3 pr-4 text-sm text-ink-primary placeholder-ink-muted outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30`}
+        />
+      </div>
+    </label>
+  );
+}

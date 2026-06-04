@@ -204,4 +204,11 @@ function OtpPageInner() {
 
 export default function OtpPage() {
   // useSearchParams() requires a Suspense boundary during static export
-  // (Next.js 14)
+  // (Next.js 14). Anything outside the boundary can be prerendered; the
+  // inner component renders client-side once params resolve.
+  return (
+    <Suspense fallback={null}>
+      <OtpPageInner />
+    </Suspense>
+  );
+}

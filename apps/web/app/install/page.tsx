@@ -191,4 +191,13 @@ function Platform({
       <ol className="mt-5 space-y-3 text-sm leading-relaxed text-ink-secondary">
         {steps.map((step, i) => (
           <li key={i} className="flex gap-3">
-            <span className="flex h-6 w-6 flex-none items-center justify-center rounded
+            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-500/15 text-xs font-semibold text-brand-300">
+              {i + 1}
+            </span>
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
