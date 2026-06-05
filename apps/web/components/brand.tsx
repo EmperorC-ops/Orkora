@@ -48,8 +48,16 @@ interface BrandProps {
  * an entry here. Update these if the master files ship with new pixel
  * dimensions; the render layer scales by aspect ratio.
  */
-const SYMBOL = { src: '/brand/orkora-symbol.png', w: 486, h: 486 };
-const WORDMARK = { src: '/brand/orkora-wordmark.png', w: 720, h: 220 };
+/*
+ * Intrinsic pixel dimensions of each transparent asset, used by next/image
+ * for layout reservation. These MUST match the actual file dimensions
+ * produced by apps/web/scripts/generate-brand-assets.mjs - if the crop
+ * box ratios in that script change, refresh these. The wordmark asset
+ * includes the "Orkora" wordmark AND the "PROFESSIONAL EVENT PLATFORM"
+ * tagline beneath it, so its aspect is roughly 4:3-ish, not 3:1.
+ */
+const SYMBOL = { src: '/brand/orkora-symbol.png', w: 346, h: 457 };
+const WORDMARK = { src: '/brand/orkora-wordmark.png', w: 512, h: 300 };
 
 export function Brand({
   variant = 'lockup',
@@ -89,8 +97,7 @@ export function Brand({
           alt=""
           width={WORDMARK.w}
           height={WORDMARK.h}
-          className="h-auto w-auto max-h-full"
-          style={{ maxHeight: '70%' }}
+          className="h-full w-auto"
           priority={priority}
           aria-hidden
         />

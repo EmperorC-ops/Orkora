@@ -99,11 +99,12 @@ async function main() {
   //   - symbolBox     covers ONLY the colorful symbol illustration. Skip
   //                   the navy padding around it; the keyOutBackground
   //                   pass alpha-zeros the navy that creeps in.
-  //   - wordmarkBox   covers ONLY the "Orkora" wordmark, NOT the
-  //                   "PROFESSIONAL EVENT PLATFORM" tagline beneath it,
-  //                   and NOT the decorative shapes on the right side of
-  //                   the lockup. Cropping into either turns the
-  //                   composite into garbage.
+  //   - wordmarkBox   covers the "Orkora" wordmark AND the
+  //                   "PROFESSIONAL EVENT PLATFORM" tagline beneath it
+  //                   (the tagline reads as part of the lockup identity).
+  //                   The right edge must stop before the decorative
+  //                   shapes on the far-right side of the lockup,
+  //                   otherwise the composite shows a ghost symbol.
   const symbolBox = {
     left: Math.round(width * 0.15),
     top: Math.round(height * 0.18),
@@ -112,9 +113,9 @@ async function main() {
   };
   const wordmarkBox = {
     left: Math.round(width * 0.42),
-    top: Math.round(height * 0.33),
-    width: Math.round(width * 0.34),
-    height: Math.round(height * 0.24),
+    top: Math.round(height * 0.28),
+    width: Math.round(width * 0.40),
+    height: Math.round(height * 0.42),
   };
 
   // ---- Symbol on transparent ----
