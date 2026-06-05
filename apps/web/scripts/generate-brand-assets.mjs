@@ -39,7 +39,10 @@ const ICON_DIR = path.join(WEB, 'public/icons');
 const MOBILE_ASSETS = path.resolve(WEB, '../mobile/assets');
 
 const BRAND_NAVY = { r: 13, g: 16, b: 41, alpha: 1 }; // approx #0D1029 from the lockup
-const BG_FUZZ = 22; // colour distance under which a pixel counts as background
+// Wider fuzz so the slightly-lighter pixels at the navy/decoration boundary
+// also alpha-zero out. Set 22 was leaving a faint navy halo at the edges of
+// the symbol + wordmark crops when they composited on a light background.
+const BG_FUZZ = 38;
 
 async function ensureDir(p) {
   await mkdir(p, { recursive: true });
@@ -84,17 +87,34 @@ async function main() {
   // symbol occupying the left ~35% horizontally, vertically centered.
   // These ratios are tuned for that file and work for any source that
   // matches the same composition.
+  // Crop boxes are ratios of the source image dimensions. Tune these per
+  // master file - the defaults below are calibrated for the chat-uploaded
+  // lockup (~1280x714 with: symbol left-center, wordmark middle, tagline
+  // beneath wordmark, decorative shapes bleeding in from the right edge).
+  //
+  // If a future master file has different proportions, change these
+  // numbers and re-run. To dial in new ratios, save a one-off PNG via the
+  // sharp `extract().toFile()` calls below and pixel-peep.
+  //
+  //   - symbolBox     covers ONLY the colorful symbol illustration. Skip
+  //                   the navy padding around it; the keyOutBackground
+  //                   pass alpha-zeros the navy that creeps in.
+  //   - wordmarkBox   covers ONLY the "Orkora" wordmark, NOT the
+  //                   "PROFESSIONAL EVENT PLATFORM" tagline beneath it,
+  //                   and NOT the decorative shapes on the right side of
+  //                   the lockup. Cropping into either turns the
+  //                   composite into garbage.
   const symbolBox = {
-    left: Math.round(width * 0.18),
-    top: Math.round(height * 0.16),
+    left: Math.round(width * 0.15),
+    top: Math.round(height * 0.18),
     width: Math.round(width * 0.27),
-    height: Math.round(height * 0.68),
+    height: Math.round(height * 0.64),
   };
   const wordmarkBox = {
-    left: Math.round(width * 0.47),
-    top: Math.round(height * 0.28),
-    width: Math.round(width * 0.42),
-    height: Math.round(height * 0.42),
+    left: Math.round(width * 0.42),
+    top: Math.round(height * 0.33),
+    width: Math.round(width * 0.34),
+    height: Math.round(height * 0.24),
   };
 
   // ---- Symbol on transparent ----
