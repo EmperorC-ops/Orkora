@@ -25,7 +25,15 @@
     "db:down": "docker compose -f infra/docker/docker-compose.yml down",
     "db:migrate": "pnpm --filter @orkora/api exec prisma migrate dev",
     "db:seed": "pnpm --filter @orkora/api run seed",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "security:all": "node security/scripts/run-all.mjs",
+    "security:ci": "SKIP=zap node security/scripts/run-all.mjs",
+    "security:deps": "node security/scripts/check-deps.mjs",
+    "security:secrets": "node security/scripts/check-secrets.mjs",
+    "security:bundle": "node security/scripts/check-bundle-leaks.mjs",
+    "security:transport": "node security/scripts/check-transport.mjs",
+    "security:api": "node security/scripts/run-api-authz.mjs",
+    "security:zap": "node security/scripts/run-zap.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

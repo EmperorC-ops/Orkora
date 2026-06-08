@@ -512,3 +512,16 @@ Weekly GitHub Actions workflow `.github/workflows/security.yml`: runs `pnpm audi
 | 9.6 | Dependency CVE scan | INFO | **Fixed in 16.4** |
 
 No new findings opened in this pass.
+
+---
+
+## 17. Addendum (2026-06-08) — automated security harness
+
+Everything documented above is now mirrored by an automated harness that runs on every push, PR, weekly cron, and manual dispatch. See `SECURITY_AUDIT.md` for the full description; the short version:
+
+- `pnpm security:all` runs every check locally.
+- `.github/workflows/security.yml` runs the same checks in CI.
+- Reports under `security/reports/` per area.
+- Manual checks that remain (A04, A09, A10, mobile, dev-mode bundle spot-check) are listed in the "Limitations + manual checks still needed" section of SECURITY_AUDIT.md.
+
+The harness does NOT replace the per-finding fixes captured in sections 1-16; it makes their regressions detectable.

@@ -34,3 +34,23 @@ prisma/migrations/dev.db*
 *.tfstate.backup
 .terraform/
 .terraform.lock.hcl
+
+# Security harness
+# Live config and report outputs never get committed. The example config
+# stays tracked so contributors can copy it. Report subdirs keep their
+# .gitkeep so empty dirs persist on a fresh clone.
+security/security-audit.config.json
+security/reports/zap/*
+!security/reports/zap/.gitkeep
+security/reports/dependencies/*
+!security/reports/dependencies/.gitkeep
+security/reports/secrets/*
+!security/reports/secrets/.gitkeep
+security/reports/transport/*
+!security/reports/transport/.gitkeep
+security/reports/api-authz/*
+!security/reports/api-authz/.gitkeep
+security/reports/bundle/*
+!security/reports/bundle/.gitkeep
+security/reports/aggregate/*
+!security/reports/aggregate/.gitkeep

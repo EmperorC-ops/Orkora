@@ -1,0 +1,129 @@
+{
+  "$schema": "./security-audit.config.schema.json",
+  "_comment": "Copy to security-audit.config.json (gitignored) and fill in. Read by scripts under security/scripts and tests under security/api-authz-tests. NEVER paste real tokens here; reference env vars by name (env:VAR_NAME) and the runner resolves them at run time.",
+
+  "appBaseUrl": "env:APP_BASE_URL",
+  "apiBaseUrl": "env:API_BASE_URL",
+  "appBaseUrlExamples": {
+    "local": "http://localhost:3000",
+    "staging": "https://staging.orkora.events",
+    "production": "https://orkora.events"
+  },
+  "apiBaseUrlExamples": {
+    "local": "http://localhost:4000",
+    "staging": "https://staging-api.orkora.events",
+    "production": "https://api.orkora.events"
+  },
+
+  "testAccounts": {
+    "_comment": "Two pre-provisioned test users in TWO different orgs. The seed script that creates them lives at apps/api/scripts/seed-security-test-accounts.ts (manual). Tokens are obtained at the start of the test run by logging in via the API; never paste raw JWTs in the config. user_a_email + password + user_b_email + password are the inputs; tokens are fetched at runtime.",
+    "userA": {
+      "email": "env:SEC_USER_A_EMAIL",
+      "password": "env:SEC_USER_A_PASSWORD",
+      "userId": "env:SEC_USER_A_ID",
+      "orgId": "env:SEC_ORG_A_ID"
+    },
+    "userB": {
+      "email": "env:SEC_USER_B_EMAIL",
+      "password": "env:SEC_USER_B_PASSWORD",
+      "userId": "env:SEC_USER_B_ID",
+      "orgId": "env:SEC_ORG_B_ID"
+    },
+    "_note": "Both accounts MUST exist before tests run. Their orgs MUST be disjoint (no shared membership)."
+  },
+
+  "endpoints": {
+    "_comment": "Endpoints categorised so the harness knows what to attack and what to leave alone. Paths are relative to apiBaseUrl. Use {placeholder} for path params; tests substitute concrete values per scenario.",
+
+    "public": [
+      "GET /health",
+      "GET /v1/csp-reports",
+      "POST /v1/auth/login",
+      "POST /v1/auth/signup",
+      "POST /v1/auth/otp/send",
+      "POST /v1/auth/otp/verify",
+      "POST /v1/auth/otp/exchange",
+      "POST /v1/auth/refresh",
+      "POST /v1/auth/social"
+    ],
+
+    "protected": [
+      "GET /v1/me",
+      "GET /v1/me/tickets",
+      "GET /v1/organizations/{orgId}",
+      "GET /v1/organizations/{orgId}/events",
+      "POST /v1/organizations/{orgId}/events",
+      "GET /v1/organizations/{orgId}/registrations",
+      "GET /v1/organizations/{orgId}/attendees",
+      "GET /v1/organizations/{orgId}/analytics",
+      "POST /v1/uploads/presign"
+    ],
+
+    "admin": [
+      "GET /v1/admin/orgs",
+      "GET /v1/admin/users",
+      "GET /v1/admin/events",
+      "GET /v1/admin/metrics",
+      "POST /v1/admin/orgs/{orgId}/suspend",
+      "POST /v1/admin/users/{userId}/promote"
+    ],
+
+    "_note": "Update these arrays as the API surface grows. Tests iterate over them so adding a new endpoint here automatically extends test coverage."
+  },
+
+  "transport": {
+    "expectHsts": true,
+    "expectSecureCookies": true,
+    "expectHttpRedirect": true,
+    "_comment": "On localhost, set all three to false in your local override config."
+  },
+
+  "thresholds": {
+    "depsHighOrCritical": 0,
+    "depsModerate": 99,
+    "secretsVerified": 0,
+    "zapHigh": 0,
+    "zapMedium": 5,
+    "authzFailures": 0,
+    "_comment": "Number of findings tolerated before the run fails. 0 = strict gate. Increase only with a documented rationale in SECURITY_REVIEW_*.md."
+  },
+
+  "zap": {
+    "mode": "baseline",
+    "_comment": "baseline = passive scan only, safe for staging. full = active scan, NEVER for production. The script refuses full mode against the production hostname.",
+    "productionHostnames": [
+      "orkora.events",
+      "api.orkora.events"
+    ],
+    "extraExcludeRegex": [
+      "^.*\\/admin\\/.*$",
+      "^.*\\/v1\\/admin\\/.*$"
+    ],
+    "_excludeNote": "Exclude admin paths from active scans to avoid accidental state changes during a full scan. Baseline (passive) doesn't need exclusions."
+  },
+
+  "secrets": {
+    "trufflehogEntropyOnly": false,
+    "trufflehogMaxDepth": 0,
+    "_comment": "Depth 0 = full history. Increase locally if scans become slow."
+  },
+
+  "bundleLeakPatterns": [
+    "JWT_PRIVATE_KEY",
+    "REFRESH_TOKEN_PEPPER",
+    "TICKET_SIGNING_SECRET",
+    "STRIPE_SECRET_KEY",
+    "PAYSTACK_SECRET_KEY",
+    "FLUTTERWAVE_SECRET_KEY",
+    "POSTMARK_TOKEN",
+    "TWILIO_AUTH_TOKEN",
+    "SENTRY_AUTH_TOKEN",
+    "DATABASE_URL",
+    "S3_SECRET_ACCESS_KEY",
+    "SUPABASE_SERVICE_ROLE",
+    "service_role",
+    "BEGIN RSA PRIVATE KEY",
+    "BEGIN PRIVATE KEY",
+    "BEGIN EC PRIVATE KEY"
+  ]
+}

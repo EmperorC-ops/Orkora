@@ -1,91 +1,206 @@
 name: Security
 
-# Weekly dependency CVE scan + per-push gate. The cron catches advisories
-# published against pinned dependencies after the lockfile was last
-# updated; the on-push job catches new vulnerable deps the moment they
-# land on main or staging.
+# Comprehensive security harness. Runs on every push, every PR, weekly
+# cron, and manual dispatch. Each job writes a report under
+# security/reports/<area>/ and uploads it as a workflow artefact so
+# you can read it without re-running the scan.
 #
-# Failure policy: any high or critical advisory fails the job. Moderate
-# and below are reported but do not break the build, because pnpm's
-# transitive advisory floor would otherwise generate constant noise from
-# tools we never reach at runtime.
+# Pass/fail gate (per .github/workflows/security.yml job + the per-job
+# SEVERITY tables documented in SECURITY_AUDIT.md):
+#   - audit-deps        gates on HIGH/CRITICAL runtime CVEs
+#   - scan-secrets      gates on any TruffleHog-verified secret
+#   - scan-bundle       gates on any leak pattern matched in .next/static
+#   - test-api-authz    gates on any abuse test failure
+#   - scan-transport    informational unless SECURITY_TARGET_URL is set
+#   - scan-zap          informational unless SECURITY_TARGET_URL is set
 #
-# To investigate a failure: open the job log, see the advisory IDs, run
-# `pnpm audit --json` locally for the full report, then either bump the
-# direct dep, add an `overrides` entry in package.json to force a
-# transitive bump, or document the false positive in
-# SECURITY_REVIEW_*.md with a rationale.
+# Triggering ZAP requires SECURITY_TARGET_URL as a workflow input or env
+# var; otherwise that job no-ops. ZAP NEVER runs in active-scan mode
+# against the production hostname (the script refuses unless
+# ALLOW_PROD_ZAP=1).
 
 on:
   push:
     branches: [main, staging]
-    paths:
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'apps/**/package.json'
-      - 'packages/**/package.json'
-      - '.github/workflows/security.yml'
   pull_request:
     branches: [main, staging]
-    paths:
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'apps/**/package.json'
-      - 'packages/**/package.json'
   schedule:
-    # Every Monday at 06:00 UTC. Catches advisories published over the
-    # weekend so the operator finds them at the start of the week.
+    # Mondays 06:00 UTC. Catches advisories published over the weekend.
     - cron: '0 6 * * 1'
   workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'SECURITY_TARGET_URL for transport + ZAP (e.g. https://staging.orkora.events)'
+        required: false
+        type: string
+      zap_mode:
+        description: 'ZAP mode: baseline (safe) or full (active, never on prod)'
+        required: false
+        default: 'baseline'
+        type: choice
+        options: [baseline, full]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
-  audit:
-    name: pnpm audit
+  audit-deps:
+    name: Dependency audit (pnpm + Snyk)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
-    permissions:
-      contents: read
-      security-events: write
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-
-      - name: Install dependencies (offline-friendly)
-        run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Run pnpm audit (production deps, high+)
-        # --prod restricts to runtime dependencies; devDeps are scanned
-        # below at a lower severity so we still see them in the log but
-        # they do not gate the workflow.
-        run: pnpm audit --prod --audit-level=high
-
-      - name: Run pnpm audit (all deps, summary)
-        # Always runs to surface moderate/low signal. Does not fail.
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Run dependency audit
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: pnpm security:deps
+      - uses: actions/upload-artifact@v4
         if: always()
-        continue-on-error: true
-        run: pnpm audit --audit-level=low
+        with:
+          name: security-deps
+          path: security/reports/dependencies/
 
-      - name: Summarise to step output
-        if: always()
+  scan-secrets:
+    name: Secrets scan (TruffleHog + GitGuardian)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history for TruffleHog history scan
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install TruffleHog
         run: |
-          {
-            echo "## Security audit summary"
-            echo ""
-            echo "- Runtime deps gate: \`pnpm audit --prod --audit-level=high\`"
-            echo "- Informational scan: \`pnpm audit --audit-level=low\` (does not fail)"
-            echo ""
-            echo "If this job failed, run \`pnpm audit --json\` locally to see"
-            echo "the advisory IDs and remediation paths."
-          } >> "$GITHUB_STEP_SUMMARY"
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh \
+            | sh -s -- -b /usr/local/bin
+          trufflehog --version
+      - name: Install ggshield (optional)
+        if: env.GITGUARDIAN_API_KEY != ''
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        run: pip install --user ggshield
+      - name: Run secrets scan
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        run: node security/scripts/check-secrets.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-secrets
+          path: security/reports/secrets/
+
+  scan-bundle:
+    name: Web bundle leak scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Build web (production)
+        run: pnpm --filter @orkora/web build
+        env:
+          NEXT_PUBLIC_API_URL: 'https://example.invalid'
+          NEXT_PUBLIC_APP_URL: 'https://example.invalid'
+      - name: Run bundle leak scan
+        run: node security/scripts/check-bundle-leaks.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-bundle
+          path: security/reports/bundle/
+
+  test-api-authz:
+    name: API authorization abuse tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: |
+      ${{
+        env.SEC_USER_A_EMAIL != '' && env.API_BASE_URL != ''
+      }}
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL || secrets.API_BASE_URL }}
+      APP_BASE_URL: ${{ vars.APP_BASE_URL || secrets.APP_BASE_URL }}
+      SEC_USER_A_EMAIL: ${{ secrets.SEC_USER_A_EMAIL }}
+      SEC_USER_A_PASSWORD: ${{ secrets.SEC_USER_A_PASSWORD }}
+      SEC_USER_A_ID: ${{ secrets.SEC_USER_A_ID }}
+      SEC_ORG_A_ID: ${{ secrets.SEC_ORG_A_ID }}
+      SEC_USER_B_EMAIL: ${{ secrets.SEC_USER_B_EMAIL }}
+      SEC_USER_B_PASSWORD: ${{ secrets.SEC_USER_B_PASSWORD }}
+      SEC_USER_B_ID: ${{ secrets.SEC_USER_B_ID }}
+      SEC_ORG_B_ID: ${{ secrets.SEC_ORG_B_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run API authz suite
+        run: node security/scripts/run-api-authz.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-api-authz
+          path: security/reports/api-authz/
+
+  scan-transport:
+    name: Transport posture (HTTPS, HSTS, cookies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: |
+      ${{ inputs.target_url != '' || vars.SECURITY_TARGET_URL != '' }}
+    env:
+      APP_BASE_URL: ${{ inputs.target_url || vars.SECURITY_TARGET_URL }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || vars.SECURITY_TARGET_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run transport check
+        run: node security/scripts/check-transport.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-transport
+          path: security/reports/transport/
+
+  scan-zap:
+    name: OWASP ZAP baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [scan-transport]
+    if: |
+      ${{ inputs.target_url != '' || vars.SECURITY_TARGET_URL != '' }}
+    env:
+      SECURITY_TARGET_URL: ${{ inputs.target_url || vars.SECURITY_TARGET_URL }}
+      ZAP_MODE: ${{ inputs.zap_mode || 'baseline' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run ZAP scan
+        run: node security/scripts/run-zap.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-zap
+          path: security/reports/zap/

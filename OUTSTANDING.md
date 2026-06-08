@@ -62,6 +62,15 @@ Closed since the original Apr 29 revision (kept here for the changelog):
   - Upload size cap: `MAX_UPLOAD_BYTES` (default 8 MB) gate at presign;
     `Content-Length` signed into the presigned URL so signature mismatch
     rejects oversized PUTs at S3/R2.
+- Security audit harness shipped (see `SECURITY_AUDIT.md`). One command
+  (`pnpm security:all`) runs dependency CVE audit, secrets scan
+  (TruffleHog + optional GitGuardian), web-bundle leak scan, transport
+  posture, API authorization abuse tests (BOLA/IDOR + role escalation +
+  admin-endpoint protection), and OWASP ZAP baseline. The same checks
+  run on every push/PR via `.github/workflows/security.yml`. Reports
+  land under `security/reports/`. To provision the two staging test
+  accounts the api-authz tests need, see the "Provisioning the test
+  accounts" section in SECURITY_AUDIT.md.
 
 ## Mobile (deferred at user's request, now mostly closed)
 
