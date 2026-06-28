@@ -83,12 +83,18 @@ function makeSvc(prisma: unknown) {
   const notifications = {
     sendTicketConfirmationEmail: jest.fn().mockResolvedValue(undefined),
   };
-  const signer = {} as never;
+  // shapeTicket reaches signer.sign on the happy path; verify is reached on
+  // QR check-in. The opaque-token contents do not matter for these specs;
+  // mocking both methods keeps the factory total.
+  const signer = {
+    sign: jest.fn().mockReturnValue('stub.qr.token'),
+    verify: jest.fn(),
+  };
   return new RegistrationsService(
     prisma as never,
     cfg as never,
     notifications as never,
-    signer,
+    signer as never,
   );
 }
 
@@ -129,8 +135,14 @@ describe('RegistrationsService.register duplicate-order guard', () => {
     };
     const svc = makeSvc(prisma);
     // upsertUserByEmail is private; the test just needs it to resolve.
+    // Cast to a structurally typed alias so `spyOn` infers a concrete
+    // method signature (its overloads collapse to `never` against the
+    // bare `{ upsertUserByEmail: Function }` shape under recent @types/jest).
+    const spyTarget = svc as unknown as {
+      upsertUserByEmail: (...args: unknown[]) => Promise<{ id: string; email: string }>;
+    };
     jest
-      .spyOn(svc as unknown as { upsertUserByEmail: Function }, 'upsertUserByEmail')
+      .spyOn(spyTarget, 'upsertUserByEmail')
       .mockResolvedValue({ id: 'u1', email: 'a@b.co' });
 
     await expect(svc.register('TESTCODE', dto())).rejects.toBeInstanceOf(ConflictException);
@@ -160,8 +172,14 @@ describe('RegistrationsService.register duplicate-order guard', () => {
       $transaction,
     };
     const svc = makeSvc(prisma);
+    // Cast to a structurally typed alias so `spyOn` infers a concrete
+    // method signature (its overloads collapse to `never` against the
+    // bare `{ upsertUserByEmail: Function }` shape under recent @types/jest).
+    const spyTarget = svc as unknown as {
+      upsertUserByEmail: (...args: unknown[]) => Promise<{ id: string; email: string }>;
+    };
     jest
-      .spyOn(svc as unknown as { upsertUserByEmail: Function }, 'upsertUserByEmail')
+      .spyOn(spyTarget, 'upsertUserByEmail')
       .mockResolvedValue({ id: 'u1', email: 'a@b.co' });
 
     const result = await svc.register('TESTCODE', dto());
@@ -190,8 +208,14 @@ describe('RegistrationsService.register duplicate-order guard', () => {
       $transaction,
     };
     const svc = makeSvc(prisma);
+    // Cast to a structurally typed alias so `spyOn` infers a concrete
+    // method signature (its overloads collapse to `never` against the
+    // bare `{ upsertUserByEmail: Function }` shape under recent @types/jest).
+    const spyTarget = svc as unknown as {
+      upsertUserByEmail: (...args: unknown[]) => Promise<{ id: string; email: string }>;
+    };
     jest
-      .spyOn(svc as unknown as { upsertUserByEmail: Function }, 'upsertUserByEmail')
+      .spyOn(spyTarget, 'upsertUserByEmail')
       .mockResolvedValue({ id: 'u1', email: 'a@b.co' });
 
     await expect(svc.register('TESTCODE', dto())).rejects.toBeInstanceOf(ConflictException);

@@ -14,6 +14,11 @@ function makeService(prisma: unknown, jwt?: unknown, cfg?: unknown) {
     (cfg ?? { getOrThrow: jest.fn().mockReturnValue('pepper') }) as never,
     {} as never,
     {} as never,
+    // OtpService + NotificationsService were added to the AuthService constructor
+    // in #109 (non-enumerating signup). These specs exercise refresh + login only,
+    // which do not touch either dependency, so a bare stub is sufficient.
+    { send: jest.fn() } as never,
+    { sendSignupCollisionNotice: jest.fn() } as never,
   );
 }
 
