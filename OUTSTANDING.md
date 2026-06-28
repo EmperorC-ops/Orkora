@@ -71,6 +71,16 @@ Closed since the original Apr 29 revision (kept here for the changelog):
   land under `security/reports/`. To provision the two staging test
   accounts the api-authz tests need, see the "Provisioning the test
   accounts" section in SECURITY_AUDIT.md.
+- Campaigns module (Slice A) shipped (see `CAMPAIGNS_SPEC.md`).
+  Organizers can compose, test-send, and broadcast to "all
+  registrations for an event" via `/dashboard/campaigns`. Backed by
+  three new Postgres tables (`campaigns`, `campaign_audiences`,
+  `campaign_sends`, plus `email_suppressions`), Postmark batch API,
+  one-click HMAC-signed unsubscribe (CAN-SPAM), webhook handler for
+  delivered/bounced/opened/clicked/complained. Slices B (custom
+  audience builder + scheduled sends), C (drip triggers), D (per-org
+  domain authentication wizard) scoped in the spec, parked until after
+  public launch.
 
 ## Mobile (deferred at user's request, now mostly closed)
 

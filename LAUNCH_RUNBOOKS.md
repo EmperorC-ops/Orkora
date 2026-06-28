@@ -268,3 +268,89 @@ You should set this up against your Postmark sending domain (e.g.
 Exit: SPF, DKIM, DMARC all pass in the inbox header view; Postmark verify
 page shows all green; a DMARC aggregate report has arrived at `dmarc@` (or
 your chosen mailbox) within 24-48 hours, confirming the policy is live.
+
+---
+
+## R-9. Sentry alert drill (A09 verification)
+
+### Why this exists
+
+OWASP A09 (Security Logging & Monitoring Failures) requires evidence that production errors actually reach a human. "We installed Sentry" is not evidence. This drill is the evidence: a synthetic error is dropped into production, it shows up in Sentry, and a named on-call gets paged within an SLA. Re-run quarterly and after every Sentry / paging config change.
+
+### Frequency
+
+- **First time:** before public launch.
+- **Repeat:** quarterly, on the 15th of January, April, July, October.
+- **After change:** whenever Sentry DSN, alert rules, or on-call rotation changes.
+
+### Pre-flight (read before running)
+
+1. Confirm Sentry DSN env vars are set in BOTH the API (`SENTRY_DSN` in Render → orkora-api → Environment) and the web app (`SENTRY_DSN` in Vercel → orkora-web → Settings → Environment Variables → Production).
+2. Confirm Sentry alert rules exist: open Sentry → Alerts → look for at least one rule on each project that triggers on "new issue" and routes to the on-call email / Slack channel.
+3. Confirm the on-call rotation has a named person for this hour (Sentry → Settings → Teams → on-call schedule).
+4. Tell the on-call: "Synthetic error drill incoming. ACK in #ops when it pages."
+
+### Step 1 — Drop a synthetic 500 in the API
+
+```powershell
+# From any machine that can reach the production API.
+curl https://api.orkora.events/v1/health/_synthetic-500
+```
+
+The endpoint at `apps/api/src/modules/health/health.controller.ts` should expose a `_synthetic-500` route that throws `new Error('synthetic alert drill - ignore')` if-and-only-if a short-lived token query parameter matches `SYNTHETIC_DRILL_TOKEN`. If that route does not exist yet, add it before the first drill (and remove the gate after the public launch is stable).
+
+Expected: HTTP 500 response within a second.
+
+### Step 2 — Drop a synthetic JS error in the web app
+
+```js
+// In the browser console at https://orkora.events
+window.__forceSentry?.('synthetic alert drill - ignore') || (() => { throw new Error('synthetic alert drill - ignore'); })();
+```
+
+The web app's `apps/web/app/_components/SentryClient.tsx` should expose `window.__forceSentry` to push a captured exception. If not present, the bare `throw` still surfaces (Next captures uncaught errors).
+
+Expected: a JS error breadcrumb in Sentry's Issues feed within 30 seconds.
+
+### Step 3 — Verify the issue appears in Sentry
+
+Within 1 minute of step 1 and step 2:
+
+1. Open Sentry → orkora-api project → Issues. The synthetic API error should be top of list with environment `production`, release tag matching the current commit SHA.
+2. Open Sentry → orkora-web project → Issues. The synthetic JS error should be top of list.
+
+If either doesn't appear:
+- Check the `SENTRY_DSN` env var is set in the corresponding hosting provider.
+- Check Sentry's quota hasn't been exhausted (free tier).
+- Check `apps/api/src/main.ts` calls `Sentry.init` with the DSN before the Nest bootstrap.
+
+### Step 4 — Verify the alert routes to a human
+
+Within 5 minutes (or whatever your alert-rule notification delay is set to):
+
+1. The named on-call ACKs in the agreed channel.
+2. Sentry → Alerts → Active shows the firing rule with a recent triggered-at timestamp.
+
+If no one ACKs:
+- Check the alert rule's "Send notifications to" target (email address / Slack channel id) is valid.
+- Check the on-call's notification settings on the receiving end (Slack notification rules, email filters).
+- Test by sending a manual test from Sentry → Alerts → the rule → "Send test notification".
+
+### Step 5 — Clean up
+
+1. Resolve the synthetic issues in Sentry: Issues → tick → Resolve. Annotate with "synthetic drill 2026-XX-XX".
+2. If the API `_synthetic-500` route uses a one-shot token, rotate the token now via Render env (`SYNTHETIC_DRILL_TOKEN`).
+3. Post in #ops: "Drill complete. ACK from {on-call name} at {time}. {pass | fail}."
+4. Log the drill in `OPS_LOG.md` (one-line: date, on-call name, ACK time, outcome).
+
+### Pass / fail criteria
+
+- **Pass:** synthetic issue appears in Sentry within 1 minute AND on-call ACKs within 5 minutes.
+- **Soft fail:** appears in Sentry but no ACK within 5 minutes — alert rule misconfigured. File a ticket, re-test once fixed.
+- **Hard fail:** does not appear in Sentry — instrumentation gap. Block the next deploy until fixed.
+
+### What this drill does NOT cover
+
+- Database alerts (Neon errors). Neon's own alerting goes to the same on-call channel; covered by a separate drill (R-10, scheduled).
+- Render / Vercel platform health alerts (deploy failures, 503s on the platform level). Those are platform-level emails; verified by triggering a deliberate bad deploy in staging.
+- Payment-provider webhook delivery failures. Covered by the reconciliation sweep that runs hourly and writes a structured log; would surface as a Sentry breadcrumb if persistent.

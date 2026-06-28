@@ -18,6 +18,8 @@ import { RegistrationsModule } from './modules/registrations/registrations.modul
 import { PaymentsModule } from './modules/payments/payments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { EngagementModule } from './modules/engagement/engagement.module';
+import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
@@ -66,6 +68,8 @@ import { AdminModule } from './modules/admin/admin.module';
     PaymentsModule,
     UploadsModule,
     EngagementModule,
+    CampaignsModule,
+    BillingModule,
     AnalyticsModule,
     AuditModule,
     ApiKeysModule,

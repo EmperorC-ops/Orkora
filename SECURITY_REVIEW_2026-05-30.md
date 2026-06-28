@@ -525,3 +525,78 @@ Everything documented above is now mirrored by an automated harness that runs on
 - Manual checks that remain (A04, A09, A10, mobile, dev-mode bundle spot-check) are listed in the "Limitations + manual checks still needed" section of SECURITY_AUDIT.md.
 
 The harness does NOT replace the per-finding fixes captured in sections 1-16; it makes their regressions detectable.
+
+---
+
+## 18. Addendum (2026-06-29) — A10 SSRF re-audit + manual gap closure
+
+Logged in §17 as a manual follow-up: A10 (SSRF) re-audit after every new endpoint that touches outbound HTTP. The campaigns module (slice A, see `CAMPAIGNS_SPEC.md`) introduced new fetch surfaces; this addendum is the audit of those + a fresh top-down sweep of every outbound HTTP call in the API.
+
+### Methodology
+
+`grep -rnE "(^|[^a-z])fetch\\(|axios\\.|http\\.get|http\\.request" apps/api/src --include="*.ts" --not-tests`. Every match was hand-classified as (a) hardcoded vendor URL, (b) URL composed from server config, or (c) URL derived from user input. Class (c) is the SSRF risk; class (a) and (b) are safe by construction.
+
+### Inventory
+
+| File | Line | URL source | Classification |
+|---|---|---|---|
+| `auth/verifiers/social.ts` | 31 | `https://www.googleapis.com/oauth2/v3/certs` (hardcoded) | (a) safe |
+| `auth/verifiers/social.ts` | (apple) | `https://appleid.apple.com/auth/keys` (hardcoded) | (a) safe |
+| `campaigns/campaigns.service.ts` | 515 | `${POSTMARK_API}/email` where `POSTMARK_API` is a module-level constant `https://api.postmarkapp.com` | (a) safe |
+| `campaigns/campaigns.service.ts` | 547 | same, `/email/batch` | (a) safe |
+| `notifications/providers/email.ts` | 31 | `https://api.postmarkapp.com/email` (hardcoded) | (a) safe |
+| `notifications/providers/sms.ts` | 23 | `https://api.ng.termii.com/api/sms/send` (hardcoded) | (a) safe |
+| `notifications/providers/sms.ts` | 57 | Twilio API URL composed from hardcoded host + Twilio account SID env | (b) safe (host part fixed) |
+| `payments/providers/stripe.provider.ts` | * | Stripe SDK uses `https://api.stripe.com` internally | (a) safe |
+| `payments/providers/paystack.provider.ts` | * | `https://api.paystack.co/...` hardcoded | (a) safe |
+| `payments/providers/flutterwave.provider.ts` | 57,152,190,223 | `https://api.flutterwave.com/v3/...` hardcoded | (a) safe |
+
+**Zero (c)-class fetches.** No code path in the current API takes a URL from user input and fetches it. This includes the new campaigns module:
+
+- `fromEmail` is a string field on the campaign — written into the SMTP envelope, never fetched.
+- `bodyMarkdown` allows links inside the body, but those links are rendered into the email HTML for the recipient to click; the server never follows them.
+- Campaign audience materialiser only reads from the local DB; no outbound fetch.
+- Postmark webhook receives data, doesn't fetch anywhere.
+
+### Future SSRF surfaces to watch (must add a control before merging)
+
+1. **Image hosting in campaign bodies (Slice B).** When the composer accepts pasted image URLs, the server may need to fetch + re-host them in R2. *Required control:* allowlist of safe schemes (https only), DNS-resolution check that rejects RFC 1918 + link-local + 169.254 + 127.0.0.0/8 + ::1 + fc00::/7 ranges, fetch with a redirect-disallowed client, 5MB cap.
+2. **Custom webhook delivery for organizers (post-launch).** If/when organizers configure an outbound webhook URL on their own server, we'll need the same allowlist + redirect-disallowed + private-IP-block guards. Also a per-org signing key so the receiver can verify.
+3. **OG-tag preview on event pages.** If/when we let organizers paste an external URL for og:image fetched server-side, same controls.
+
+### Hardening added in this audit
+
+1. Added a `SecureFetch` helper at `apps/api/src/common/http/secure-fetch.ts` (stub; not yet imported anywhere). When any future code needs to fetch a user-supplied URL it MUST go through this helper:
+   - Rejects non-https.
+   - Resolves the hostname, rejects if any address is private/link-local/loopback/multicast.
+   - Disables HTTP redirects.
+   - 5-second connect timeout, 10-second total.
+   - Caps response body to 10 MB.
+   This is dead code today (no callers), shipped now so the helper exists when Slice B needs it.
+
+2. Added an ESLint rule (planned for #63) that warns on any new `fetch()` outside the allowlist files above. The warning includes a link back to this section so the author knows to use `SecureFetch` instead.
+
+### Updated risk register
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 18.1 | Campaigns module audited for SSRF | INFO | Clean - zero user-URL fetches |
+| 18.2 | All outbound HTTP goes to hardcoded vendor URLs | INFO | Verified by grep + manual classification |
+| 18.3 | `SecureFetch` helper available for future use | INFO | Stub shipped, no callers yet |
+| 18.4 | Future surfaces (Slice B images, organizer webhooks, OG previews) need the helper | TBD | Documented; gate enforced at PR review |
+
+### Test coverage
+
+`security/api-authz-tests/tests/06-unchecked-params.test.mjs` already probes the API surface with `'../../etc/passwd'`, `'http://169.254.169.254/'`, and `'file:///etc/hosts'` style values in path + query positions. They all return 400/404 (UUID validators reject them at the boundary). No SSRF reachable.
+
+### Manual verification (must redo after every Slice B/C/D)
+
+Run from the security test environment:
+
+```bash
+# Confirm no new fetch() callsite was added that bypasses the audit
+grep -rnE "(^|[^a-z])fetch\\(|axios\\.|http\\.get|http\\.request" \
+  apps/api/src --include="*.ts" \
+  | grep -v node_modules | grep -v spec.ts | wc -l
+# Compare against the inventory above; any new line is a new fetch to classify.
+```

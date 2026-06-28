@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
@@ -8,6 +9,8 @@ import {
   Calendar,
   Home,
   LogOut,
+  Mail,
+  CreditCard,
   Settings,
   Ticket,
   Users,
@@ -25,6 +28,8 @@ const nav = [
   { href: '/dashboard/registrations', label: 'Registrations', Icon: Ticket },
   { href: '/dashboard/attendees', label: 'Attendees', Icon: Users },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart3 },
+  { href: '/dashboard/campaigns', label: 'Campaigns', Icon: Mail },
+  { href: '/dashboard/billing', label: 'Billing', Icon: CreditCard },
   { href: '/dashboard/settings', label: 'Settings', Icon: Settings },
 ] as const;
 
@@ -105,7 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {nav.map(({ href, label, Icon }) => (
             <Link
               key={href}
-              href={href}
+              href={href as Route}
               className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-secondary hover:bg-brand-500/15 hover:text-ink-primary"
             >
               <Icon className="h-4 w-4" />

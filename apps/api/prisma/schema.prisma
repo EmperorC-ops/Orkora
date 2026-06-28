@@ -35,6 +35,10 @@ model Organization {
   walletEntries       WalletEntry[]
   apiKeys             ApiKey[]
   paymentPreferences  PaymentProviderPreference[]
+  campaigns           Campaign[]
+  campaignAudiences   CampaignAudience[]
+  campaignSends       CampaignSend[]
+  emailSuppressions   EmailSuppression[]
 
   @@map("organizations")
 }
@@ -66,6 +70,9 @@ model User {
   pollVotes      PollVote[]
   messageUpvotes MessageUpvote[]
   apiKeysCreated ApiKey[]       @relation("ApiKeyCreatedBy")
+  campaignsCreated         Campaign[]         @relation("CampaignCreatedBy")
+  campaignAudiencesCreated CampaignAudience[] @relation("CampaignAudienceCreatedBy")
+  campaignSendsReceived    CampaignSend[]     @relation("CampaignSendUser")
 
   @@map("users")
 }
@@ -177,6 +184,9 @@ model Event {
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
+    campaigns          Campaign[]
+  campaignAudiences  CampaignAudience[]
+
   @@map("events")
 }
 
@@ -529,4 +539,117 @@ model PaymentProviderPreference {
   @@unique([organizationId, currency])
   @@index([organizationId])
   @@map("payment_provider_preferences")
+}
+
+// ---------- Campaigns ----------
+
+// Campaign is an organizer-initiated email send. Distinct from
+// transactional emails (otp, receipt, refund) which go via
+// NotificationsService. Slice A: list, create, send-now, schedule
+// (Slice B), drip triggers (Slice C). See CAMPAIGNS_SPEC.md.
+model Campaign {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  eventId         String?  @map("event_id") @db.Uuid
+  name            String
+  subject         String
+  previewText     String?  @map("preview_text")
+  bodyMarkdown    String   @map("body_markdown")
+  bodyHtml        String   @map("body_html")
+  fromName        String   @map("from_name")
+  fromEmail       String   @map("from_email")
+  replyTo         String?  @map("reply_to")
+  status          String   @default("draft") // draft | scheduled | sending | sent | cancelled | failed
+  sendMode        String   @default("now") @map("send_mode") // now | scheduled | triggered
+  scheduledAt     DateTime? @map("scheduled_at") @db.Timestamptz
+  triggerSpec     Json?     @map("trigger_spec")
+  audienceId      String    @map("audience_id") @db.Uuid
+  createdById     String    @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  sentStartedAt   DateTime? @map("sent_started_at") @db.Timestamptz
+  sentCompletedAt DateTime? @map("sent_completed_at") @db.Timestamptz
+  recipientCount  Int       @default(0) @map("recipient_count")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event?            @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  audience     CampaignAudience  @relation(fields: [audienceId], references: [id])
+  createdBy    User              @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+  sends        CampaignSend[]
+
+  @@index([organizationId, status, scheduledAt])
+  @@index([organizationId, eventId])
+  @@map("campaigns")
+}
+
+// CampaignAudience defines who a campaign goes to. Smart segments are
+// pre-named queries the materialiser knows how to expand; custom
+// segments hold a JSON spec of AND'd conditions (Slice B).
+model CampaignAudience {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  eventId         String?  @map("event_id") @db.Uuid
+  name            String
+  kind            String   // smart | custom
+  smartKey        String?  @map("smart_key") // e.g. all-registrations, checked-in, tier:<id>
+  customSpec      Json?    @map("custom_spec")
+  cachedCount     Int      @default(0) @map("cached_count")
+  cachedAt        DateTime? @map("cached_at") @db.Timestamptz
+  createdById     String   @map("created_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("CampaignAudienceCreatedBy", fields: [createdById], references: [id])
+  campaigns    Campaign[]
+
+  @@index([organizationId, kind])
+  @@index([organizationId, eventId])
+  @@map("campaign_audiences")
+}
+
+// CampaignSend is the per-recipient send record. One row per recipient
+// per campaign. Postmark webhooks update status as the message travels
+// through the delivery pipeline.
+model CampaignSend {
+  id                String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  campaignId        String    @map("campaign_id") @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  userId            String?   @map("user_id") @db.Uuid
+  recipientEmail    String    @map("recipient_email") @db.Citext
+  recipientName     String?   @map("recipient_name")
+  status            String    @default("queued") // queued | sent | delivered | bounced | opened | clicked | unsubscribed | complained | failed
+  postmarkMessageId String?   @map("postmark_message_id")
+  queuedAt          DateTime  @default(now()) @map("queued_at") @db.Timestamptz
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz
+  firstOpenedAt     DateTime? @map("first_opened_at") @db.Timestamptz
+  firstClickedAt    DateTime? @map("first_clicked_at") @db.Timestamptz
+  bouncedAt         DateTime? @map("bounced_at") @db.Timestamptz
+  unsubscribedAt    DateTime? @map("unsubscribed_at") @db.Timestamptz
+
+  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation("CampaignSendUser", fields: [userId], references: [id])
+
+  @@unique([campaignId, recipientEmail])
+  @@index([organizationId, status])
+  @@index([postmarkMessageId])
+  @@map("campaign_sends")
+}
+
+// EmailSuppression: per-org gag list. A hard bounce, complaint, or
+// unsubscribe writes a row; the campaign send pipeline skips matching
+// rows. Per-org so an unsub on Org A does not silence Org B.
+model EmailSuppression {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  email           String   @db.Citext
+  reason          String   // bounce | complaint | unsubscribe | manual
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId, reason])
+  @@map("email_suppressions")
 }

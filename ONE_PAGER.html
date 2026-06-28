@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Orkora - one page</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /*
+   * Orkora product one-pager. Designed to:
+   *   - Read at a glance in browser at any width.
+   *   - Print to a single A4 / Letter page (browser Print dialog).
+   *   - Use the brand palette (deep purple gradient, brand navy ink,
+   *     coral accent for warnings/CTAs, mint for OK signals).
+   *   - Reference the same orkora-lockup file the marketing site uses,
+   *     so a future asset swap propagates here for free.
+   */
+  :root {
+    --brand-500: #6D28D9;
+    --brand-700: #4C1D95;
+    --brand-300: #C4B5FD;
+    --ink-primary: #0F172A;
+    --ink-secondary: #475569;
+    --ink-muted:    #94A3B8;
+    --surface:      #FFFFFF;
+    --surface-soft: #F8FAFC;
+    --hair:         #E2E8F0;
+    --mint:         #00C896;
+    --coral:        #FF7675;
+    --serif: 'Iowan Old Style', 'Apple Garamond', Baskerville, 'Times New Roman', serif;
+    --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    color: var(--ink-primary);
+    font-family: var(--sans);
+    font-size: 9.5pt;
+    line-height: 1.45;
+    background: #ECEEF3;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 16px auto;
+    background: var(--surface);
+    box-shadow: 0 30px 60px -30px rgba(15, 23, 42, 0.25);
+    padding: 14mm 14mm 12mm 14mm;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 6mm;
+  }
+  /* --- header ----------------------------------------------------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 6mm;
+    border-bottom: 1px solid var(--hair);
+  }
+  .lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 32px;
+  }
+  .lockup img { height: 100%; width: auto; display: block; }
+  .lockup .wordmark {
+    font-family: var(--sans);
+    font-size: 22pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink-primary);
+    line-height: 1;
+  }
+  .lockup .wordmark span {
+    background: linear-gradient(180deg, var(--brand-500) 0%, var(--brand-700) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-meta {
+    text-align: right;
+    color: var(--ink-secondary);
+    font-size: 8pt;
+    line-height: 1.5;
+  }
+  .header-meta strong { color: var(--ink-primary); font-weight: 600; }
+
+  /* --- hero ------------------------------------------------------- */
+  .hero {
+    background: linear-gradient(135deg, var(--brand-700) 0%, var(--brand-500) 100%);
+    color: white;
+    border-radius: 4mm;
+    padding: 6mm 8mm;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8mm;
+    align-items: center;
+  }
+  .hero h1 {
+    margin: 0 0 2mm 0;
+    font-size: 22pt;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+  .hero .tagline {
+    margin: 0;
+    font-size: 11pt;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.88);
+    max-width: 110mm;
+  }
+  .hero .audience {
+    display: flex;
+    gap: 4mm;
+    margin-top: 4mm;
+    font-size: 7.5pt;
+    color: rgba(255,255,255,0.78);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .hero .audience span {
+    display: inline-flex;
+    align-items: center;
+    gap: 2mm;
+  }
+  .hero .audience span::before {
+    content: '';
+    display: inline-block;
+    width: 1.5mm;
+    height: 1.5mm;
+    border-radius: 50%;
+    background: var(--brand-300);
+  }
+  .hero-mark {
+    width: 32mm;
+    height: 32mm;
+    border-radius: 4mm;
+    background: rgba(255,255,255,0.10);
+    display: grid;
+    place-items: center;
+    padding: 4mm;
+  }
+  .hero-mark img { width: 100%; height: 100%; object-fit: contain; }
+
+  /* --- main grid -------------------------------------------------- */
+  main {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6mm;
+  }
+  section h2 {
+    margin: 0 0 2mm 0;
+    font-size: 9pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--brand-700);
+    border-bottom: 0.4mm solid var(--brand-300);
+    padding-bottom: 1.5mm;
+  }
+  section h3 {
+    margin: 3mm 0 1mm 0;
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: var(--ink-primary);
+  }
+  section ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+  }
+  section li {
+    position: relative;
+    padding-left: 4mm;
+    margin: 0.8mm 0;
+    font-size: 8pt;
+    line-height: 1.45;
+    color: var(--ink-secondary);
+  }
+  section li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 1.5mm;
+    width: 1.4mm;
+    height: 1.4mm;
+    border-radius: 50%;
+    background: var(--brand-500);
+  }
+  section li strong { color: var(--ink-primary); font-weight: 600; }
+
+  /* --- usage strip ------------------------------------------------ */
+  .usage {
+    grid-column: 1 / -1;
+    background: var(--surface-soft);
+    border: 0.4mm solid var(--hair);
+    border-radius: 3mm;
+    padding: 5mm 6mm 4mm 6mm;
+  }
+  .usage h2 {
+    margin-top: 0;
+    border: 0;
+    padding: 0;
+    color: var(--brand-700);
+  }
+  .usage-track {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4mm;
+    margin-top: 3mm;
+  }
+  .usage-step {
+    border-left: 0.6mm solid var(--brand-500);
+    padding: 1mm 0 1mm 3mm;
+  }
+  .usage-step .label {
+    font-size: 6.8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--brand-700);
+    font-weight: 700;
+  }
+  .usage-step .title {
+    margin: 1mm 0;
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: var(--ink-primary);
+  }
+  .usage-step .body {
+    font-size: 7.6pt;
+    line-height: 1.45;
+    color: var(--ink-secondary);
+  }
+
+  /* --- footer ----------------------------------------------------- */
+  footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6mm;
+    padding-top: 4mm;
+    border-top: 1px solid var(--hair);
+    font-size: 7.6pt;
+    color: var(--ink-secondary);
+  }
+  footer .col strong {
+    display: block;
+    color: var(--ink-primary);
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    margin-bottom: 1.5mm;
+  }
+  footer a { color: var(--brand-700); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* --- print rules ------------------------------------------------ */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  @media print {
+    body { background: white; }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0;
+      padding: 12mm;
+      box-shadow: none;
+      page-break-after: avoid;
+    }
+    main { gap: 5mm; }
+    .hero { box-shadow: none; }
+    .lockup .wordmark span {
+      -webkit-text-fill-color: var(--brand-700);
+      color: var(--brand-700);
+    }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- 1) HEADER -->
+  <header>
+    <div class="lockup">
+      <img src="apps/web/public/brand/orkora-symbol.png" alt="Orkora mark" onerror="this.style.display='none'" />
+      <div class="wordmark"><span>Orkora</span></div>
+    </div>
+    <div class="header-meta">
+      <strong>Product overview</strong><br />
+      orkora.events &middot; hello@orkora.events
+    </div>
+  </header>
+
+  <!-- 2) HERO -->
+  <div class="hero">
+    <div>
+      <h1>Orchestrate every moment.</h1>
+      <p class="tagline">
+        The event platform for organizers who run paid events. Registration, paid checkout, attendee tickets, and live operations in one system. Built for organizers who sell tickets in dollars, naira, cedi, and shillings, side by side.
+      </p>
+      <div class="audience">
+        <span>Corporate conferences</span>
+        <span>Industry summits</span>
+        <span>Private gatherings</span>
+      </div>
+    </div>
+    <div class="hero-mark">
+      <img src="apps/web/public/brand/orkora-symbol.png" alt="" onerror="this.style.display='none'" />
+    </div>
+  </div>
+
+  <!-- 3) FEATURE GRID -->
+  <main>
+
+    <section>
+      <h2>Event setup</h2>
+      <ul>
+        <li><strong>Events</strong> with title, banner, location, timezone, public slug</li>
+        <li><strong>Tiered tickets</strong>: GA, VIP, group, paid + free, sale windows, inventory</li>
+        <li><strong>Agenda</strong>: tracks, sessions, speakers, per-session live stream URL</li>
+        <li><strong>Media uploads</strong> to Cloudflare R2 via signed URLs with server-side size cap</li>
+        <li><strong>Multi-org</strong>: one user, many organizations, isolated payments + branding</li>
+      </ul>
+
+      <h3>Registration + checkout</h3>
+      <ul>
+        <li>Public event pages at <strong>orkora.events/e/&lt;code&gt;</strong>, no account required</li>
+        <li>Free registration with instant confirmation; paid checkout via Stripe / Paystack / Flutterwave</li>
+        <li>Per-event provider auto-routes to the right one for the buyer's currency</li>
+        <li>Confirmation email, tap-to-open ticket QR, PDF receipt for paid orders</li>
+        <li>Idempotency on every surface so a flaky network never double-charges</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>On the day</h2>
+      <ul>
+        <li><strong>Check-in</strong> via phone camera; validates the signed QR, prevents reuse</li>
+        <li><strong>Live attendance</strong>: 60-min chart, registered vs checked-in, active sessions</li>
+        <li><strong>Live updates</strong>: push announcements to every attendee viewing the event page</li>
+        <li><strong>Join live</strong> CTA appears the moment a session is in window</li>
+        <li><strong>PWA on every device</strong>; ticket QR works offline (service worker cache)</li>
+      </ul>
+
+      <h3>Payments + money</h3>
+      <ul>
+        <li>Multi-currency: <strong>USD, NGN, GHS, KES</strong></li>
+        <li>Refunds initiated by organizer, verified by provider, reconciled by scheduled sweep</li>
+        <li>Per-order PDF receipt, emailed at payment + on refund</li>
+        <li>Audit log: refund, role change, admin action, with actor + reason + request id</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Identity + access</h2>
+      <ul>
+        <li>Sign in by <strong>email + password, magic-link, Google, or Apple</strong></li>
+        <li>Per-account exponential backoff + per-IP rate limits</li>
+        <li>Refresh-token rotation with replay detection (leaked token revokes the family)</li>
+        <li>Org roles: owner, admin, manager, scanner; platform super-admin for staff</li>
+      </ul>
+
+      <h3>Security posture</h3>
+      <ul>
+        <li>TLS, HSTS, strict CSP with per-request nonce, helmet, CSRF on refresh</li>
+        <li>RS256 JWT with <strong>kid-based rotation</strong>, argon2 passwords, peppered refresh-token hashes</li>
+        <li>Tenancy isolation enforced server-side and tested on every push</li>
+        <li>Continuous audit: deps + secrets + bundle leak + transport + API authz + ZAP</li>
+      </ul>
+
+      <h3>Partner API</h3>
+      <ul>
+        <li>REST under <strong>/v1</strong>; JWT or scoped API key (<code>ork_...</code>)</li>
+        <li>Verified, idempotent webhooks for Stripe / Paystack / Flutterwave</li>
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- 4) USAGE STRIP -->
+  <div class="usage">
+    <h2>How it's used</h2>
+    <div class="usage-track">
+      <div class="usage-step">
+        <div class="label">Day zero</div>
+        <div class="title">Set up the event</div>
+        <div class="body">Sign up, create the org, create the event, add tiers + agenda + speakers, publish. The public page is live.</div>
+      </div>
+      <div class="usage-step">
+        <div class="label">Day-of-sale</div>
+        <div class="title">Sell tickets</div>
+        <div class="body">Attendees land on the public page, pay in their currency. Organizer watches revenue + registrations roll up live on the dashboard.</div>
+      </div>
+      <div class="usage-step">
+        <div class="label">Day-of-event</div>
+        <div class="title">Run the room</div>
+        <div class="body">Scanners check attendees in with their phone camera. Attendees follow the live agenda + chat in their installed PWA.</div>
+      </div>
+      <div class="usage-step">
+        <div class="label">Day-after</div>
+        <div class="title">Settle + report</div>
+        <div class="body">Export attendees. Handle refunds. Reconciliation sweep catches missed webhooks. Archive the event.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5) FOOTER -->
+  <footer>
+    <div class="col">
+      <strong>Stack</strong>
+      NestJS API on Render &middot; Postgres on Neon &middot; Next.js web on Vercel &middot; Expo mobile &middot; Cloudflare R2 &middot; Postmark email &middot; Sentry
+    </div>
+    <div class="col">
+      <strong>Contact</strong>
+      Sign in or sign up at <a href="https://orkora.events">orkora.events</a><br />
+      Sales + partnerships: <a href="mailto:hello@orkora.events">hello@orkora.events</a><br />
+      Security: <a href="mailto:security@orkora.events">security@orkora.events</a>
+    </div>
+    <div class="col">
+      <strong>Status</strong>
+      Private beta. Public launch following counsel review + final security harness wiring.<br />
+      &copy; Orkora &middot; orchestrating every moment.
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

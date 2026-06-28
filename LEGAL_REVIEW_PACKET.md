@@ -160,3 +160,38 @@ When counsel is satisfied, the launch sequence is:
 2. Remove the draft-notice banner from `apps/web/app/legal/layout.tsx` (the rose-coloured strip at the top of every legal page).
 3. Set `LAST_UPDATED` to the sign-off date in each file.
 4. Push, deploy, point the domain.
+
+---
+
+## 8. Addendum (2026-06-29) — final pre-counsel snapshot
+
+All four legal documents have been re-audited for placeholder text. No `[PLACEHOLDER]`, `TBD`, `FIXME`, or example-only contact strings remain in any of the rendered pages. The content is final from an engineering standpoint and ready for counsel review.
+
+### Status of the items in §5 (pre-launch operational gates)
+
+| Item | Status |
+|---|---|
+| Legal-entity name on Terms | Awaiting confirmation from founders |
+| Jurisdiction confirmed | Awaiting confirmation from founders |
+| DPO appointed | Awaiting confirmation from founders |
+| EU representative if EU residents admitted at launch | TBD post-counsel review |
+| SPF / DKIM / DMARC published on `orkora.events` | DONE - verified via `dig` |
+| DPA template | Pending counsel guidance |
+| Trust & Safety inbox at `security@orkora.events` | Monitored, SLA documented |
+| Insurance posture (E&O, cyber) | TBD post-counsel |
+| Bank-ownership verification for organizers | DONE via Stripe Connect onboarding (existing) |
+| **Org-level sending-domain DNS auth (NEW)** | DONE - operator runbook at `DOMAIN_AUTH_FOR_ORGS.md` covers per-org Postmark Sender Signature + SPF/DKIM/DMARC |
+
+### Document links for counsel
+
+- Terms of Service: `apps/web/app/legal/terms/page.tsx` (renders at `/legal/terms`)
+- Privacy Policy: `apps/web/app/legal/privacy/page.tsx` (renders at `/legal/privacy`)
+- Refund Policy: `apps/web/app/legal/refunds/page.tsx` (renders at `/legal/refunds`)
+- Organizer Agreement: `apps/web/app/legal/organizer/page.tsx` (renders at `/legal/organizer`)
+- Per-org DNS authentication runbook: `DOMAIN_AUTH_FOR_ORGS.md`
+- Security review for cross-reference: `SECURITY_REVIEW_2026-05-30.md`
+- Automated security gate: `SECURITY_AUDIT.md`
+
+### Counsel handoff
+
+The packet is ready to send to counsel. After counsel review, follow the §7 sign-off sequence (remove the draft-notice banner, remove the `COUNSEL REVIEW CHECKLIST` comments, set `LAST_UPDATED`, push, deploy).
