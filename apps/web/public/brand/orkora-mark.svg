@@ -1,21 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Orkora brand mark.
+  Orkora brand mark - "Stage rising" (D-prime).
 
-  Concept: a rounded-square plate in the brand purple gradient with three
-  concentric "orchestration wave" arcs emanating from a focal dot. Reads
-  as: a stage / arena (the plate), a focal point (the dot), and waves of
-  coordination radiating outward (the arcs). Conveys "live event in
-  progress" + "orchestration" without literal pictograms (tickets,
-  envelopes, confetti) that don't scale to favicon size.
+  Composition: a rounded-square plate in the brand purple gradient
+  containing a white ring (the venue / stage from above) with an
+  upward-pointing triangle inside (energy / agenda / attention rising).
+  Reads as "live event in progress with momentum building."
 
-  Vector master. Scales cleanly to any size. The generator script under
-  apps/web/scripts/generate-brand-assets.mjs rasterises this to the
-  favicon ladder (32/180/192/512) + mobile app icons (1024).
+  Designed to survive favicon scale: two chunky shapes (ring + triangle)
+  with no thin elements that collapse below 32px. Sharp produces
+  pixel-perfect anti-aliased rasters from this master at any density.
 
   Safe area: the rounded-square fills 88x88 of the 100x100 viewBox,
   leaving a 6-unit transparent margin so the mark can sit adjacent to
-  other elements without colliding.
+  other elements without colliding. The ring sits at r=28 from centre
+  (50,50), the triangle is optically centred within the ring.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Orkora">
   <defs>
@@ -26,18 +25,15 @@
     </linearGradient>
   </defs>
 
-  <!-- Plate. 22r corner radius matches the rounded-square family that
-       feels at home on iOS/Android home screens and dashboard sidebars. -->
+  <!-- Plate -->
   <rect x="6" y="6" width="88" height="88" rx="22" ry="22" fill="url(#orkoraPlate)"/>
 
-  <!-- Orchestration motif. Focal dot at x=32, three arcs sweeping right.
-       Stroke weights step down (3.5 -> 3 -> 2.5) so the waves feel like
-       they radiate outward and lose intensity, exactly like sound or
-       a baton's gesture. Centred vertically. -->
-  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
-    <circle cx="32" cy="50" r="4.5" fill="#FFFFFF" stroke="none"/>
-    <path d="M 42 40 A 12 12 0 0 1 42 60" stroke-width="3.5"/>
-    <path d="M 52 32 A 22 22 0 0 1 52 68" stroke-width="3"/>
-    <path d="M 62 24 A 32 32 0 0 1 62 76" stroke-width="2.5"/>
-  </g>
+  <!-- Ring: the venue / stage seen from above. Stroke chunky enough that
+       at 32px raster the ring remains a continuous, visible shape. -->
+  <circle cx="50" cy="50" r="28" fill="none" stroke="#FFFFFF" stroke-width="5"/>
+
+  <!-- Upward triangle: rising energy. Apex above geometric centre so the
+       optical balance with the ring feels lifted, not sunk. Wide base so
+       at favicon size the triangle still reads as a triangle. -->
+  <path d="M 50 34 L 36 60 L 64 60 Z" fill="#FFFFFF"/>
 </svg>
