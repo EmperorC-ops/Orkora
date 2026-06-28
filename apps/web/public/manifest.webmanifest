@@ -7,13 +7,19 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0F1222",
+  "background_color": "#0D1029",
   "theme_color": "#4C1D95",
   "lang": "en",
   "dir": "ltr",
   "categories": ["business", "productivity", "events"],
   "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/brand/orkora-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
@@ -31,11 +37,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
     }
   ],
   "shortcuts": [

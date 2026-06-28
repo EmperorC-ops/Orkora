@@ -51,7 +51,7 @@
 // Bumped 2026-06-04 to invalidate caches holding the pre-brand HTML shells.
 // Without the bump, existing PWA installs continue to serve the old
 // gradient-square + Orkora wordmark even after Vercel ships the lockup.
-const VERSION = 'orkora-v2-2026-06-04';
+const VERSION = 'orkora-v3-2026-06-28';
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
@@ -65,12 +65,8 @@ const API_CACHE = `${VERSION}-api`;
 const SHELL_URLS = [
   '/offline.html',
   '/manifest.webmanifest',
-  '/favicon.svg',
-  '/icon.svg',
-  '/icon-maskable.svg',
-  '/brand/orkora-lockup.png',
-  '/brand/orkora-symbol.png',
-  '/brand/orkora-wordmark.png',
+  '/brand/orkora-mark.svg',
+  '/brand/orkora-mark-maskable.svg',
   '/icons/icon-32.png',
   '/icons/icon-180.png',
   '/icons/icon-192.png',
@@ -186,9 +182,9 @@ self.addEventListener('fetch', (event) => {
   // Brand assets and the manifest - cache-first, refreshed on SW update.
   if (
     url.pathname === '/manifest.webmanifest' ||
-    url.pathname === '/favicon.svg' ||
-    url.pathname === '/icon.svg' ||
-    url.pathname === '/icon-maskable.svg'
+    url.pathname.startsWith('/brand/') ||
+    url.pathname.startsWith('/icons/') ||
+    url.pathname === '/og-image.png'
   ) {
     event.respondWith(cacheFirst(req, SHELL_CACHE));
     return;

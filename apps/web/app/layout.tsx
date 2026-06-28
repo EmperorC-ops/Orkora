@@ -20,16 +20,19 @@ export const metadata: Metadata = {
   // surface an "Install Orkora" prompt. iOS Safari uses the apple-* fields
   // below in addition to the manifest.
   manifest: '/manifest.webmanifest',
-  // Icons are PNG-derived from the brand symbol (apps/web/scripts/generate-brand-assets.mjs)
-  // so the same artwork ships to browser tabs, iOS home-screen, PWA, and OG.
+  // The brand mark is a vector SVG at /brand/orkora-mark.svg; browsers
+  // that support SVG favicons render it at any size (Firefox, Chrome,
+  // Safari 17+). The PNG ladder under /icons/ is the fallback path for
+  // older browsers + iOS apple-touch-icon, regenerated from the SVG via
+  // `pnpm brand:generate`.
   icons: {
     icon: [
+      { url: '/brand/orkora-mark.svg', type: 'image/svg+xml' },
       { url: '/icons/icon-32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-      { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
-    shortcut: '/icons/icon-32.png',
+    shortcut: '/brand/orkora-mark.svg',
     apple: [{ url: '/icons/icon-180.png', sizes: '180x180', type: 'image/png' }],
   },
   appleWebApp: {

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maskable variant of the Orkora mark.
+
+  PWA maskable icons must keep the brand mark within a centred safe zone
+  of 80x80 inside a 100x100 viewBox so OS-level icon shapes (circular,
+  rounded-square, squircle) don't crop the orchestration waves.
+  Background extends to the full viewBox in the brand purple so the
+  bleed area still looks intentional.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Orkora">
+  <defs>
+    <linearGradient id="orkoraPlateM" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#A78BFA"/>
+      <stop offset="55%"  stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#4C1D95"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed plate (no rounding; the OS does the masking) -->
+  <rect x="0" y="0" width="100" height="100" fill="url(#orkoraPlateM)"/>
+
+  <!-- Same motif as orkora-mark.svg but slightly inset (safe zone) -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" transform="translate(10,10) scale(0.8)">
+    <circle cx="32" cy="50" r="4.5" fill="#FFFFFF" stroke="none"/>
+    <path d="M 42 40 A 12 12 0 0 1 42 60" stroke-width="4.5"/>
+    <path d="M 52 32 A 22 22 0 0 1 52 68" stroke-width="3.75"/>
+    <path d="M 62 24 A 32 32 0 0 1 62 76" stroke-width="3.0"/>
+  </g>
+</svg>

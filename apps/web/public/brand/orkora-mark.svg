@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Orkora brand mark.
+
+  Concept: a rounded-square plate in the brand purple gradient with three
+  concentric "orchestration wave" arcs emanating from a focal dot. Reads
+  as: a stage / arena (the plate), a focal point (the dot), and waves of
+  coordination radiating outward (the arcs). Conveys "live event in
+  progress" + "orchestration" without literal pictograms (tickets,
+  envelopes, confetti) that don't scale to favicon size.
+
+  Vector master. Scales cleanly to any size. The generator script under
+  apps/web/scripts/generate-brand-assets.mjs rasterises this to the
+  favicon ladder (32/180/192/512) + mobile app icons (1024).
+
+  Safe area: the rounded-square fills 88x88 of the 100x100 viewBox,
+  leaving a 6-unit transparent margin so the mark can sit adjacent to
+  other elements without colliding.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Orkora">
+  <defs>
+    <linearGradient id="orkoraPlate" x1="14" y1="6" x2="86" y2="94" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#A78BFA"/>
+      <stop offset="55%"  stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#4C1D95"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Plate. 22r corner radius matches the rounded-square family that
+       feels at home on iOS/Android home screens and dashboard sidebars. -->
+  <rect x="6" y="6" width="88" height="88" rx="22" ry="22" fill="url(#orkoraPlate)"/>
+
+  <!-- Orchestration motif. Focal dot at x=32, three arcs sweeping right.
+       Stroke weights step down (3.5 -> 3 -> 2.5) so the waves feel like
+       they radiate outward and lose intensity, exactly like sound or
+       a baton's gesture. Centred vertically. -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+    <circle cx="32" cy="50" r="4.5" fill="#FFFFFF" stroke="none"/>
+    <path d="M 42 40 A 12 12 0 0 1 42 60" stroke-width="3.5"/>
+    <path d="M 52 32 A 22 22 0 0 1 52 68" stroke-width="3"/>
+    <path d="M 62 24 A 32 32 0 0 1 62 76" stroke-width="2.5"/>
+  </g>
+</svg>
