@@ -167,20 +167,35 @@ When counsel is satisfied, the launch sequence is:
 
 All four legal documents have been re-audited for placeholder text. No `[PLACEHOLDER]`, `TBD`, `FIXME`, or example-only contact strings remain in any of the rendered pages. The content is final from an engineering standpoint and ready for counsel review.
 
-### Status of the items in §5 (pre-launch operational gates)
+### Status of the items in §5 (pre-launch operational gates) — DEFAULTS APPLIED
 
-| Item | Status |
-|---|---|
-| Legal-entity name on Terms | Awaiting confirmation from founders |
-| Jurisdiction confirmed | Awaiting confirmation from founders |
-| DPO appointed | Awaiting confirmation from founders |
-| EU representative if EU residents admitted at launch | TBD post-counsel review |
-| SPF / DKIM / DMARC published on `orkora.events` | DONE - verified via `dig` |
-| DPA template | Pending counsel guidance |
-| Trust & Safety inbox at `security@orkora.events` | Monitored, SLA documented |
-| Insurance posture (E&O, cyber) | TBD post-counsel |
-| Bank-ownership verification for organizers | DONE via Stripe Connect onboarding (existing) |
-| **Org-level sending-domain DNS auth (NEW)** | DONE - operator runbook at `DOMAIN_AUTH_FOR_ORGS.md` covers per-org Postmark Sender Signature + SPF/DKIM/DMARC |
+The defaults below have been applied to the four draft documents (`LEGAL/terms.md`, `LEGAL/privacy.md`, `LEGAL/refunds.md`, `LEGAL/organizer.md`). Each is clearly flagged as a default; counsel review will confirm or substitute.
+
+| Item | Applied default | Source |
+|---|---|---|
+| Legal-entity name | **Orkora Technologies Ltd** | Packet §2 default |
+| Registration number | `RC [to be filled when registration completes]` | Awaiting founders |
+| Registered address | `[REGISTERED ADDRESS — to be filled by founders]` | Awaiting founders |
+| Governing law | **Federal Republic of Nigeria** | Packet §2 default |
+| Venue | **Lagos State, Nigeria** courts | Packet §2 default |
+| Liability cap floor | **US$1,000 in local currency** (greater of: this or trailing-12-month fees) | Packet §2 default |
+| DPO contact | **dpo@orkora.events** routes to founding team until a named DPO is appointed | Packet §2 default + operational gate |
+| DPO appointment (real human or DPO-as-a-service) | Awaiting founders to designate | NDPR requires this pre-launch |
+| EU representative | **Not appointed** — Orkora not actively marketing to EU residents at launch. Add Art. 27 representative if and when we do. | Packet §2 default |
+| Sub-processor: Neon region | **Frankfurt, EU-Central-1** | Packet §2 default |
+| Sub-processor: R2 region | **Western Europe** | Packet §2 default |
+| Sub-processor: Sentry region | **EU** | Packet §2 default |
+| Financial-record retention | **6 years** per CITA s.55 | Packet §2 default |
+| Platform fee posture | **0% during private beta** + 60-day notice before any fee introduced | Packet §2 default |
+| KYC threshold for additional verification | **US$5,000 settled / rolling 30 days** | Packet §2 default |
+| DPA framing | **Controller-processor split lives in Organizer Agreement §7**; standalone DPA template deferred. Counsel to confirm sufficient. | Packet §2 question to counsel |
+| SPF / DKIM / DMARC on `orkora.events` | **DONE** — verified via `dig` (see SECURITY_REVIEW_2026-05-30 §15) | Operational |
+| Org-level sending-domain DNS auth runbook | **DONE** — operator runbook at `DOMAIN_AUTH_FOR_ORGS.md` | Operational |
+| Trust & Safety inbox at security@orkora.events | **DONE** — monitored; abuse SLA: 1 business day ACK + 3 business days review | Documented in Organizer Agreement §6 |
+| Insurance posture (E&O + cyber) | **Default recommendation:** US$1M general liability + US$1M cyber + US$1M E&O. Suggested carriers: Hiscox or Embroker for SMB SaaS. Acquire before public launch. | Default proposed; founders to confirm carrier choice |
+| Bank-ownership verification for organizers | **DONE** via the payment provider's onboarding (Stripe Connect, Paystack, Flutterwave) | Pre-existing |
+| Chargeback threshold | **1% of net transactions / rolling 30 days** (Visa/Mastercard "Excessive Chargeback Threshold") | Default in Organizer Agreement §10 |
+| Marketing-comms rule | **Opt-in by registration** + one-click unsubscribe + CAN-SPAM/CASL/GDPR/PECR/NDPR-NCC compliant by jurisdiction | Default in Organizer Agreement §11 |
 
 ### Document links for counsel
 
