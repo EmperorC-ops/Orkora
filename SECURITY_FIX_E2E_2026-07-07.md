@@ -42,6 +42,16 @@ NOT ready until this fix is deployed. Production (orkora.events) still serves th
 3. Ship the mobile fix (item 5) with the next app release; API fix (item 6) with the next API deploy.
 4. Run the full API suite in CI (Prisma reachable) before the deploy.
 
+## Follow-up incident (same day): production JS dead platform-wide
+
+After deploy, login POSTed natively and returned 405; no page hydrated. Root cause chain, worst first:
+
+1. CSP nonce never reached Next's renderer. middleware.ts set the nonce only in `x-nonce`, but Next 14 reads it from the `Content-Security-Policy` REQUEST header. With `script-src 'nonce-...' 'strict-dynamic'` enforced (where `'self'` is ignored), every script tag shipped nonce-less and Chrome blocked all client JS. This is why the original credentials-in-URL bug ever manifested: the login page never hydrated, so Enter triggered a native GET submit. Fix: forward the CSP on the request headers in middleware.ts.
+2. Nonces require per-request rendering. Most routes (including /login) were statically prerendered, so nonces could never be stamped. Fix: `export const dynamic = 'force-dynamic'` in the root layout. Trade-off: no static tier; TTFB rises slightly on marketing pages. Split the CSP per route group later if a static tier is wanted.
+3. Service worker fabricated 503s. sw.js `cacheFirst` returned a synthetic 503 JSON response whenever its `fetch(req)` threw, so failed chunk loads surfaced as opaque 503s instead of real errors. Fix: clean-URL retry, and `Response.error()` instead of fake 503s for script/style destinations; VERSION bumped to force client SW updates.
+
+Verified locally on a production build: CSP header nonce matches every script-tag nonce on /login (17/17 tags nonced), all core routes 200, form still `method="post"`. Verify after deploy with a hard reload plus DevTools > Application > Service Workers > Update.
+
 ## Residual, non-blocking
 
 - Email address (PII, not a credential) travels in the `/otp?destination=` query string. Acceptable; move to the sessionStorage stash if zero-PII URLs are wanted.

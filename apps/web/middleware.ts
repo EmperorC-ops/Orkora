@@ -72,10 +72,19 @@ export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const csp = buildCsp(nonce);
 
-  // Hand the nonce to the rendering layer via request header. Next reads
-  // this and stamps it onto its inline bootstrap scripts.
+  // Hand the nonce to the rendering layer via request headers.
+  //
+  // CRITICAL: Next.js does NOT read `x-nonce` for its own scripts. It parses
+  // the nonce out of the `Content-Security-Policy` REQUEST header and only
+  // then stamps it onto the inline bootstrap scripts and chunk <script> tags
+  // (and opts the page into dynamic rendering so the per-request nonce can
+  // exist at all). Without this request header, every script tag ships
+  // nonce-less and `strict-dynamic` blocks 100% of client JS platform-wide:
+  // no hydration, no login, native form fallbacks. `x-nonce` is kept for
+  // application code that wants to nonce its own custom <script> elements.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 

@@ -51,7 +51,9 @@
 // Bumped 2026-06-04 to invalidate caches holding the pre-brand HTML shells.
 // Without the bump, existing PWA installs continue to serve the old
 // gradient-square + Orkora wordmark even after Vercel ships the lockup.
-const VERSION = 'orkora-v3-2026-06-28';
+// v4 2026-07-07: cacheFirst no longer synthesizes 503s for failed script
+// fetches (broke hydration when fetch(req) threw); clean-URL retry added.
+const VERSION = 'orkora-v4-2026-07-07';
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
@@ -210,7 +212,20 @@ async function cacheFirst(req, cacheName) {
     if (res.ok) cache.put(req, res.clone());
     return res;
   } catch (err) {
-    return fallbackResponse();
+    // fetch(req) can throw for reasons other than being offline (request
+    // re-dispatch quirks, mid-deploy races). Retry once with a clean
+    // URL-based request before giving up.
+    try {
+      return await fetch(req.url, { cache: 'no-store' });
+    } catch (err2) {
+      // Never fabricate a Response for scripts/styles: a synthetic 503
+      // silently kills hydration platform-wide, which is strictly worse
+      // than surfacing the real network error to the browser.
+      if (req.destination === 'script' || req.destination === 'style') {
+        return Response.error();
+      }
+      return fallbackResponse();
+    }
   }
 }
 

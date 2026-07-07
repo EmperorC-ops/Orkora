@@ -7,6 +7,15 @@ import StagingBanner from './_components/StagingBanner';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
+// Every route must render dynamically: the CSP uses a per-request nonce with
+// 'strict-dynamic' (see middleware.ts), and Next can only stamp the nonce
+// onto its <script> tags during a per-request render. Statically prerendered
+// pages ship nonce-less script tags that the CSP then blocks, which kills
+// hydration platform-wide (broken login was the first symptom). If a static
+// marketing tier is wanted later, split the CSP so only static routes drop
+// the nonce (e.g. hash-based or 'self'-only policy on those paths).
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: {
     default: 'Orkora',
