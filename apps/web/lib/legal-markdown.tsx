@@ -25,6 +25,7 @@
 import fs from 'fs';
 import path from 'path';
 import React from 'react';
+import { ContactEmail } from '@/components/contact-email';
 
 type Block =
   | { kind: 'heading'; level: 1 | 2 | 3; text: string }
@@ -123,16 +124,29 @@ function parseBlocks(md: string): Block[] {
  * Render inline formatting: **bold**, `code`, [text](url). Returns a JSX
  * fragment that is safe to embed inside <p>, <li>, <td>, etc.
  */
+// Matches a bare email address like "hello@orkora.events" or
+// "privacy@orkora.events" appearing in prose. The `[\w.+-]+` head accepts
+// common local-parts; the domain uses a conservative TLD-terminated form
+// to avoid matching URLs or version strings.
+const EMAIL_RE = /^([\w.+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+
 function renderInline(text: string, keyPrefix = ''): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   let i = 0;
   let n = 0;
   while (i < text.length) {
-    // link
+    // markdown link
     const linkMatch = text.slice(i).match(/^\[([^\]]+)\]\(([^)]+)\)/);
     if (linkMatch) {
-      const isExternal = /^https?:/i.test(linkMatch[2]!);
       const href = linkMatch[2]!;
+      // A mailto: link renders as a ContactEmail with copy affordance.
+      if (href.startsWith('mailto:')) {
+        const address = href.slice('mailto:'.length).split('?')[0]!;
+        out.push(<ContactEmail key={`${keyPrefix}-m${n++}`} address={address} />);
+        i += linkMatch[0].length;
+        continue;
+      }
+      const isExternal = /^https?:/i.test(href);
       out.push(
         <a
           key={`${keyPrefix}-l${n++}`}
@@ -144,6 +158,13 @@ function renderInline(text: string, keyPrefix = ''): React.ReactNode[] {
         </a>,
       );
       i += linkMatch[0].length;
+      continue;
+    }
+    // bare email address: promote to a ContactEmail with copy button
+    const emailMatch = text.slice(i).match(EMAIL_RE);
+    if (emailMatch) {
+      out.push(<ContactEmail key={`${keyPrefix}-e${n++}`} address={emailMatch[1]!} />);
+      i += emailMatch[0].length;
       continue;
     }
     // bold
@@ -175,11 +196,20 @@ function renderInline(text: string, keyPrefix = ''): React.ReactNode[] {
         continue;
       }
     }
-    // plain run: advance to next marker or end of string
+    // plain run: advance to next marker or end of string. We also stop at
+    // an '@' one char in so the email regex above gets first look at the
+    // preceding local-part boundary character.
     let next = text.length;
-    for (const marker of ['**', '`', '[']) {
+    for (const marker of ['**', '`', '[', '@']) {
       const idx = text.indexOf(marker, i + 1);
       if (idx > 0 && idx < next) next = idx;
+    }
+    // When we stopped at an '@', rewind to the start of the local-part word
+    // so the email regex can see it on the next iteration.
+    if (text[next] === '@') {
+      let start = next;
+      while (start > i && /[\w.+-]/.test(text[start - 1]!)) start--;
+      if (start > i) next = start;
     }
     out.push(<React.Fragment key={`${keyPrefix}-t${n++}`}>{text.slice(i, next)}</React.Fragment>);
     i = next;

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Brand } from '@/components/brand';
+import { ContactEmail } from '@/components/contact-email';
 
 /**
  * Shared layout for every page under /legal. Wraps content in the dark
@@ -42,30 +43,22 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
           <strong className="text-brand-300">Beta version.</strong>{' '}
           Orkora is in private beta, and these policies reflect the platform as it operates today. We may update them
           as the platform evolves; material changes will be announced at least 30 days in advance. Last updated{' '}
-          {LAST_UPDATED}. Questions?{' '}
-          <a className="underline decoration-brand-500/40 underline-offset-2 hover:text-ink-primary" href="mailto:hello@orkora.events">
-            hello@orkora.events
-          </a>.
+          {LAST_UPDATED}. Questions? <ContactEmail address="hello@orkora.events" className="text-xs" />
         </div>
 
         <article>{children}</article>
 
         <footer className="mt-16 border-t border-surface-border pt-6 text-xs text-ink-muted">
-          Questions about this document?{' '}
-          <a
-            className="text-ink-secondary transition hover:text-ink-primary"
-            href="mailto:hello@orkora.events"
-          >
-            hello@orkora.events
-          </a>
-          . Privacy or data-subject requests:{' '}
-          <a
-            className="text-ink-secondary transition hover:text-ink-primary"
-            href="mailto:privacy@orkora.events"
-          >
-            privacy@orkora.events
-          </a>
-          .
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex items-center gap-1.5">
+              Questions about this document?{' '}
+              <ContactEmail address="hello@orkora.events" className="text-xs" />
+            </span>
+            <span className="flex items-center gap-1.5">
+              Privacy or data-subject requests:{' '}
+              <ContactEmail address="privacy@orkora.events" className="text-xs" />
+            </span>
+          </div>
         </footer>
       </div>
     </main>
