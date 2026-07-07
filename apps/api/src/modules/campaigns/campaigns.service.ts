@@ -253,6 +253,24 @@ export class CampaignsService {
       );
     }
 
+    // Per-org rolling-24h send cap. Guards against a "click Send on a
+    // huge audience by mistake" accident that burns Postmark quota and
+    // irreversibly emails real people. Counted over campaign_sends by
+    // sentAt in the last 24 hours.
+    const cap = this.cfg.get<number>('CAMPAIGNS_DAILY_CAP_PER_ORG') ?? 1000;
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const alreadySent = await this.prisma.campaignSend.count({
+      where: { organizationId, sentAt: { gte: since } },
+    });
+    if (alreadySent + recipients.length > cap) {
+      const remaining = Math.max(0, cap - alreadySent);
+      throw new BadRequestException(
+        `Daily send cap reached. Limit is ${cap} recipients per organisation per rolling 24 hours; ` +
+          `you have already sent ${alreadySent} in the last 24h; this campaign would add ${recipients.length}. ` +
+          `Remaining today: ${remaining}. Wait for the window to roll, or contact hello@orkora.events to raise the cap.`,
+      );
+    }
+
     // Idempotency: insert campaign_sends rows in a single batch with
     // ON CONFLICT DO NOTHING semantics. createMany with skipDuplicates
     // collapses by the (campaign_id, recipient_email) unique index.

@@ -1,6 +1,6 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
 import { AudienceMaterialiser } from './audience.materialiser';
 import { PrismaService } from '../../database/prisma/prisma.service';
@@ -133,5 +133,95 @@ describe('CampaignsService.unsubscribe', () => {
     await expect(service.unsubscribe(campaignId, email, sig)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+});
+
+describe('CampaignsService.sendNow daily cap', () => {
+  let service: CampaignsService;
+  let prisma: {
+    campaign: { findUnique: jest.Mock; update: jest.Mock };
+    campaignSend: { count: jest.Mock; createMany: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
+  };
+  let audiences: { materialise: jest.Mock };
+
+  beforeEach(async () => {
+    prisma = {
+      campaign: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'camp-1',
+          organizationId: 'org-1',
+          status: 'draft',
+          audienceId: 'aud-1',
+          fromName: 'Orkora',
+          fromEmail: 'no-reply@orkora.events',
+          replyTo: null,
+          subject: 'Hi',
+          bodyMd: 'Hello {{name}}',
+          bodyHtml: null,
+          testTo: null,
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      campaignSend: {
+        count: jest.fn(),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+    };
+    audiences = { materialise: jest.fn() };
+    const mod: TestingModule = await Test.createTestingModule({
+      providers: [
+        CampaignsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ConfigService, useValue: makeCfg({ CAMPAIGNS_DAILY_CAP_PER_ORG: '100' }) },
+        { provide: AudienceMaterialiser, useValue: audiences },
+      ],
+    }).compile();
+    service = mod.get(CampaignsService);
+  });
+
+  it('rejects a send that would exceed the per-org rolling-24h cap', async () => {
+    audiences.materialise.mockResolvedValue(new Array(60).fill(null).map((_, i) => ({ email: `u${i}@x.co`, name: 'U', userId: null })));
+    prisma.campaignSend.count.mockResolvedValue(50); // 50 already sent, adding 60 blows past 100
+
+    await expect(service.sendNow('camp-1', 'org-1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.sendNow('camp-1', 'org-1')).rejects.toThrow(/Daily send cap reached/);
+  });
+
+  it('allows a send that stays within the cap', async () => {
+    audiences.materialise.mockResolvedValue(new Array(30).fill(null).map((_, i) => ({ email: `u${i}@x.co`, name: 'U', userId: null })));
+    prisma.campaignSend.count.mockResolvedValue(50);
+
+    // Not asserting successful send here (we do not mock Postmark HTTP); we only
+    // assert the cap check does not throw. The send may fail later on the HTTP call.
+    await service.sendNow('camp-1', 'org-1').catch((err) => {
+      expect(err).not.toBeInstanceOf(BadRequestException);
+    });
+    expect(prisma.campaignSend.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ organizationId: 'org-1' }) }),
+    );
+  });
+
+  it('uses the default cap of 1000 when the env var is unset', async () => {
+    // Rebuild with no cap override
+    const cfg = makeCfg();
+    const mod: TestingModule = await Test.createTestingModule({
+      providers: [
+        CampaignsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ConfigService, useValue: cfg },
+        { provide: AudienceMaterialiser, useValue: audiences },
+      ],
+    }).compile();
+    const svc = mod.get(CampaignsService);
+
+    audiences.materialise.mockResolvedValue(new Array(1001).fill(null).map((_, i) => ({ email: `u${i}@x.co`, name: 'U', userId: null })));
+    prisma.campaignSend.count.mockResolvedValue(0);
+
+    // Above the Slice A 2000 cap in size? No, it is 1001 so it passes the 2000 check
+    // but should trip the 1000 daily cap.
+    await expect(svc.sendNow('camp-1', 'org-1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.sendNow('camp-1', 'org-1')).rejects.toThrow(/1000 recipients per organisation/);
   });
 });

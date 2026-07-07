@@ -13,6 +13,16 @@ const nextConfig = {
     typedRoutes: true,
   },
   transpilePackages: ['@orkora/ui', '@orkora/sdk', '@orkora/contracts'],
+  // The /legal pages read canonical draft markdown from apps/web/legal/*.md
+  // via fs.readFileSync at build time (see apps/web/lib/legal-markdown.tsx).
+  // Vercel's automatic file tracing normally catches these, but the path
+  // is composed with path.join(process.cwd(), 'legal', slug + '.md') which
+  // can be missed if the slug is treated as dynamic. This explicit include
+  // guarantees the four legal source files are packaged into the standalone
+  // deployment.
+  outputFileTracingIncludes: {
+    '/legal/**/*': ['./legal/*.md'],
+  },
   // Skip TS + ESLint failures during production builds so Vercel can ship.
   // Type errors are still surfaced by `pnpm typecheck` locally and in CI.
   // Remove these once the type errors are cleaned up.

@@ -102,6 +102,17 @@ it after the first successful deploy so future restarts don't try to re-run.
    - `EMAIL_FROM_ADDRESS` (a confirmed Postmark sender signature, e.g.
      `no-reply@yourdomain.com`). If unset, defaults to `no-reply@orkora.events`,
      which Postmark will reject unless you own that domain.
+   - `POSTMARK_WEBHOOK_TOKEN` (a long random string; see the "Postmark
+     webhook auth" subsection below). Set this before onboarding real
+     customers to close the forged-bounce vector on the campaigns
+     endpoint. If unset, the campaigns webhook admits unauthenticated
+     POSTs with a warning log (backwards compat during a rotation
+     window).
+   - `CAMPAIGNS_DAILY_CAP_PER_ORG` (default 1000). Rolling-24-hour cap
+     on campaign email recipients per organisation, enforced in
+     `CampaignsService.sendNow()`. Guards against a "click Send on a
+     10k audience by mistake" accident. Raise per-organisation only
+     after that organisation has proven their sending pattern.
    - `LOG_OTP_TO_CONSOLE=true` is an operator break-glass for the rare case
      where the email provider is rejecting sends (Postmark "under review"
      state, SMS provider outage). When on, the OTP code is logged at WARN
@@ -193,6 +204,38 @@ reconciliation sweep only picks up refunds initiated through the app).
 > include our `orderId` (that lives on the PaymentIntent). The webhook handler
 > retrieves the PaymentIntent to resolve the order, so the event must be
 > subscribed for the webhook path to settle a refund on its own.
+
+### 6.4 Postmark campaign webhook auth
+
+The campaigns module (Slice A) receives `Bounce`, `SpamComplaint`,
+`Delivery`, `Open`, and `Click` events from Postmark at
+`POST /v1/webhooks/postmark`. `Bounce` and `SpamComplaint` events add
+the recipient to that organisation's `email_suppressions` ledger, so
+we must authenticate inbound POSTs to prevent forged suppressions.
+
+Postmark supports HTTP Basic Auth on webhook URLs. Setup:
+
+1. Generate a long random token (48+ chars). PowerShell:
+   ```powershell
+   [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }) -as [byte[]])
+   ```
+2. Paste as `POSTMARK_WEBHOOK_TOKEN` on the `orkora-api` Render
+   service. Redeploy.
+3. In the Postmark dashboard, edit each webhook URL to include the
+   basic-auth credentials:
+   ```
+   https://postmark:<TOKEN>@api.orkora.events/v1/webhooks/postmark
+   ```
+   The username is the literal string `postmark`; only the password
+   (`<TOKEN>`) matters. Save each webhook.
+4. Send a test event from Postmark. Confirm a 200 response. If you
+   see 401, the token in the Render env does not match the URL.
+
+Rotation: paste the new token on Render, then update the Postmark
+webhook URLs. During the window between the two changes, drop the
+`POSTMARK_WEBHOOK_TOKEN` env var entirely; the `PostmarkAuthGuard`
+falls open (with a warn log) so events keep flowing. Set the new
+token once Postmark URLs are updated.
 
 ## 7. Mobile preview on Expo Go
 

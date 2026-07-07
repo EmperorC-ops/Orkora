@@ -53,6 +53,23 @@ export const envSchema = z.object({
 
   POSTMARK_TOKEN: z.string().optional(),
   EMAIL_FROM_ADDRESS: z.string().email().optional(),
+
+  /**
+   * Shared secret for authenticating inbound Postmark webhook POSTs via
+   * HTTP Basic Auth. Configure the Postmark webhook URL as
+   *   https://postmark:<TOKEN>@api.orkora.events/v1/webhooks/postmark
+   * Left optional so existing deployments do not break; when unset the
+   * PostmarkAuthGuard warns once and admits (backwards compat). Set this
+   * before onboarding real customers to close the forged-bounce vector.
+   */
+  POSTMARK_WEBHOOK_TOKEN: z.string().optional(),
+  /**
+   * Per-organisation rolling-24h cap on campaign email recipients.
+   * Enforced in CampaignsService.sendNow(). Guards against a "click Send
+   * on a 10k audience by mistake" accident. Default 1000. Set higher
+   * only for orgs that have proven their sending pattern.
+   */
+  CAMPAIGNS_DAILY_CAP_PER_ORG: z.coerce.number().int().positive().default(1000),
   /**
    * When true, OTP codes are logged at WARN level so they can be retrieved
    * from server logs. Use only when email delivery is unavailable (e.g. a

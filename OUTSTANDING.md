@@ -81,6 +81,22 @@ Closed since the original Apr 29 revision (kept here for the changelog):
   audience builder + scheduled sends), C (drip triggers), D (per-org
   domain authentication wizard) scoped in the spec, parked until after
   public launch.
+- Campaigns webhook hardening (2026-07-07). `PostmarkAuthGuard` on
+  `POST /v1/webhooks/postmark` enforces HTTP Basic Auth via
+  `POSTMARK_WEBHOOK_TOKEN` with constant-time compare. Per-org
+  rolling-24h send cap enforced in `CampaignsService.sendNow()` via
+  `CAMPAIGNS_DAILY_CAP_PER_ORG` (default 1000). Both changes are
+  covered by new specs. Postmark webhook URL setup runbook in
+  DEPLOY.md §6.4.
+- Legal pages live (2026-07-07). The four draft policies at
+  `/legal/{terms,privacy,refunds,organizer}` now render from
+  `apps/web/legal/*.md` via a server-side markdown component
+  (`apps/web/lib/legal-markdown.tsx`) that strips `[COUNSEL NOTE]`
+  markers and the DRAFT banner from the public output. Layout's
+  DRAFT banner replaced with a lighter "Beta version" note. Header
+  lockup right-sized from `h-28` to `h-12` to match auth pages. Full
+  counsel-review Word set (7 docs) generated for the next counsel
+  round.
 
 ## Mobile (deferred at user's request, now mostly closed)
 

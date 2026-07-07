@@ -32,6 +32,7 @@ import { CurrentUser, type AuthUser } from '../../common/decorators/current-user
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CampaignsService } from './campaigns.service';
+import { PostmarkAuthGuard } from './postmark-auth.guard';
 import {
   CreateAudienceDto,
   CreateCampaignDto,
@@ -158,12 +159,15 @@ export class CampaignsPublicController {
   constructor(private readonly campaigns: CampaignsService) {}
 
   /**
-   * Postmark webhook. The signature header is checked at the
-   * NestJS-level guard if POSTMARK_WEBHOOK_SECRET is configured;
-   * Slice A keeps it open and relies on message-id correlation.
-   * Slice D adds the signed-payload check.
+   * Postmark webhook. Guarded by PostmarkAuthGuard which enforces
+   * HTTP Basic Auth from `POSTMARK_WEBHOOK_TOKEN`. Configure the
+   * Postmark webhook URL as
+   *   https://postmark:<TOKEN>@api.orkora.events/v1/webhooks/postmark
+   * If the env var is unset the guard admits but logs a warning
+   * (backwards compat for rotation windows). See postmark-auth.guard.ts.
    */
   @Post('webhooks/postmark')
+  @UseGuards(PostmarkAuthGuard)
   postmarkWebhook(@Body() body: unknown, @Req() _req: Request) {
     // Postmark sends ONE event per POST, not a batch.
     return this.campaigns.handlePostmarkWebhook(body as never);

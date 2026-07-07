@@ -152,7 +152,7 @@ function AuthShell({
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center" aria-label="Orkora home">
-          <Brand variant="lockup" width={560} priority className="h-36 w-auto" />
+          <Brand variant="lockup" width={240} priority className="h-12 w-auto" />
         </Link>
         <Link
           href="/"
