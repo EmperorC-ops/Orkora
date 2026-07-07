@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ApiError, apiFetch, authApi, persistTokens } from '@/lib/auth';
+import { ApiError, apiFetch, authApi, persistTokens, safeInternalPath } from '@/lib/auth';
 import type { TokenBundle } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin';
 import { Brand } from '@/components/brand';
@@ -15,7 +15,7 @@ function OtpPageInner() {
   const params = useSearchParams();
   const destination = params.get('destination') ?? '';
   const purpose = (params.get('purpose') ?? 'login') as 'signup' | 'login';
-  const next = params.get('next') ?? '/dashboard';
+  const next = safeInternalPath(params.get('next'));
 
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
@@ -62,21 +62,29 @@ function OtpPageInner() {
     try {
       if (purpose === 'signup') {
         await authApi.verifyOtp({ destination, code, purpose });
-        // Prefer the sessionStorage stash written by /signup. URL params remain
-        // a fallback for one release window (older signups in flight) and for
-        // browsers that block sessionStorage. We wipe the stash on success or
-        // failure so the password does not linger.
+        // Signup details come exclusively from the sessionStorage stash
+        // written by /signup. Credentials must never travel in the URL:
+        // query params land in browser history, server logs, and Referer
+        // headers. The stash is wiped on success or failure so the password
+        // does not linger.
         let stashed: { fullName?: string; phone?: string; password?: string } = {};
         try {
           const raw = sessionStorage.getItem('orkora_pending_signup');
           if (raw) stashed = JSON.parse(raw) as typeof stashed;
         } catch {
-          // ignore parse / storage errors and fall through to URL params
+          // ignore parse / storage errors; handled by the empty check below
         }
-        const fullName =
-          stashed.fullName ?? params.get('fullName') ?? destination.split('@')[0] ?? destination;
-        const phone = stashed.phone ?? params.get('phone') ?? '';
-        const password = stashed.password ?? params.get('password') ?? '';
+        const fullName = stashed.fullName ?? destination.split('@')[0] ?? destination;
+        const phone = stashed.phone ?? '';
+        const password = stashed.password ?? '';
+        if (!password) {
+          // Stash missing (storage blocked, tab restored, or link opened in a
+          // new tab). Never recoverable from the URL by design.
+          setError('Your signup session expired. Please start again.');
+          setLoading(false);
+          setTimeout(() => router.push('/signup'), 2500);
+          return;
+        }
         try {
           sessionStorage.removeItem('orkora_pending_signup');
         } catch {

@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { colors, gradient, radius, spacing, typography } from '@/theme/tokens';
 import { ApiError, authApi } from '@/api/client';
+import { setPendingSignup } from '@/auth/pending-signup';
 
 /**
  * Sign up screen. Collects name + email + phone + password, then routes to OTP
@@ -55,14 +56,19 @@ export default function SignupScreen() {
         purpose: 'signup',
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Stash sensitive signup data in memory rather than passing it through
+      // navigation params, which get serialized into navigation state, crash
+      // logs, and deep-link URLs.
+      setPendingSignup({
+        fullName: fullName.trim(),
+        phone: phone.trim() || undefined,
+        password,
+      });
       router.push({
         pathname: '/(auth)/otp',
         params: {
           destination: email.trim().toLowerCase(),
           purpose: 'signup',
-          fullName: fullName.trim(),
-          phone: phone.trim(),
-          password,
         },
       });
     } catch (err) {

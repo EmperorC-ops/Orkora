@@ -5,7 +5,7 @@ import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
-import { ApiError, authApi, persistTokens } from '@/lib/auth';
+import { ApiError, authApi, persistTokens, safeInternalPath } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin';
 import { useToast } from '@/components/toast';
 import { Brand } from '@/components/brand';
@@ -28,8 +28,9 @@ export default function LoginPage() {
         password: String(form.get('password') ?? ''),
       });
       persistTokens(tokens);
-      const next =
-        new URLSearchParams(window.location.search).get('next') ?? '/dashboard';
+      const next = safeInternalPath(
+        new URLSearchParams(window.location.search).get('next'),
+      );
       toast.success('Welcome back', 'Loading your workspace.');
       router.push((isSuperAdmin() ? '/admin' : next) as Route);
     } catch (err) {
@@ -56,7 +57,9 @@ export default function LoginPage() {
         destination: email.trim().toLowerCase(),
         purpose: 'login',
       });
-      const next = new URLSearchParams(window.location.search).get('next') ?? '/dashboard';
+      const next = safeInternalPath(
+        new URLSearchParams(window.location.search).get('next'),
+      );
       router.push(
         `/otp?destination=${encodeURIComponent(email.trim().toLowerCase())}&purpose=login&next=${encodeURIComponent(next)}`,
       );
@@ -73,7 +76,11 @@ export default function LoginPage() {
       title="Welcome back."
       subtitle="Pick up where you left off."
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {/* method="post" is a safety net: if this form ever submits natively
+          (Enter pressed before hydration, or a JS error), the browser default
+          is GET, which serializes email+password into the URL, browser
+          history, and server logs. POST keeps credentials out of the URL. */}
+      <form onSubmit={handleSubmit} method="post" className="space-y-4">
         <Field
           label="Email"
           name="email"

@@ -41,9 +41,9 @@ export default function SignupPage() {
           JSON.stringify({ fullName, phone, password }),
         );
       } catch {
-        // Storage unavailable (Safari private mode, embedded contexts): fall
-        // back to in-URL credentials so the flow does not silently break. The
-        // OTP page reads either source.
+        // Storage unavailable (rare: embedded contexts with storage blocked).
+        // We deliberately do NOT fall back to in-URL credentials; the OTP
+        // page shows a "start again" error if the stash is missing.
       }
       const params = new URLSearchParams({ destination: email, purpose: 'signup' });
       router.push(`/otp?${params.toString()}`);
@@ -87,7 +87,9 @@ export default function SignupPage() {
             Run your first event in under five minutes. No card required.
           </p>
           <div className="mt-10 rounded-3xl border border-surface-border bg-surface/40 p-6 sm:p-8">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {/* method="post" prevents a native (pre-hydration) submit from
+                serializing the password into the URL via the GET default. */}
+            <form onSubmit={handleSubmit} method="post" className="space-y-4">
               <Field
                 label="Full name"
                 name="fullName"

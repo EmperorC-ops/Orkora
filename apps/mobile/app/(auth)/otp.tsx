@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { colors, gradient, radius, spacing, typography } from '@/theme/tokens';
 import { ApiError, authApi, persistTokens } from '@/api/client';
+import { takePendingSignup, type PendingSignup } from '@/auth/pending-signup';
 
 const RESEND_SECONDS = 30;
 
@@ -28,9 +29,6 @@ export default function OtpScreen() {
   const params = useLocalSearchParams<{
     destination?: string;
     purpose?: string;
-    fullName?: string;
-    phone?: string;
-    password?: string;
   }>();
   const destination = String(params.destination ?? '');
   const purpose = String(params.purpose ?? 'login') as 'signup' | 'login';
@@ -40,11 +38,26 @@ export default function OtpScreen() {
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
   const inputs = useRef<Array<TextInput | null>>([]);
+  // Sensitive signup data is stashed in memory by the signup screen rather
+  // than passed through navigation params. Capture it once on mount so retries
+  // of the verify step keep working after takePendingSignup() clears it.
+  const pendingSignup = useRef<PendingSignup | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setResendIn((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    if (purpose !== 'signup') return;
+    const data = takePendingSignup();
+    if (!data) {
+      setError('Your signup session expired. Please start again.');
+      router.replace('/(auth)/signup');
+      return;
+    }
+    pendingSignup.current = data;
+  }, [purpose, router]);
 
   function setDigit(i: number, raw: string) {
     setError(null);
@@ -82,12 +95,18 @@ export default function OtpScreen() {
       // OTP confirmed. Now finalize: signup creates the account; login
       // exchanges OTP-verified email for a fresh token via the login flow.
       let tokens;
-      if (purpose === 'signup' && params.password) {
+      if (purpose === 'signup') {
+        const pending = pendingSignup.current;
+        if (!pending) {
+          setError('Your signup session expired. Please start again.');
+          router.replace('/(auth)/signup');
+          return;
+        }
         tokens = await authApi.signup({
           email: destination,
-          password: String(params.password),
-          fullName: String(params.fullName ?? ''),
-          phone: params.phone ? String(params.phone) : undefined,
+          password: pending.password,
+          fullName: pending.fullName,
+          phone: pending.phone,
         });
       } else {
         // For login via OTP we need a server endpoint that issues tokens

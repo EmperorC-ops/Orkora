@@ -144,6 +144,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Sanitize a post-auth redirect target taken from the `next` query param.
+ * Only same-origin relative paths are allowed; anything absolute
+ * (https://evil.com), protocol-relative (//evil.com), or scheme-bearing
+ * (javascript:) falls back to /dashboard. Prevents open-redirect phishing.
+ */
+export function safeInternalPath(raw: string | null | undefined): string {
+  const fallback = '/dashboard';
+  if (!raw) return fallback;
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) {
+    return fallback;
+  }
+  return raw;
+}
+
 export function persistTokens(t: TokenBundle): void {
   sessionStorage.setItem('access_token', t.accessToken);
   // The refresh token also arrives in the response body for backward

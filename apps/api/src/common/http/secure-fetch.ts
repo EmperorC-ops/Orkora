@@ -81,15 +81,20 @@ export async function secureFetch(
 
   // 2. DNS resolution + private-range check
   const host = url.hostname;
+  // For IPv6 literals, URL.hostname keeps the surrounding square brackets
+  // (e.g. '[::1]'). net.isIP() and our range checks need the bare address,
+  // so strip them here while leaving `url` untouched for the actual fetch.
+  const bareHost =
+    host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
   let addresses: string[];
-  if (isIP(host)) {
-    addresses = [host];
+  if (isIP(bareHost)) {
+    addresses = [bareHost];
   } else {
     try {
-      const records = await dns.lookup(host, { all: true });
+      const records = await dns.lookup(bareHost, { all: true });
       addresses = records.map((r) => r.address);
     } catch (err) {
-      throw new SecureFetchError(`DNS resolution failed for ${host}`, 'dns-fail');
+      throw new SecureFetchError(`DNS resolution failed for ${bareHost}`, 'dns-fail');
     }
   }
   for (const addr of addresses) {
