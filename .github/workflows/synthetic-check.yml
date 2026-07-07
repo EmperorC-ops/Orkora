@@ -1,0 +1,51 @@
+name: Synthetic login check
+
+# Post-incident guard (2026-07-07): the platform ran for weeks with all
+# client-side JS blocked by CSP while every uptime signal stayed green,
+# because plain 200-checks cannot see a hydration failure. This workflow
+# asserts the things that actually broke: CSP nonce on every script tag,
+# chunk availability, and the login form's method="post" guard.
+#
+# Alerting: a failed run notifies via GitHub's default workflow-failure
+# email to the commit author / repo watchers. Optional full credentialed
+# login runs when SYNTHETIC_LOGIN_EMAIL / SYNTHETIC_LOGIN_PASSWORD repo
+# secrets are set (use a dedicated zero-privilege test account).
+
+on:
+  schedule:
+    # Every 30 minutes. GitHub cron is UTC and best-effort.
+    - cron: '*/30 * * * *'
+  # Run right after Vercel reports a production deployment.
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to check'
+        required: false
+        default: 'https://www.orkora.events'
+
+concurrency:
+  group: synthetic-check
+  cancel-in-progress: false
+
+jobs:
+  synthetic:
+    name: Login page health
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # For deployment_status events, only run on successful production deploys.
+    if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run synthetic login check
+        env:
+          CHECK_BASE_URL: ${{ github.event.inputs.base_url || 'https://www.orkora.events' }}
+          CHECK_API_URL: 'https://api.orkora.events'
+          SYNTHETIC_LOGIN_EMAIL: ${{ secrets.SYNTHETIC_LOGIN_EMAIL }}
+          SYNTHETIC_LOGIN_PASSWORD: ${{ secrets.SYNTHETIC_LOGIN_PASSWORD }}
+        run: node scripts/synthetic-login-check.mjs
