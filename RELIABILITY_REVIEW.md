@@ -86,18 +86,38 @@ Both are cross-tenant authorization bypasses (IDOR) live in this repo's `HEAD`.
    released), the paid resurrection guard (no tickets issued / no email), and
    the email-race re-run.
 
+5. **Check-in double-scan.** `checkIn` read `checkedInAt` then did an
+   unconditional `update`, so two gates scanning the same QR at once both passed
+   the read and both admitted the holder. Fix: an atomic claim
+   (`updateMany WHERE checkedInAt IS NULL AND status='issued'`); the winning
+   scanner matches 1 row and admits, the loser matches 0, re-reads, and reports
+   the ticket as already checked in. `apps/api/src/modules/registrations/registrations.service.ts`.
+   Tests: winning-scan admit + losing-scan already-checked-in.
+
+6. **Event capacity never enforced.** `register()` checked only the tier's
+   `quantity_total/quantity_sold`; a tier with no quantity cap oversold
+   `Event.capacity`. Fix: when capacity is set, take an event row lock
+   (`SELECT id FROM events ... FOR UPDATE`, consistent event -> tier lock order)
+   and reject when the held-seat total across the event's tiers plus this order
+   would exceed capacity; uncapped events skip the lock and keep per-tier
+   concurrency. No migration (`Event.capacity` already exists).
+   `registrations.service.ts`. Test: at-capacity rejection on an uncapped tier.
+
+7. **`upsertUserByEmail` find-then-create race.** Concurrent registrations for
+   the same NEW email both found nothing and both inserted; the loser 500'd on
+   the unique(email) constraint. Fix: catch P2002 and re-fetch the winner row.
+   `registrations.service.ts`. Tests: P2002 recovery + non-P2002 rethrow.
+
 ## Open (candidates being worked down; each re-verified against this repo first)
 
 Concurrency / atomicity:
 
-- **Check-in double-scan.** `checkIn` should claim with
-  `WHERE checkedInAt IS NULL` and branch on the affected-row count.
-- **Event capacity.** Enforce `Event.capacity` inside the same `FOR UPDATE`
-  transaction as the tier check (an unlimited-quantity tier can otherwise
-  oversell the venue).
-- **Registration double-submit.** The `(eventId, userId)` upsert dedupes the
-  registration row but can still append duplicate tickets/orders (needs an
-  idempotency key or dedupe window).
+- **Registration double-submit (free path only).** The paid path is already
+  guarded (the `(eventId, userId)` duplicate-order guard: 409 on an existing
+  paid order, reuse of a matching pending order). The residual gap is the free
+  path, which can still append duplicate free tickets on a double-submit; a
+  clean fix needs a client idempotency key (DTO field + column), so it is
+  deferred as a schema change.
 
 Tenant isolation / engagement:
 

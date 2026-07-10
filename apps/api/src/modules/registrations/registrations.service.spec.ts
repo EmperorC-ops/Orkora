@@ -221,3 +221,151 @@ describe('RegistrationsService.register duplicate-order guard', () => {
     await expect(svc.register('TESTCODE', dto())).rejects.toBeInstanceOf(ConflictException);
   });
 });
+
+/**
+ * checkIn admits a ticket via an atomic claim (updateMany ... WHERE
+ * checkedInAt IS NULL), so two gates scanning the same QR at once cannot both
+ * report a fresh admission (double-scan).
+ */
+describe('RegistrationsService.checkIn atomic claim', () => {
+  function makeCheckinSvc(opts: { claimCount: number; reread?: Record<string, unknown> }) {
+    const updateMany = jest.fn().mockResolvedValue({ count: opts.claimCount });
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'tk1',
+        code: 'CODE',
+        holderName: 'Holder',
+        status: 'issued',
+        checkedInAt: null,
+        tier: { name: 'GA' },
+        registration: { event: { id: 'evt1' } },
+      })
+      .mockResolvedValueOnce(opts.reread ?? null);
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue({ id: 'evt1', title: 'T' }) },
+      ticket: { findUnique, updateMany },
+    };
+    const signer = { verify: jest.fn().mockReturnValue({ t: 'tk1', e: 'evt1' }), sign: jest.fn() };
+    const svc = new RegistrationsService(
+      prisma as never,
+      { get: jest.fn() } as never,
+      { sendTicketConfirmationEmail: jest.fn() } as never,
+      signer as never,
+    );
+    return { svc, updateMany, findUnique };
+  }
+
+  it('admits the winning scan (claim matched) as a fresh check-in', async () => {
+    const { svc, updateMany } = makeCheckinSvc({ claimCount: 1 });
+    const out = await svc.checkIn('org1', 'evt1', 'qr');
+    expect(out.alreadyCheckedIn).toBe(false);
+    expect(out.status).toBe('checked_in');
+    expect(out.checkedInAt).toBeInstanceOf(Date);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'tk1', checkedInAt: null, status: 'issued' },
+        data: expect.objectContaining({ status: 'checked_in' }),
+      }),
+    );
+  });
+
+  it('reports already-checked-in for the losing scan (claim matched 0 rows)', async () => {
+    const checkedInAt = new Date('2026-08-01T19:30:00.000Z');
+    const { svc, findUnique } = makeCheckinSvc({
+      claimCount: 0,
+      reread: { id: 'tk1', status: 'checked_in', checkedInAt, tier: { name: 'GA' } },
+    });
+    const out = await svc.checkIn('org1', 'evt1', 'qr');
+    expect(out.alreadyCheckedIn).toBe(true);
+    expect(out.checkedInAt).toEqual(checkedInAt);
+    // it re-read the authoritative row rather than admitting a second time
+    expect(findUnique).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * Event-level capacity is enforced under the event row lock, so an uncapped
+ * tier (quantity_total NULL) cannot oversell Event.capacity across its tiers.
+ */
+describe('RegistrationsService.register event capacity', () => {
+  it('rejects a registration that would exceed Event.capacity', async () => {
+    const { $transaction, tx } = basePrismaMocks({ paidOrder: null, pendingOrder: null });
+    // event FOR UPDATE, then an uncapped tier FOR UPDATE
+    (tx as unknown as { $queryRawUnsafe: jest.Mock }).$queryRawUnsafe = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: 'evt1' }])
+      .mockResolvedValueOnce([{ quantity_total: null, quantity_sold: 100 }]);
+    (tx.ticketTier as unknown as { aggregate: jest.Mock }).aggregate = jest
+      .fn()
+      .mockResolvedValue({ _sum: { quantitySold: 100 } });
+    const prisma = {
+      event: { findUnique: jest.fn().mockResolvedValue({ ...event, capacity: 100 }) },
+      // free tier so the paid dedup guard is skipped and we reach the capacity check
+      ticketTier: { findUnique: jest.fn().mockResolvedValue({ ...tier, priceMinor: 0n }) },
+      $transaction,
+    };
+    const svc = makeSvc(prisma);
+    jest
+      .spyOn(
+        svc as unknown as {
+          upsertUserByEmail: (...args: unknown[]) => Promise<{ id: string; email: string }>;
+        },
+        'upsertUserByEmail',
+      )
+      .mockResolvedValue({ id: 'u1', email: 'a@b.co' });
+
+    await expect(
+      svc.register('TESTCODE', dto({ paymentMethod: 'free' })),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+/**
+ * upsertUserByEmail must survive the find-then-create race two concurrent
+ * registrations for the same new email create: the loser hits unique(email)
+ * (P2002) and re-fetches instead of 500ing.
+ */
+describe('RegistrationsService.upsertUserByEmail race', () => {
+  it('recovers from a concurrent-insert P2002 by re-fetching the winner row', async () => {
+    const { Prisma } = require('@prisma/client');
+    const p2002 = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+    const raced = { id: 'u9', email: 'new@x.co', phone: '123' };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(raced),
+        create: jest.fn().mockRejectedValue(p2002),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const svc = makeSvc(prisma);
+    const out = await (
+      svc as unknown as {
+        upsertUserByEmail: (e: string, n: string, p?: string) => Promise<{ id: string }>;
+      }
+    ).upsertUserByEmail('New@X.co', 'New User');
+    expect(prisma.user.create).toHaveBeenCalled();
+    expect(out).toEqual(raced);
+  });
+
+  it('rethrows a non-P2002 create error', async () => {
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockRejectedValue(new Error('db down')),
+        update: jest.fn(),
+      },
+    };
+    const svc = makeSvc(prisma);
+    await expect(
+      (
+        svc as unknown as {
+          upsertUserByEmail: (e: string, n: string, p?: string) => Promise<{ id: string }>;
+        }
+      ).upsertUserByEmail('x@y.co', 'X Y'),
+    ).rejects.toThrow('db down');
+  });
+});
