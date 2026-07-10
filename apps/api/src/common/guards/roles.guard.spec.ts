@@ -11,7 +11,8 @@ import type { Role } from '../decorators/roles.decorator';
  *   - a caller may only act on an org they hold a membership for
  *   - the membership role must meet the required hierarchy level
  *   - platform superadmin is the ONLY cross-org bypass
- *   - org id is resolved from header -> param -> body
+ *   - org id is resolved from route param -> header -> body (param MUST win, so
+ *     the guard authorizes the same org the controller serves)
  */
 
 type ReqUser = {
@@ -146,15 +147,30 @@ describe('RolesGuard tenancy contract', () => {
     expect(guard.canActivate(makeCtx(req))).toBe(true);
   });
 
-  it('header org id takes precedence and is the one authorized', () => {
-    // User is a member of A only. Header says B, param says A. The guard must
-    // authorize against the header (B) and therefore deny.
+  it('route param takes precedence over the header (authorizes the org the controller serves)', () => {
+    // User is a member of A only. Route :orgId=A (what the controller uses),
+    // header says B. The guard must authorize against the param (A) and allow.
     const guard = makeGuard(['staff']);
     const req: FakeReq = {
       user: { userId: 'u1', email: 'a@b.co', memberships: [{ orgId: ORG_A, role: 'owner' }] },
       params: { orgId: ORG_A },
       headers: { 'x-organization-id': ORG_B },
     };
-    expect(() => guard.canActivate(makeCtx(req))).toThrow(ForbiddenException);
+    expect(guard.canActivate(makeCtx(req))).toBe(true);
+    expect((req.user as { activeOrgId?: string }).activeOrgId).toBe(ORG_A);
+  });
+
+  it('BLOCKS the header-spoofing bypass: a member of A cannot reach org B via a header', () => {
+    // The real attack: route :orgId=B (the victim org the controller will
+    // serve), header=A (the caller's own org, to satisfy a header-first guard).
+    // With param-first resolution the guard authorizes B, sees no B membership,
+    // and denies - closing the cross-tenant IDOR.
+    const guard = makeGuard(['staff']);
+    const req: FakeReq = {
+      user: { userId: 'u1', email: 'a@b.co', memberships: [{ orgId: ORG_A, role: 'owner' }] },
+      params: { orgId: ORG_B },
+      headers: { 'x-organization-id': ORG_A },
+    };
+    expect(() => guard.canActivate(makeCtx(req))).toThrow('You are not a member of this organization');
   });
 });
