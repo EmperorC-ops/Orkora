@@ -13,7 +13,9 @@ function makePrismaMock() {
   return {
     order: {
       findFirst: jest.fn(),
-      // refundOrder stamps refundInitiatedAt; markOrderRefunded reads + flips.
+      // refundOrder claims the refund via updateMany (refundInitiatedAt NULL ->
+      // now); count=1 means the claim succeeded. markOrderRefunded reads + flips.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({}),
       findUnique: jest.fn(),
     },
@@ -119,11 +121,16 @@ describe('PaymentsService.refundOrder', () => {
       amountMinor: 12345n,
       currency: 'NGN',
     });
-    // Stamps the in-flight marker so a missed webhook + missed sync result is
-    // still recoverable by reconcileRefunds.
-    expect(prisma.order.update).toHaveBeenCalledWith(
+    // Claims the refund atomically (refundInitiatedAt NULL -> now) BEFORE the
+    // provider call, which both prevents a double-fire and leaves the in-flight
+    // marker reconcileRefunds keys on.
+    expect(prisma.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'x' },
+        where: expect.objectContaining({
+          id: 'x',
+          status: 'paid',
+          refundInitiatedAt: null,
+        }),
         data: expect.objectContaining({ refundInitiatedAt: expect.any(Date) }),
       }),
     );
@@ -164,7 +171,7 @@ describe('PaymentsService.refundOrder', () => {
     expect(markRefunded).toHaveBeenCalledWith('x');
   });
 
-  it('a provider-declined refund throws, audits refund_failed, and never stamps the marker', async () => {
+  it('a provider-declined refund releases the claim (so a retry is possible), audits refund_failed, and throws', async () => {
     const prisma = makePrismaMock();
     prisma.order.findFirst.mockResolvedValue({
       id: 'x',
@@ -181,9 +188,64 @@ describe('PaymentsService.refundOrder', () => {
       svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    // The claim was taken (updateMany #1) then released (updateMany #2 nulls the
+    // marker) so the order is refundable again after a corrected retry.
+    expect(prisma.order.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.order.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'x', status: 'paid' }),
+        data: { refundInitiatedAt: null },
+      }),
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'refund_failed', resourceId: 'x' }),
+    );
+  });
+
+  it('rejects a concurrent second refund without firing the provider again (atomic claim)', async () => {
+    const prisma = makePrismaMock();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'x',
+      status: 'paid',
+      provider: 'stripe',
+      providerRef: 'cs_abc',
+      totalMinor: 2000n,
+      currency: 'USD',
+    });
+    // Another in-flight refund already holds the claim, so this one matches 0 rows.
+    prisma.order.updateMany.mockResolvedValue({ count: 0 });
+    const refund = jest.fn();
+    const { svc } = makeService(prisma, refund);
+
+    await expect(
+      svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    // The whole point: no second real refund request reaches the provider.
+    expect(refund).not.toHaveBeenCalled();
+  });
+
+  it('releases the claim and rethrows when the provider call itself throws', async () => {
+    const prisma = makePrismaMock();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'x',
+      status: 'paid',
+      provider: 'stripe',
+      providerRef: 'cs_abc',
+      totalMinor: 2000n,
+      currency: 'USD',
+    });
+    const refund = jest.fn().mockRejectedValue(new Error('gateway timeout'));
+    const { svc } = makeService(prisma, refund);
+
+    await expect(
+      svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
+    ).rejects.toThrow('gateway timeout');
+
+    // claim (#1) then release (#2) so the order can be retried
+    expect(prisma.order.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.order.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { refundInitiatedAt: null } }),
     );
   });
 });

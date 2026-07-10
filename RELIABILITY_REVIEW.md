@@ -57,13 +57,24 @@ Both are cross-tenant authorization bypasses (IDOR) live in this repo's `HEAD`.
    `public-api.controller.spec.ts` 9/9, including cross-tenant JWT, wrong-org
    API key, same-org API key, superadmin, and unauthenticated.
 
+3. **Refund double-fire.** `refundOrder` read `status = 'paid'` and then called
+   `provider.refund()` with no local claim in between, so a double-click (or two
+   dashboard tabs) fired two real refund requests at the provider. Fix: an
+   atomic claim on the existing in-flight marker -
+   `updateMany WHERE status='paid' AND refundInitiatedAt IS NULL` before the
+   provider call; a concurrent caller matches 0 rows and is rejected, so exactly
+   one provider refund is issued. The claim is released (marker back to NULL) if
+   the provider declines or the call throws, so a corrected retry is still
+   possible; `reconcileRefunds` continues to key on the same marker.
+   `apps/api/src/modules/payments/payments.service.ts`. Tests:
+   `payments.service.spec.ts` 34/34, including a rejected concurrent second
+   refund (provider never called twice), decline-releases-claim, and
+   throw-releases-claim.
+
 ## Open (candidates being worked down; each re-verified against this repo first)
 
 Concurrency / atomicity:
 
-- **Refund double-fire.** A double-click can send two real provider refund
-  requests if `refundOrder` checks `status = 'paid'` but flips no local state
-  before the provider call. Fix: atomic `paid -> refund_pending` claim first.
 - **Payment transition atomicity.** `markOrderPaid`/`markOrderFailed` and the
   stale-hold cron should be atomic conditional updates
   (`UPDATE ... WHERE status = 'pending'`) so a late webhook and the cron cannot
