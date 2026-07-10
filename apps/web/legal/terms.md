@@ -2,9 +2,9 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Wherever a default sits in a position that counsel should confirm, the inline note flags it.
 
-**Last updated:** 29 June 2026 (draft)
+**Last updated:** 7 July 2026 (draft)
 
-These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Ltd** ("Orkora", "we", "us"), a company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC [to be filled when registration completes]** and registered address at **[REGISTERED ADDRESS — to be filled by founders]**. By creating an account, registering for an event hosted on Orkora, or using any part of the platform you accept these Terms.
+These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Ltd** ("Orkora", "we", "us"), a wholly-owned subsidiary of **VoltAfrica Technologies Ltd**. Orkora Technologies Ltd is a company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC [to be filled when Orkora Technologies Ltd registration completes]** and registered address at **[REGISTERED ADDRESS — to be filled by founders]**. VoltAfrica Technologies Ltd is the parent holding company, incorporated in the Federal Republic of Nigeria with registration number **RC [to be filled when VoltAfrica Technologies Ltd registration completes]**; it is not a direct party to these Terms, but it stands behind Orkora Technologies Ltd as its 100% shareholder. By creating an account, registering for an event hosted on Orkora, or using any part of the platform you accept these Terms.
 
 ## 1. Eligibility and sanctions
 
@@ -99,13 +99,4 @@ These Terms are governed by the laws of the **Federal Republic of Nigeria**. The
 
 [COUNSEL NOTE: counsel asked in LEGAL_REVIEW_PACKET §3 whether we should layer mediation + arbitration ahead of court. Default left as direct-to-court for speed; revise if counsel prefers a tiered escalation.]
 
-## 15. Changes to these Terms
-
-We may update these Terms from time to time. Material changes will be notified to the email on your account at least 30 days before they take effect. Continued use of the platform after the effective date constitutes acceptance.
-
-## 16. Contact
-
-- Operations and support: hello@orkora.events
-- Legal and notices: legal@orkora.events
-- Security: security@orkora.events
-- Data protection: dpo@orkora.events
+##

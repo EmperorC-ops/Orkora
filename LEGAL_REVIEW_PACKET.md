@@ -29,11 +29,29 @@ All four documents were rewritten from earlier placeholder drafts to:
 
 The four documents share a small set of bracketed values. Setting these once below propagates everywhere.
 
+### Group structure (added 7 July 2026)
+
+Orkora Technologies Ltd is being registered as a **wholly-owned subsidiary** of **VoltAfrica Technologies Ltd**, a Nigerian limited holding company. VoltAfrica Technologies Ltd also owns:
+
+- **VoltAfrica Mobility** (existing operating brand/entity — counsel to confirm current legal form and whether it novates into the group)
+- **GlowMall** (planned; commerce brand; may be trade name or subsidiary depending on money-touching profile)
+- **Assemble Tech** (planned; SaaS trade name of the parent)
+- **KapexFlow** (planned; SaaS trade name of the parent)
+
+Orkora Technologies Ltd is the operating entity for the Orkora platform — the merchant of record for payments, the data controller for Section 3 account data, and the contracting party for all customer-facing documents. VoltAfrica Technologies Ltd sits above as the 100% shareholder and does not directly contract with users or process user data.
+
+Counsel review questions specific to the group structure:
+
+1. Is a wholly-owned subsidiary the right form for Orkora Technologies Ltd, or should it be a business unit division of VoltAfrica Technologies Ltd for now (with subsidiary formalisation deferred to post-beta)?
+2. Should the IP for the Orkora platform vest in Orkora Technologies Ltd (the subsidiary) or in VoltAfrica Technologies Ltd (the parent, via a licence-back arrangement)? Attach IP assignment agreement per the recommended structure.
+3. Should we set up an inter-company Master Services Agreement between VoltAfrica Technologies Ltd (as service provider) and each subsidiary (as service recipient) covering shared finance, HR, legal, IT? See `INTERCOMPANY_MSA.md` for our template.
+4. Any group-level disclosure required on the Orkora legal pages beyond the parent-subsidiary line already inserted?
+
 ### Entity and registration
 
-- **Legal entity name** — currently `[LEGAL ENTITY NAME, e.g. Orkora Technologies Ltd]`
-- **Registration number** (RC for Nigeria, equivalent elsewhere) — currently `RC [number]`
-- **Registered address** — currently `[REGISTERED ADDRESS]`
+- **Operating entity (Orkora subsidiary)** — `Orkora Technologies Ltd`, RC number `[to be filled when registration completes]`, registered address `[REGISTERED ADDRESS — to be filled by founders]`
+- **Parent (holding) entity** — `VoltAfrica Technologies Ltd`, RC number `[to be filled when registration completes]`, registered address `[REGISTERED ADDRESS — to be filled by founders]`
+- Registration numbers and addresses must land at the CAC before the Orkora legal pages leave beta. See `GROUP_STRUCTURE.md` for the overall structure counsel is validating.
 
 ### Governing law and venue (Terms s.14)
 
@@ -173,9 +191,12 @@ The defaults below have been applied to the four draft documents (`LEGAL/terms.m
 
 | Item | Applied default | Source |
 |---|---|---|
-| Legal-entity name | **Orkora Technologies Ltd** | Packet §2 default |
-| Registration number | `RC [to be filled when registration completes]` | Awaiting founders |
-| Registered address | `[REGISTERED ADDRESS — to be filled by founders]` | Awaiting founders |
+| Operating entity (Orkora) | **Orkora Technologies Ltd**, a wholly-owned subsidiary of VoltAfrica Technologies Ltd | Packet §2 default (updated 7 July 2026) |
+| Parent (holding) entity | **VoltAfrica Technologies Ltd** — Nigerian limited holding company; 100% shareholder of Orkora Technologies Ltd | Packet §2 default (added 7 July 2026); see `GROUP_STRUCTURE.md` |
+| Group siblings | VoltAfrica Mobility (existing), plus GlowMall, Assemble Tech, KapexFlow (planned) — none are parties to the Orkora legal pages | Packet §2 default (added 7 July 2026) |
+| Registration number (Orkora Technologies Ltd) | `RC [to be filled when registration completes]` | Awaiting founders |
+| Registration number (VoltAfrica Technologies Ltd) | `RC [to be filled when registration completes]` | Awaiting founders |
+| Registered address (both) | `[REGISTERED ADDRESS — to be filled by founders]` | Awaiting founders |
 | Governing law | **Federal Republic of Nigeria** | Packet §2 default |
 | Venue | **Lagos State, Nigeria** courts | Packet §2 default |
 | Liability cap floor | **US$1,000 in local currency** (greater of: this or trailing-12-month fees) | Packet §2 default |

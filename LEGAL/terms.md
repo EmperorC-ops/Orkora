@@ -2,9 +2,9 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Wherever a default sits in a position that counsel should confirm, the inline note flags it.
 
-**Last updated:** 29 June 2026 (draft)
+**Last updated:** 7 July 2026 (draft)
 
-These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Ltd** ("Orkora", "we", "us"), a company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC [to be filled when registration completes]** and registered address at **[REGISTERED ADDRESS — to be filled by founders]**. By creating an account, registering for an event hosted on Orkora, or using any part of the platform you accept these Terms.
+These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Ltd** ("Orkora", "we", "us"), a wholly-owned subsidiary of **VoltAfrica Technologies Ltd**. Orkora Technologies Ltd is a company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC [to be filled when Orkora Technologies Ltd registration completes]** and registered address at **[REGISTERED ADDRESS — to be filled by founders]**. VoltAfrica Technologies Ltd is the parent holding company, incorporated in the Federal Republic of Nigeria with registration number **RC [to be filled when VoltAfrica Technologies Ltd registration completes]**; it is not a direct party to these Terms, but it stands behind Orkora Technologies Ltd as its 100% shareholder. By creating an account, registering for an event hosted on Orkora, or using any part of the platform you accept these Terms.
 
 ## 1. Eligibility and sanctions
 
