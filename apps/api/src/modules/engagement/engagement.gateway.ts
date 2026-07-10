@@ -14,7 +14,7 @@ import type { Server, Socket } from 'socket.io';
 import { EngagementService } from './engagement.service';
 
 interface AuthedSocket extends Socket {
-  data: { userId: string };
+  data: { userId: string; eventRooms?: Set<string> };
 }
 
 interface JwtPayload {
@@ -82,11 +82,16 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
   }
 
   handleDisconnect(client: Socket): void {
-    // Update presence counts for rooms the socket was in.
-    for (const room of client.rooms) {
-      if (room.startsWith('event:')) {
-        this.broadcastPresence(room.slice('event:'.length));
-      }
+    // By the time the `disconnect` event fires, socket.io has already removed
+    // this socket from its rooms, so `client.rooms` is empty here. The previous
+    // implementation iterated it and therefore never re-broadcast presence, so
+    // counts only ever went up. We re-broadcast for the event rooms we tracked
+    // on join instead; the adapter has already dropped this socket, so each
+    // count reflects the decrement.
+    const rooms = (client as AuthedSocket).data?.eventRooms;
+    if (!rooms) return;
+    for (const eventId of rooms) {
+      this.broadcastPresence(eventId);
     }
   }
 
@@ -97,6 +102,9 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
   ) {
     if (!data?.eventId) return { ok: false };
     await client.join(`event:${data.eventId}`);
+    // Remember the event rooms this socket joined so handleDisconnect can
+    // re-broadcast presence for them (client.rooms is empty by then).
+    (client.data.eventRooms ??= new Set<string>()).add(data.eventId);
     const channel = await this.engagement.getOrCreateEventChat(data.eventId);
     const recent = await this.engagement.listMessages(data.eventId, channel.id, 50);
     this.broadcastPresence(data.eventId);

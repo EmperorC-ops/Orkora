@@ -108,6 +108,28 @@ Both are cross-tenant authorization bypasses (IDOR) live in this repo's `HEAD`.
    the unique(email) constraint. Fix: catch P2002 and re-fetch the winner row.
    `registrations.service.ts`. Tests: P2002 recovery + non-P2002 rethrow.
 
+8. **WebSocket presence never decremented.** `handleDisconnect` iterated
+   `client.rooms`, but that maps to socket.io's `disconnect` event where the
+   socket has already left every room, so the loop ran zero times and presence
+   counts only ever went up. Fix: track the event rooms the socket joined on
+   `chat:join` and re-broadcast presence for those on disconnect (the adapter
+   has already dropped the socket, so each count reflects the decrement).
+   `apps/api/src/modules/engagement/engagement.gateway.ts`. Tests: new
+   `engagement.gateway.spec.ts` (decrement, last-socket count 0, no-op when the
+   socket never joined, join records the room).
+
+## Verified already addressed in this repo (do not re-touch)
+
+- **Engagement cross-tenant authorization.** The stale-copy review flagged a
+  broad WS/poll IDOR. This repo has deliberately made live participation
+  (`chat:message`, `qa:ask`, `poll:vote`, `qa:upvote`) open to any authenticated
+  user (a public live room, matching the unauthenticated REST reads), and gates
+  the privileged actions: `qa:answer` calls a DB-backed organizer check
+  (`membership role in owner/admin/organizer` for the question's event org), and
+  poll create/close are org-scoped (`session.event.organizationId`). This is an
+  intentional, enforced model, not a gap; forcing a membership gate on the open
+  actions would contradict it.
+
 ## Open (candidates being worked down; each re-verified against this repo first)
 
 Concurrency / atomicity:
@@ -118,15 +140,6 @@ Concurrency / atomicity:
   path, which can still append duplicate free tickets on a double-submit; a
   clean fix needs a client idempotency key (DTO field + column), so it is
   deferred as a schema change.
-
-Tenant isolation / engagement:
-
-- **WebSocket event-access gate.** Confirm every engagement socket handler
-  (`chat:join`, `chat:message`, `poll:vote`, `qa:*`) verifies the socket user is
-  a member or registered attendee of `eventId` before joining the room or
-  mutating.
-- **WS presence never decrements.** Confirm presence counts are released on
-  `disconnect`.
 
 Scale landmines (masked by the single-instance deploy today):
 
