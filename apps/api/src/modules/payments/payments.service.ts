@@ -444,55 +444,55 @@ export class PaymentsService {
     const ticketScope = hasOrderLink
       ? { orderId, status: 'pending' as const }
       : { registrationId: order.registration.id, status: 'pending' as const };
+    const registrationId = order.registration.id;
 
-    // Send the order-side emails only if no path has already sent them. The
-    // notification_log insert lives inside the same transaction as the order
-    // flip so a competing settle path (verify-on-action + webhook + reconcile)
-    // sees the unique-violation and silently skips its send. We choose the
-    // `paid` kind for the combined receipt + ticket pair so both arrive
-    // exactly once together.
-    let shouldSendPaidEmail = false;
-    try {
-      await this.prisma.$transaction([
-        this.prisma.order.update({
-          where: { id: orderId },
+    // Flip the order pending -> paid, confirm the registration, and issue THIS
+    // order's tickets, all atomic. The order flip is a conditional claim
+    // (WHERE status='pending'): if a racing path (e.g. the stale-hold cron)
+    // already moved the order to 'failed', the claim matches 0 rows and we bail
+    // without resurrecting it to 'paid' or issuing cancelled tickets. The
+    // findUnique guard above is only a cheap early-out; this claim is the real
+    // race gate. The notification_log insert lives in the same transaction so a
+    // competing settle path (verify-on-action + webhook + reconcile) hits the
+    // unique constraint and skips its duplicate email; we pick the `paid` kind
+    // so the receipt + ticket pair arrive exactly once together.
+    const applyPaidFlip = (withLog: boolean): Promise<{ claimed: boolean }> =>
+      this.prisma.$transaction(async (tx) => {
+        const claim = await tx.order.updateMany({
+          where: { id: orderId, status: 'pending' },
           data: { status: 'paid', paidAt },
-        }),
-        this.prisma.registration.update({
-          where: { id: order.registration.id },
+        });
+        if (claim.count === 0) return { claimed: false };
+        await tx.registration.update({
+          where: { id: registrationId },
           data: { status: 'confirmed' },
-        }),
-        this.prisma.ticket.updateMany({
+        });
+        await tx.ticket.updateMany({
           where: ticketScope,
           data: { status: 'issued' },
-        }),
-        this.prisma.notificationLog.create({
-          data: { orderId, kind: 'paid' },
-        }),
-      ]);
-      shouldSendPaidEmail = true;
+        });
+        if (withLog) {
+          await tx.notificationLog.create({ data: { orderId, kind: 'paid' } });
+        }
+        return { claimed: true };
+      });
+
+    let shouldSendPaidEmail = false;
+    try {
+      const { claimed } = await applyPaidFlip(true);
+      // Only send if WE performed the flip (and thus inserted the log, winning
+      // the email race). A no-op claim means a racing path owns this order.
+      shouldSendPaidEmail = claimed;
     } catch (err) {
-      // Unique violation on notification_log means another path already won
-      // the race and shipped the email. The state flip above also rolled back
-      // with the txn, so we re-run the flip without the log insert.
+      // Unique violation on notification_log means another path already won the
+      // race and shipped the email. The whole transaction (including the claim)
+      // rolled back, so re-run the flip WITHOUT the log insert; shouldSendPaidEmail
+      // stays false so we do not double-send.
       const isUniqueViolation =
         err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
       if (!isUniqueViolation) throw err;
       this.logger.log({ orderId }, 'Paid email already sent for this order by another path');
-      await this.prisma.$transaction([
-        this.prisma.order.update({
-          where: { id: orderId },
-          data: { status: 'paid', paidAt },
-        }),
-        this.prisma.registration.update({
-          where: { id: order.registration.id },
-          data: { status: 'confirmed' },
-        }),
-        this.prisma.ticket.updateMany({
-          where: ticketScope,
-          data: { status: 'issued' },
-        }),
-      ]);
+      await applyPaidFlip(false);
     }
 
     if (!shouldSendPaidEmail) return;
@@ -567,7 +567,21 @@ export class PaymentsService {
       ? { registrationId: order.registration.id, status: 'pending' as const }
       : null;
 
-    await this.prisma.$transaction(async (tx) => {
+    const failed = await this.prisma.$transaction(async (tx) => {
+      // Atomically claim the pending -> failed transition FIRST. If a racing
+      // path (a webhook or verify-on-return settling the order to 'paid') has
+      // already moved it off 'pending', this matches 0 rows and we roll back
+      // without releasing seats or cancelling tickets - so a paid order and its
+      // issued tickets are never clobbered to 'failed' with inventory
+      // double-released. The findUnique guard above is only a cheap early-out;
+      // this claim is the real race gate against the stale-hold cron vs a live
+      // purchase.
+      const claim = await tx.order.updateMany({
+        where: { id: orderId, status: 'pending' },
+        data: { status: 'failed' },
+      });
+      if (claim.count === 0) return false;
+
       for (const item of order.items) {
         await tx.ticketTier.update({
           where: { id: item.tierId },
@@ -598,11 +612,15 @@ export class PaymentsService {
           });
         }
       }
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: 'failed' },
-      });
+      return true;
     });
+    if (!failed) {
+      this.logger.log(
+        { orderId },
+        'markOrderFailed skipped: order was already settled by another path',
+      );
+      return;
+    }
     this.logger.log({ orderId, reason }, 'Order marked failed and seats released');
   }
 

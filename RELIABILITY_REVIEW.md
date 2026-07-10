@@ -71,14 +71,25 @@ Both are cross-tenant authorization bypasses (IDOR) live in this repo's `HEAD`.
    refund (provider never called twice), decline-releases-claim, and
    throw-releases-claim.
 
+4. **Payment transition atomicity (both directions).** `markOrderPaid` and
+   `markOrderFailed` each did findUnique -> in-app status check -> act, with the
+   final order write unconditional. The stale-hold cron failing an order could
+   race a live `markOrderPaid`: the cron clobbered a just-paid order to 'failed'
+   (issued tickets orphaned, inventory double-released); the mirror race let a
+   paid flip resurrect a failed order to 'paid' with cancelled tickets. Fix:
+   both transitions now claim atomically inside the transaction
+   (`updateMany WHERE status='pending'`) and run their side effects only if the
+   claim matched a row; a losing claim rolls back / no-ops instead of clobbering.
+   The notification_log exactly-once email guard is preserved.
+   `apps/api/src/modules/payments/payments.service.ts`. Tests:
+   `payments.service.spec.ts` 39/39, adding the failed-claim no-op (seats not
+   released), the paid resurrection guard (no tickets issued / no email), and
+   the email-race re-run.
+
 ## Open (candidates being worked down; each re-verified against this repo first)
 
 Concurrency / atomicity:
 
-- **Payment transition atomicity.** `markOrderPaid`/`markOrderFailed` and the
-  stale-hold cron should be atomic conditional updates
-  (`UPDATE ... WHERE status = 'pending'`) so a late webhook and the cron cannot
-  both act.
 - **Check-in double-scan.** `checkIn` should claim with
   `WHERE checkedInAt IS NULL` and branch on the affected-row count.
 - **Event capacity.** Enforce `Event.capacity` inside the same `FOR UPDATE`
