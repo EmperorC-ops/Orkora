@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { corsOrigins } from './common/cors-origins';
 
 // Sentry must be initialised before the Nest app is created so its
 // instrumentation can wrap the runtime. Disabled when SENTRY_DSN is unset
@@ -33,13 +34,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
     cors: {
-      // Locked to an explicit allow-list. Trim + drop empties so a stray space
-      // or trailing comma in CORS_ORIGINS cannot silently break a real origin
-      // (a mismatched origin fails closed: the browser blocks the response).
-      origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
-        .split(',')
-        .map((o) => o.trim())
-        .filter(Boolean),
+      // Locked to an explicit allow-list (see corsOrigins). The WS gateway
+      // reuses the same helper so both surfaces honour one CORS_ORIGINS var.
+      origin: corsOrigins(),
       credentials: true,
     },
     // Capture the raw request body alongside the JSON-parsed body. The

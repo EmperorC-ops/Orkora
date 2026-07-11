@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Server, Socket } from 'socket.io';
 import { EngagementService } from './engagement.service';
+import { corsOrigins } from '../../common/cors-origins';
 
 interface AuthedSocket extends Socket {
   data: { userId: string };
@@ -50,7 +51,9 @@ interface JwtPayload {
  */
 @WebSocketGateway({
   namespace: '/engagement',
-  cors: { origin: '*' },
+  // Reuse the REST CORS allow-list instead of a wildcard, so a browser can only
+  // open the socket from an approved origin (with credentials).
+  cors: { origin: corsOrigins(), credentials: true },
 })
 export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
