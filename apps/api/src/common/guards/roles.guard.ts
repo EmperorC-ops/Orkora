@@ -28,9 +28,16 @@ const HIERARCHY: Record<Role, number> = {
  * organization with at least the required role's hierarchy level.
  *
  * The org id is resolved from (in order):
- *   1. X-Organization-Id header
- *   2. Route param `:orgId` or `:organizationId`
+ *   1. Route param `:orgId` or `:organizationId`
+ *   2. X-Organization-Id header
  *   3. Request body `organizationId`
+ *
+ * The route param MUST win: controllers pass `@Param('orgId')` to their
+ * services, so the guard has to authorize against that exact value. If the
+ * header (or body) could override it, a caller who is a member of org A could
+ * satisfy the guard with header=A while the route `:orgId`=B makes the
+ * controller serve org B's data (cross-tenant IDOR). The header is only used
+ * for routes that carry no `:orgId` param at all.
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -54,9 +61,9 @@ export class RolesGuard implements CanActivate {
     if (!user) throw new ForbiddenException('Not authenticated');
 
     const orgId =
-      (req.headers['x-organization-id'] as string | undefined) ??
       req.params?.orgId ??
       req.params?.organizationId ??
+      (req.headers['x-organization-id'] as string | undefined) ??
       (req.body as { organizationId?: string } | undefined)?.organizationId;
 
     if (!orgId) {

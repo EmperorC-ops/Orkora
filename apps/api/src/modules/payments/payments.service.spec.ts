@@ -13,7 +13,9 @@ function makePrismaMock() {
   return {
     order: {
       findFirst: jest.fn(),
-      // refundOrder stamps refundInitiatedAt; markOrderRefunded reads + flips.
+      // refundOrder claims the refund via updateMany (refundInitiatedAt NULL ->
+      // now); count=1 means the claim succeeded. markOrderRefunded reads + flips.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({}),
       findUnique: jest.fn(),
     },
@@ -119,11 +121,16 @@ describe('PaymentsService.refundOrder', () => {
       amountMinor: 12345n,
       currency: 'NGN',
     });
-    // Stamps the in-flight marker so a missed webhook + missed sync result is
-    // still recoverable by reconcileRefunds.
-    expect(prisma.order.update).toHaveBeenCalledWith(
+    // Claims the refund atomically (refundInitiatedAt NULL -> now) BEFORE the
+    // provider call, which both prevents a double-fire and leaves the in-flight
+    // marker reconcileRefunds keys on.
+    expect(prisma.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'x' },
+        where: expect.objectContaining({
+          id: 'x',
+          status: 'paid',
+          refundInitiatedAt: null,
+        }),
         data: expect.objectContaining({ refundInitiatedAt: expect.any(Date) }),
       }),
     );
@@ -164,7 +171,7 @@ describe('PaymentsService.refundOrder', () => {
     expect(markRefunded).toHaveBeenCalledWith('x');
   });
 
-  it('a provider-declined refund throws, audits refund_failed, and never stamps the marker', async () => {
+  it('a provider-declined refund releases the claim (so a retry is possible), audits refund_failed, and throws', async () => {
     const prisma = makePrismaMock();
     prisma.order.findFirst.mockResolvedValue({
       id: 'x',
@@ -181,9 +188,64 @@ describe('PaymentsService.refundOrder', () => {
       svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    // The claim was taken (updateMany #1) then released (updateMany #2 nulls the
+    // marker) so the order is refundable again after a corrected retry.
+    expect(prisma.order.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.order.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'x', status: 'paid' }),
+        data: { refundInitiatedAt: null },
+      }),
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'refund_failed', resourceId: 'x' }),
+    );
+  });
+
+  it('rejects a concurrent second refund without firing the provider again (atomic claim)', async () => {
+    const prisma = makePrismaMock();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'x',
+      status: 'paid',
+      provider: 'stripe',
+      providerRef: 'cs_abc',
+      totalMinor: 2000n,
+      currency: 'USD',
+    });
+    // Another in-flight refund already holds the claim, so this one matches 0 rows.
+    prisma.order.updateMany.mockResolvedValue({ count: 0 });
+    const refund = jest.fn();
+    const { svc } = makeService(prisma, refund);
+
+    await expect(
+      svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    // The whole point: no second real refund request reaches the provider.
+    expect(refund).not.toHaveBeenCalled();
+  });
+
+  it('releases the claim and rethrows when the provider call itself throws', async () => {
+    const prisma = makePrismaMock();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'x',
+      status: 'paid',
+      provider: 'stripe',
+      providerRef: 'cs_abc',
+      totalMinor: 2000n,
+      currency: 'USD',
+    });
+    const refund = jest.fn().mockRejectedValue(new Error('gateway timeout'));
+    const { svc } = makeService(prisma, refund);
+
+    await expect(
+      svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
+    ).rejects.toThrow('gateway timeout');
+
+    // claim (#1) then release (#2) so the order can be retried
+    expect(prisma.order.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.order.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { refundInitiatedAt: null } }),
     );
   });
 });
@@ -814,5 +876,184 @@ describe('PaymentsService.markOrderRefunded', () => {
 
     expect(sendRefundEmail).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * markOrderFailed claims the pending -> failed transition atomically inside the
+ * transaction, so a stale-hold cron expiring an order cannot clobber a paid
+ * order (issued tickets, charged buyer) to 'failed' and double-release seats.
+ */
+describe('PaymentsService.markOrderFailed atomic claim', () => {
+  function makeTx(claimCount: number) {
+    return {
+      order: {
+        updateMany: jest.fn().mockResolvedValue({ count: claimCount }),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      ticketTier: { update: jest.fn().mockResolvedValue({}) },
+      ticket: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      registration: { update: jest.fn().mockResolvedValue({}) },
+    };
+  }
+
+  const order = {
+    id: 'o1',
+    status: 'pending',
+    items: [{ tierId: 'tier1', quantity: 2 }],
+    registration: { id: 'r1', tickets: [{ id: 't1', orderId: 'o1', status: 'pending' }] },
+  };
+
+  function makeSvc(claimCount: number) {
+    const tx = makeTx(claimCount);
+    const prisma = {
+      order: { findUnique: jest.fn().mockResolvedValue(order) },
+      $transaction: jest.fn().mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx)),
+    };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      { get: jest.fn() } as unknown as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { record: jest.fn() } as unknown as AuditService,
+      {} as never,
+    );
+    return { svc, tx };
+  }
+
+  it('claims pending->failed, then releases seats and cancels this order tickets', async () => {
+    const { svc, tx } = makeSvc(1);
+    await (svc as unknown as { markOrderFailed: (id: string, r?: string) => Promise<void> }).markOrderFailed(
+      'o1',
+      'expired',
+    );
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'o1', status: 'pending' },
+        data: { status: 'failed' },
+      }),
+    );
+    expect(tx.ticketTier.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { quantitySold: { decrement: 2 } } }),
+    );
+    expect(tx.ticket.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'cancelled' } }),
+    );
+  });
+
+  it('no-ops (no seat release, no ticket cancel) when a racing path already settled the order', async () => {
+    const { svc, tx } = makeSvc(0);
+    await (svc as unknown as { markOrderFailed: (id: string, r?: string) => Promise<void> }).markOrderFailed(
+      'o1',
+      'expired',
+    );
+    // The claim matched nothing (order no longer pending), so the destructive
+    // side effects must NOT run - a paid order keeps its issued tickets + seats.
+    expect(tx.ticketTier.update).not.toHaveBeenCalled();
+    expect(tx.ticket.updateMany).not.toHaveBeenCalled();
+    expect(tx.registration.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * markOrderPaid claims the pending -> paid transition atomically, so a racing
+ * failed transition cannot be resurrected to 'paid' with cancelled tickets, and
+ * the notification_log insert keeps the confirmation email exactly-once.
+ */
+describe('PaymentsService.markOrderPaid atomic claim', () => {
+  const paidOrder = {
+    id: 'o1',
+    status: 'pending',
+    provider: 'stripe',
+    totalMinor: 5000n,
+    currency: 'USD',
+    registration: {
+      id: 'r1',
+      user: { email: 'buyer@example.com' },
+      tickets: [
+        { id: 't1', orderId: 'o1', code: 'TK1', holderName: 'A', status: 'pending', tier: { name: 'GA' } },
+      ],
+    },
+    items: [{ tierId: 'tier1', quantity: 1, unitPriceMinor: 5000, tier: { name: 'GA' } }],
+    event: {
+      title: 'Demo',
+      startAt: new Date('2026-08-01T18:00:00.000Z'),
+      endAt: new Date('2026-08-01T20:00:00.000Z'),
+      timezone: 'America/New_York',
+      organization: { name: 'Demo Co' },
+    },
+  };
+
+  function makeSvc(opts?: { claimCount?: number; logCreate?: jest.Mock }) {
+    const tx = {
+      order: { updateMany: jest.fn().mockResolvedValue({ count: opts?.claimCount ?? 1 }) },
+      registration: { update: jest.fn().mockResolvedValue({}) },
+      ticket: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      notificationLog: { create: opts?.logCreate ?? jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      order: { findUnique: jest.fn().mockResolvedValue(paidOrder) },
+      $transaction: jest.fn().mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx)),
+    };
+    const sendTicketConfirmationEmail = jest.fn().mockResolvedValue(undefined);
+    const sendReceiptEmail = jest.fn().mockResolvedValue(undefined);
+    const notifications = { sendTicketConfirmationEmail, sendReceiptEmail };
+    const svc = new PaymentsService(
+      prisma as unknown as never,
+      { get: jest.fn().mockReturnValue('https://app.example.com') } as unknown as never,
+      {} as never,
+      notifications as unknown as never,
+      {} as never,
+      { record: jest.fn() } as unknown as AuditService,
+      {} as never,
+    );
+    return { svc, tx, sendTicketConfirmationEmail, sendReceiptEmail };
+  }
+
+  const call = (svc: PaymentsService) =>
+    (svc as unknown as { markOrderPaid: (id: string, at: Date) => Promise<void> }).markOrderPaid(
+      'o1',
+      new Date('2026-08-01T19:00:00.000Z'),
+    );
+
+  it('claims pending->paid, issues tickets, and emails the buyer once', async () => {
+    const { svc, tx, sendTicketConfirmationEmail, sendReceiptEmail } = makeSvc();
+    await call(svc);
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'o1', status: 'pending' },
+        data: expect.objectContaining({ status: 'paid' }),
+      }),
+    );
+    expect(tx.ticket.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'issued' } }),
+    );
+    expect(tx.notificationLog.create).toHaveBeenCalledWith({ data: { orderId: 'o1', kind: 'paid' } });
+    expect(sendTicketConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(sendReceiptEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('resurrection guard: a no-op claim (order already failed) issues no tickets and sends no email', async () => {
+    const { svc, tx, sendTicketConfirmationEmail, sendReceiptEmail } = makeSvc({ claimCount: 0 });
+    await call(svc);
+    expect(tx.registration.update).not.toHaveBeenCalled();
+    expect(tx.ticket.updateMany).not.toHaveBeenCalled();
+    expect(sendTicketConfirmationEmail).not.toHaveBeenCalled();
+    expect(sendReceiptEmail).not.toHaveBeenCalled();
+  });
+
+  it('email race: a notification_log unique violation re-runs the flip without the email', async () => {
+    const { Prisma } = require('@prisma/client');
+    const uniqueViolation = new Prisma.PrismaClientKnownRequestError('unique', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+    const logCreate = jest.fn().mockRejectedValueOnce(uniqueViolation).mockResolvedValue({});
+    const { svc, sendTicketConfirmationEmail, sendReceiptEmail } = makeSvc({ logCreate });
+    await call(svc);
+    // another path already logged + sent the email; we must not double-send
+    expect(sendTicketConfirmationEmail).not.toHaveBeenCalled();
+    expect(sendReceiptEmail).not.toHaveBeenCalled();
   });
 });

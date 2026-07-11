@@ -218,6 +218,30 @@ export class RegistrationsService {
         }
       }
 
+      // Event-level capacity. A tier with no quantity cap (quantity_total NULL)
+      // is otherwise bounded only by the venue, so an uncapped tier can oversell
+      // Event.capacity. The per-tier FOR UPDATE below only serializes registrants
+      // for the SAME tier; to bound the event across ALL its tiers we take an
+      // event row lock first (consistent event -> tier lock order, so no
+      // deadlock) and re-check the held-seat total. Skipped when capacity is
+      // NULL so uncapped events keep their per-tier concurrency. quantitySold is
+      // the same held/issued counter the tier check uses, so the two bounds stay
+      // consistent.
+      if (event.capacity !== null) {
+        await tx.$queryRawUnsafe(
+          'select id from events where id = $1::uuid for update',
+          event.id,
+        );
+        const agg = await tx.ticketTier.aggregate({
+          where: { eventId: event.id },
+          _sum: { quantitySold: true },
+        });
+        const occupied = agg._sum.quantitySold ?? 0;
+        if (occupied + qty > event.capacity) {
+          throw new ConflictException('This event has reached its capacity');
+        }
+      }
+
       const locked = await tx.$queryRawUnsafe<
         Array<{ quantity_total: number | null; quantity_sold: number }>
       >(
@@ -433,18 +457,39 @@ export class RegistrationsService {
       };
     }
 
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticket.id },
-      data: { status: 'checked_in', checkedInAt: new Date() },
-      include: { tier: true },
+    // Atomic claim: only the scan that flips checkedInAt from NULL wins. Two
+    // gates scanning the same QR at once would otherwise both pass the read
+    // above and both admit the holder (double-scan). updateMany ... WHERE
+    // checkedInAt IS NULL AND status='issued' affects exactly one row for one
+    // scanner; a concurrent scanner (or a refund voiding the ticket mid-scan)
+    // matches 0 rows and re-reads the authoritative state instead of admitting.
+    const claimedAt = new Date();
+    const claim = await this.prisma.ticket.updateMany({
+      where: { id: ticket.id, checkedInAt: null, status: 'issued' },
+      data: { status: 'checked_in', checkedInAt: claimedAt },
     });
+    if (claim.count === 0) {
+      const current = await this.prisma.ticket.findUnique({
+        where: { id: ticket.id },
+        include: { tier: true },
+      });
+      return {
+        id: ticket.id,
+        code: ticket.code,
+        holderName: ticket.holderName,
+        tier: current?.tier.name ?? ticket.tier.name,
+        status: current?.status ?? ticket.status,
+        checkedInAt: current?.checkedInAt ?? null,
+        alreadyCheckedIn: (current?.checkedInAt ?? null) !== null,
+      };
+    }
     return {
-      id: updated.id,
-      code: updated.code,
-      holderName: updated.holderName,
-      tier: updated.tier.name,
-      status: updated.status,
-      checkedInAt: updated.checkedInAt,
+      id: ticket.id,
+      code: ticket.code,
+      holderName: ticket.holderName,
+      tier: ticket.tier.name,
+      status: 'checked_in',
+      checkedInAt: claimedAt,
       alreadyCheckedIn: false,
     };
   }
@@ -805,15 +850,32 @@ export class RegistrationsService {
       }
       return existing;
     }
-    return this.prisma.user.create({
-      data: {
-        email: normalized,
-        fullName: fullName.trim(),
-        phone,
-        emailVerified: false,
-        locale: 'en-NG',
-      },
-    });
+    try {
+      return await this.prisma.user.create({
+        data: {
+          email: normalized,
+          fullName: fullName.trim(),
+          phone,
+          emailVerified: false,
+          locale: 'en-NG',
+        },
+      });
+    } catch (err) {
+      // Two concurrent registrations for the same NEW email race between the
+      // findUnique above and this create; the loser hits the unique(email)
+      // constraint (P2002). Re-fetch the row the winner created rather than
+      // 500ing a legitimate registrant.
+      const isUniqueViolation =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+      if (!isUniqueViolation) throw err;
+      const raced = await this.prisma.user.findUnique({ where: { email: normalized } });
+      if (!raced) throw err;
+      if (!raced.phone && phone) {
+        await this.prisma.user.update({ where: { id: raced.id }, data: { phone } });
+        return { ...raced, phone };
+      }
+      return raced;
+    }
   }
 
   /**
