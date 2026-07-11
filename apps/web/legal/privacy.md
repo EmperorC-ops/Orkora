@@ -2,11 +2,11 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Anchored on the actual product behaviour as of the last updated date.
 
-**Last updated:** 29 June 2026 (draft)
+**Last updated:** 7 July 2026 (draft)
 
 ## 1. Who we are
 
-Orkora Technologies Ltd ("Orkora", "we", "us") operates the Orkora event-management platform at `orkora.events`. Where this Policy refers to a "controller" we are the controller of the personal data described in Section 3 (account data) and a processor on behalf of the event organiser for the personal data described in Section 3 (attendance data). The controller for attendance data is the event organiser whose event you registered for.
+Orkora Technologies Ltd ("Orkora", "we", "us"), a wholly-owned subsidiary of **VoltAfrica Technologies Ltd**, operates the Orkora event-management platform at `orkora.events`. Orkora Technologies Ltd is the **data controller** for the personal data described in Section 3 (account data) and a processor on behalf of the event organiser for the personal data described in Section 3 (attendance data). The controller for attendance data is the event organiser whose event you registered for. VoltAfrica Technologies Ltd is the parent company; it does not process user data on its own behalf and is not a joint controller under this Policy.
 
 Contact our Data Protection Officer at **dpo@orkora.events**.
 
@@ -178,11 +178,4 @@ Email: **dpo@orkora.events**. Postal address: as registered with the Nigeria Dat
 
 ## 14. Changes to this Policy
 
-We may update this Policy from time to time. Material changes will be notified to the email on your account at least 30 days before they take effect. The "Last updated" date at the top of this Policy reflects the most recent change.
-
-## 15. Contact
-
-- Data Protection Officer: dpo@orkora.events
-- General privacy questions: dpo@orkora.events
-- Account-related: hello@orkora.events
-- Security disclosure: security@orkora.events
+We may update this Policy from time to time. Material changes will be notified to the email on your account at least 30 days before they take effect. The "Last updated" date at the top of this Policy reflects the most recent chang

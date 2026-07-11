@@ -2,7 +2,9 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Reflects the actual refund mechanics shipped in the platform.
 
-**Last updated:** 29 June 2026 (draft)
+**Last updated:** 7 July 2026 (draft)
+
+This Policy is issued by **Orkora Technologies Ltd**, a wholly-owned subsidiary of **VoltAfrica Technologies Ltd**. It applies to the Orkora event-management platform at `orkora.events`.
 
 ## 1. Scope
 
@@ -69,9 +71,4 @@ We respectfully encourage you to contact the organiser first. Their dashboard su
 
 ## 9. Disputes about a refund
 
-If you and the organiser disagree about whether a refund is owed, the dispute is between you and the organiser. Orkora can facilitate by surfacing the order and refund history in the dashboard but is not a party to the dispute. If you cannot reach agreement, you may contact your payment provider or your local consumer-protection authority.
-
-## 10. Contact
-
-- Refund mechanics, technical issues: hello@orkora.events
-- Disputes you cannot resolve with the organiser: hello@orkora.events (with the order id)
+If you and the organiser disagree about whether a refund is owed, the dispute is between you and the organiser. Orkora can facilitate by surfacing the order and refund history in the dashboard but is not a party to the dispute. If you cannot reach agreement, you may contact your payment provider or your local consumer-

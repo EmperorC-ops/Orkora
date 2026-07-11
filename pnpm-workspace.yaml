@@ -2,6 +2,18 @@ packages:
   - "apps/*"
   - "packages/*"
 
+allowBuilds:
+  '@nestjs/core': set this to true or false
+  '@prisma/client': set this to true or false
+  '@prisma/engines': set this to true or false
+  '@swc/core': set this to true or false
+  argon2: set this to true or false
+  esbuild: set this to true or false
+  msgpackr-extract: set this to true or false
+  prisma: set this to true or false
+  sharp: set this to true or false
+  unrs-resolver: set this to true or false
+
 # pnpm 10 requires this for `pnpm deploy` to work. It copies workspace
 # packages into the deploy target instead of leaving them as workspace:
 # protocol links — which is what we want for a self-contained runtime image.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Orkora monorepo - mobile, web, and backend for the event management platform",
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@11.11.0",
   "engines": {
     "node": ">=20.11.0",
     "pnpm": ">=9.0.0"
