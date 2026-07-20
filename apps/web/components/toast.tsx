@@ -63,9 +63,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [show, dismiss],
   );
 
+  // Cast defends against `bigint` creeping into React 19's `ReactNode`
+  // when a transitive dep pulls a newer `@types/react`. Same class of drift
+  // as task #35; harmless at runtime, keeps `pnpm typecheck` green.
   return (
     <Ctx.Provider value={api}>
-      {children}
+      {children as React.ReactElement}
       <Toaster toasts={toasts} onDismiss={dismiss} />
     </Ctx.Provider>
   );

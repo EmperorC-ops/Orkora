@@ -111,11 +111,33 @@ export class StorageService implements OnModuleInit {
   }
 
   publicUrlFor(key: string): string {
+    // The returned string must be a well-formed URL because downstream
+    // consumers (event.bannerUrl, org.logoUrl, speaker.avatarUrl) validate
+    // it with class-validator's @IsUrl. If we return a bare "bucket/key"
+    // path the caller silently 400s and the client sees an unsaved banner
+    // - exactly the incident that surfaced when S3_PUBLIC_BASE_URL was
+    // left blank on prod Render.
     if (this.publicBaseUrl) {
-      return `${this.publicBaseUrl.replace(/\/$/, '')}/${encodeURI(key)}`;
+      const base = this.publicBaseUrl.replace(/\/$/, '');
+      // Reject configured base URLs that would still generate an invalid
+      // URL (e.g. missing scheme). Fail loudly at presign rather than
+      // pushing a malformed URL to the DB.
+      if (!/^https?:\/\//i.test(base)) {
+        throw new Error(
+          `S3_PUBLIC_BASE_URL must start with http:// or https:// (got: "${base}")`,
+        );
+      }
+      return `${base}/${encodeURI(key)}`;
     }
-    if (!this.bucket) return key;
-    return `${this.bucket}/${encodeURI(key)}`;
+    // No public base URL configured. Refuse to return a schemeless string
+    // that will break @IsUrl validation on the caller. The operator must
+    // set S3_PUBLIC_BASE_URL to the R2 custom domain or the R2 dev URL.
+    throw new Error(
+      'S3_PUBLIC_BASE_URL is not configured. Set it to your R2 custom ' +
+        'domain (e.g. https://cdn.orkora.events) or the R2 dev URL ' +
+        '(e.g. https://<bucket-id>.r2.dev) so uploaded assets have a ' +
+        'reachable public URL.',
+    );
   }
 
   private async ensureBucket(name: string): Promise<void> {

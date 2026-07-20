@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Calendar, CheckCircle2 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { registrationApi, type PublicTicket } from '@/lib/registration';
 
 export default function TicketPage() {
@@ -108,45 +109,30 @@ function Row({ label, value, mono = false }: { label: string; value: string; mon
 }
 
 /**
- * Minimal QR renderer. We embed a small numeric matrix derived from a hash of
- * the token so the page can render without a runtime dependency. Scanners
- * built for production will read the token directly through `qrToken`; this
- * SVG is a visual proxy until we add a real qrcode library (issue: defer to
- * Slice 3.2 since the mobile app uses a real QR library natively).
+ * Real, scannable QR renderer. Encodes the HMAC-signed `qrToken` string with
+ * error-correction level H (30% redundancy) so it still decodes when the
+ * screen is dim, glary, or partially obscured at the door. Level H is what
+ * boarding passes and event scanners target.
+ *
+ * The `qrToken` payload is a base64url-encoded, HMAC-signed `{t: ticketId,
+ * e: eventId}` produced by TicketSigner on the API (see
+ * apps/api/src/modules/registrations/registrations.service.ts:828). The
+ * check-in scanner (apps/web/app/(organizer)/dashboard/events/[id]/checkin)
+ * uses the `qr-scanner` npm package to decode the token from the camera and
+ * POSTs it to `/v1/organizations/:orgId/events/:eventId/checkin`, where
+ * `TicketSigner.verify()` validates it before flipping `checkedInAt`.
  */
 function QrSvg({ value }: { value: string }) {
-  const size = 25;
-  const cells: boolean[] = [];
-  // Deterministic pseudo-random fill from the value.
-  let h = 0;
-  for (let i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) >>> 0;
-  for (let i = 0; i < size * size; i++) {
-    h = (h * 1103515245 + 12345) >>> 0;
-    cells.push((h & 1) === 1);
-  }
-  // Force the three corner finder squares (visual cue).
-  const finder = (cx: number, cy: number) => {
-    for (let y = -3; y <= 3; y++) {
-      for (let x = -3; x <= 3; x++) {
-        const px = cx + x;
-        const py = cy + y;
-        if (px < 0 || py < 0 || px >= size || py >= size) continue;
-        const onBorder = Math.abs(x) === 3 || Math.abs(y) === 3;
-        const onCenter = Math.abs(x) <= 1 && Math.abs(y) <= 1;
-        cells[py * size + px] = onBorder || onCenter;
-      }
-    }
-  };
-  finder(3, 3);
-  finder(size - 4, 3);
-  finder(3, size - 4);
-
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full">
-      <rect width={size} height={size} fill="white" />
-      {cells.map((on, i) =>
-        on ? <rect key={i} x={i % size} y={Math.floor(i / size)} width={1} height={1} fill="black" /> : null,
-      )}
-    </svg>
+    <QRCodeSVG
+      value={value}
+      level="H"
+      includeMargin={false}
+      className="h-full w-full"
+      // Explicit fg/bg keep the QR high-contrast on the white card even if
+      // an ancestor sets `currentColor` from the dark theme.
+      fgColor="#000000"
+      bgColor="#FFFFFF"
+    />
   );
 }
