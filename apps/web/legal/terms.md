@@ -4,7 +4,7 @@
 
 **Last updated:** 29 June 2026 (draft)
 
-These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Ltd** ("Orkora", "we", "us"), a company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC [to be filled when registration completes]** and registered address at **[REGISTERED ADDRESS — to be filled by founders]**. By creating an account, registering for an event hosted on Orkora, or using any part of the platform you accept these Terms.
+These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Limited** ("Orkora", "we", "us"), a wholly-owned subsidiary of **VoltAfrica Technologies Limited**. Orkora Technologies Limited is a registered company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC 9697234** and registered address at **[REGISTERED ADDRESS — to be filled by founders]**. VoltAfrica Technologies Limited is the parent holding company, incorporated in the Federal Republic of Nigeria with registration number **RC [to be filled when VoltAfrica Technologies Limited registration completes]**; it is not a direct party to these Terms, but it stands behind Orkora Technologies Limited as its 100% shareholder. By creating an account, registering for an event hosted on Orkora, or using any part of the platform you accept these Terms.
 
 ## 1. Eligibility and sanctions
 

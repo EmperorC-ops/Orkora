@@ -2,7 +2,9 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Reflects the actual refund mechanics shipped in the platform.
 
-**Last updated:** 29 June 2026 (draft)
+**Last updated:** 8 July 2026 (draft)
+
+This Policy is issued by **Orkora Technologies Limited**, a registered Nigerian company (RC **9697234**) and a wholly-owned subsidiary of **VoltAfrica Technologies Limited**. It applies to the Orkora event-management platform at `orkora.events`.
 
 ## 1. Scope
 

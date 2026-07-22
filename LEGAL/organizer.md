@@ -2,9 +2,9 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. This is the supplemental agreement that applies when you create an Organisation on Orkora and host paid events.
 
-**Last updated:** 29 June 2026 (draft)
+**Last updated:** 8 July 2026 (draft)
 
-This Organizer Agreement supplements the Orkora Terms of Service. If there is any conflict between this Agreement and the Terms, this Agreement controls for matters relating to your organisation, your events, and your relationship with attendees.
+This Organizer Agreement is between you (the Organiser) and **Orkora Technologies Limited** ("Orkora"), a registered Nigerian company (RC **9697234**) and a wholly-owned subsidiary of **VoltAfrica Technologies Limited**. It supplements the Orkora Terms of Service. If there is any conflict between this Agreement and the Terms, this Agreement controls for matters relating to your organisation, your events, and your relationship with attendees.
 
 ## 1. Who you are
 

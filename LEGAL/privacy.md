@@ -6,7 +6,7 @@
 
 ## 1. Who we are
 
-Orkora Technologies Ltd ("Orkora", "we", "us") operates the Orkora event-management platform at `orkora.events`. Where this Policy refers to a "controller" we are the controller of the personal data described in Section 3 (account data) and a processor on behalf of the event organiser for the personal data described in Section 3 (attendance data). The controller for attendance data is the event organiser whose event you registered for.
+**Orkora Technologies Limited** ("Orkora", "we", "us"), a wholly-owned subsidiary of **VoltAfrica Technologies Limited**, operates the Orkora event-management platform at `orkora.events`. Orkora Technologies Limited is a registered Nigerian company (RC **9697234**) and is the **data controller** for the personal data described in Section 3 (account data) and a processor on behalf of the event organiser for the personal data described in Section 3 (attendance data). The controller for attendance data is the event organiser whose event you registered for. VoltAfrica Technologies Limited is the parent company; it does not process user data on its own behalf and is not a joint controller under this Policy.
 
 Contact our Data Protection Officer at **dpo@orkora.events**.
 

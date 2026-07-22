@@ -114,7 +114,7 @@ Today we are at private-beta readiness, modulo two operator decisions
 
 ### Legal and compliance scaffolding
 - [x] Four legal drafts written and assembled into `LEGAL_REVIEW_BINDER.pdf` (137KB single binder) ready for counsel.
-- [x] All previously-TBD placeholders filled with applied defaults (entity = Orkora Technologies Ltd, jurisdiction = Federal Republic of Nigeria, venue = Lagos State, DPO = `dpo@orkora.events`, retention = 6 years, etc.). See `LEGAL_REVIEW_PACKET.md` §8.
+- [x] All previously-TBD placeholders filled with applied defaults (entity = Orkora Technologies Limited, jurisdiction = Federal Republic of Nigeria, venue = Lagos State, DPO = `dpo@orkora.events`, retention = 6 years, etc.). See `LEGAL_REVIEW_PACKET.md` §8.
 - [x] PCI posture: provider-hosted checkout only (SAQ-A); documented in privacy policy.
 - [x] Per-org domain authentication runbook for organizers in `DOMAIN_AUTH_FOR_ORGS.md`.
 
@@ -128,7 +128,7 @@ Today we are at private-beta readiness, modulo two operator decisions
 These are the only items I would not ship without. Both are operator
 decisions, not code.
 
-1. **Legal entity registration** — Orkora Technologies Ltd needs to be
+1. **Legal entity registration** — Orkora Technologies Limited needs to be
    formally registered. The drafts already use this name as a default;
    counsel sign-off cannot complete until the registration number and
    registered address are real. Without the registration we cannot
@@ -191,7 +191,7 @@ today with the following defaults live and documented:
 | Trust and safety | `abuse@orkora.events` (forwards to `security@`) |
 | Privacy requests | `privacy@orkora.events` |
 | DMARC policy | `p=none` with aggregate reports to `dmarc@orkora.events`; monitoring 14-day window before moving to `p=quarantine` |
-| Legal entity | Orkora Technologies Ltd (registration in progress; drafts carry `RC [to be filled...]` placeholder that will render as-is on the live pages until updated) |
+| Legal entity | Orkora Technologies Limited (registration in progress; drafts carry `RC [to be filled...]` placeholder that will render as-is on the live pages until updated) |
 | Insurance | Recommendation adopted (Hiscox / Embroker SMB SaaS US$1M cyber + US$1M E&O + US$1M GL); binding scheduled once entity registration closes |
 | Legal pages | Best-case counsel-marked drafts live at `/legal/{terms,privacy,refunds,organizer}` with `[COUNSEL NOTE]` markers stripped from the rendered output; source retains them at `LEGAL/*.md` for the counsel round |
 | Campaigns webhook | Basic-Auth guarded via `POSTMARK_WEBHOOK_TOKEN` (backwards-compat admits when unset) |

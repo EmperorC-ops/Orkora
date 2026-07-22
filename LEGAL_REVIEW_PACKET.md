@@ -31,7 +31,7 @@ The four documents share a small set of bracketed values. Setting these once bel
 
 ### Entity and registration
 
-- **Legal entity name** — currently `[LEGAL ENTITY NAME, e.g. Orkora Technologies Ltd]`
+- **Legal entity name** — currently `[LEGAL ENTITY NAME, e.g. Orkora Technologies Limited]`
 - **Registration number** (RC for Nigeria, equivalent elsewhere) — currently `RC [number]`
 - **Registered address** — currently `[REGISTERED ADDRESS]`
 
@@ -173,7 +173,7 @@ The defaults below have been applied to the four draft documents (`LEGAL/terms.m
 
 | Item | Applied default | Source |
 |---|---|---|
-| Legal-entity name | **Orkora Technologies Ltd** | Packet §2 default |
+| Legal-entity name | **Orkora Technologies Limited** | Packet §2 default |
 | Registration number | `RC [to be filled when registration completes]` | Awaiting founders |
 | Registered address | `[REGISTERED ADDRESS — to be filled by founders]` | Awaiting founders |
 | Governing law | **Federal Republic of Nigeria** | Packet §2 default |
