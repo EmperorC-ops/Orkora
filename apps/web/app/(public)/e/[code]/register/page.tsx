@@ -94,6 +94,32 @@ export default function RegisterPage() {
   const isFree = tier ? tier.priceMinor === 0 : false;
   const total = tier ? tier.priceMinor * attendees.length : 0;
 
+  // Minimum attendees required for the selected tier. A group tier enforces a
+  // floor of `groupSize` (never below the tier's own minPerOrder). Pricing is
+  // still per-person; this only controls how many name rows are required.
+  const groupMin = useMemo(() => {
+    if (!tier) return 1;
+    if (tier.isGroup && tier.groupSize) return Math.max(tier.groupSize, tier.minPerOrder);
+    return Math.max(1, tier.minPerOrder);
+  }, [tier]);
+  const isGroupTier = !!(tier?.isGroup && tier.groupSize && tier.groupSize > 1);
+  const belowGroupMin = attendees.length < groupMin;
+
+  // When the selected tier requires a minimum, pad the attendee rows up to it
+  // so the buyer sees the right number of name fields. Never shrinks below what
+  // the user has already entered.
+  useEffect(() => {
+    setAttendees((prev) => {
+      if (prev.length >= groupMin) return prev;
+      const pad = Array.from({ length: groupMin - prev.length }, () => ({
+        fullName: '',
+        email: '',
+        phone: '',
+      }));
+      return [...prev, ...pad];
+    });
+  }, [groupMin]);
+
   function updateAttendee(i: number, patch: Partial<AttendeeInput>) {
     setAttendees((prev) => prev.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
   }
@@ -105,7 +131,7 @@ export default function RegisterPage() {
   }
 
   function removeAttendee(i: number) {
-    setAttendees((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev));
+    setAttendees((prev) => (prev.length > groupMin ? prev.filter((_, idx) => idx !== i) : prev));
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -265,6 +291,11 @@ export default function RegisterPage() {
                       <div className="flex items-start justify-between">
                         <div>
                           <h3 className="text-base font-semibold text-ink-primary">{t.name}</h3>
+                          {t.isGroup && t.groupSize && t.groupSize > 1 && (
+                            <span className="mt-1 inline-block rounded-full bg-brand-500/15 px-2 py-0.5 text-[10px] font-semibold text-brand-200">
+                              Group of {t.groupSize}+
+                            </span>
+                          )}
                           {t.description && (
                             <p className="mt-1 text-sm text-ink-secondary">{t.description}</p>
                           )}
@@ -305,6 +336,12 @@ export default function RegisterPage() {
                   </button>
                 )}
               </div>
+              {isGroupTier && (
+                <p className="mt-3 rounded-xl border border-brand-500/30 bg-brand-500/10 px-4 py-2.5 text-xs text-brand-200">
+                  This is a group ticket. You need to register at least {groupMin} people in
+                  one order.
+                </p>
+              )}
               <div className="mt-4 space-y-4">
                 {attendees.map((a, i) => (
                   <div
@@ -357,9 +394,22 @@ export default function RegisterPage() {
               </p>
             )}
 
+            {isGroupTier && belowGroupMin && (
+              <p className="text-center text-xs text-ink-muted">
+                Add {groupMin - attendees.length} more{' '}
+                {groupMin - attendees.length === 1 ? 'person' : 'people'} to meet the group
+                minimum of {groupMin}.
+              </p>
+            )}
+
             <button
               type="submit"
-              disabled={submitting || !tier || (remaining !== null && attendees.length > remaining)}
+              disabled={
+                submitting ||
+                !tier ||
+                belowGroupMin ||
+                (remaining !== null && attendees.length > remaining)
+              }
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-gradient py-3 text-sm font-semibold text-white shadow-glow transition hover:opacity-95 disabled:opacity-50"
             >
               {submitting

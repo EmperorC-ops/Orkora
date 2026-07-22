@@ -732,12 +732,25 @@ interface NewTierFormProps {
 function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [isGroup, setIsGroup] = useState(false);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
     setErr(null);
     const f = new FormData(e.currentTarget);
+    const groupSize = isGroup ? Number(f.get('groupSize') ?? 0) : undefined;
+    const maxPerOrder = f.get('maxPerOrder') ? Number(f.get('maxPerOrder')) : undefined;
+    if (isGroup && (!groupSize || groupSize < 2)) {
+      setErr('Group size must be at least 2.');
+      setBusy(false);
+      return;
+    }
+    if (isGroup && groupSize && maxPerOrder && groupSize > maxPerOrder) {
+      setErr('Group size cannot exceed the maximum per order.');
+      setBusy(false);
+      return;
+    }
     try {
       await eventsApi(orgId).createTier(eventId, {
         name: String(f.get('name') ?? ''),
@@ -745,6 +758,9 @@ function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
         currency: String(f.get('currency') ?? 'NGN'),
         quantityTotal: f.get('quantity') ? Number(f.get('quantity')) : undefined,
         description: (String(f.get('description') ?? '') || undefined) as string | undefined,
+        isGroup,
+        groupSize: isGroup ? groupSize : undefined,
+        maxPerOrder,
       });
       await onCreated();
     } catch (e2) {
@@ -803,6 +819,38 @@ function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
         placeholder="Description (optional)"
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-6"
       />
+      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 sm:col-span-6">
+        <input
+          type="checkbox"
+          checked={isGroup}
+          onChange={(e) => setIsGroup(e.target.checked)}
+        />
+        Group ticket (buyers must register a minimum number of people per order)
+      </label>
+      {isGroup && (
+        <div className="grid grid-cols-1 gap-3 sm:col-span-6 sm:grid-cols-2">
+          <label className="text-xs font-medium text-slate-600">
+            Minimum group size
+            <input
+              name="groupSize"
+              type="number"
+              min="2"
+              defaultValue="2"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            Maximum per order
+            <input
+              name="maxPerOrder"
+              type="number"
+              min="2"
+              defaultValue="10"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+            />
+          </label>
+        </div>
+      )}
       {err && <p className="text-xs text-red-700 sm:col-span-6">{err}</p>}
     </form>
   );

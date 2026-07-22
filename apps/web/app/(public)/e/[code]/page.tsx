@@ -316,6 +316,11 @@ export default async function PublicEventPage({ params }: { params: { code: stri
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="font-semibold text-ink-primary">{tier.name}</p>
+                        {tier.isGroup && tier.groupSize && tier.groupSize > 1 && (
+                          <span className="mt-0.5 inline-block rounded-full bg-brand-500/15 px-2 py-0.5 text-[10px] font-semibold text-brand-300">
+                            Group of {tier.groupSize}+
+                          </span>
+                        )}
                         {tier.description && (
                           <p className="mt-0.5 text-sm text-ink-secondary">{tier.description}</p>
                         )}

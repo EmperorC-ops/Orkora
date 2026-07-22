@@ -545,6 +545,16 @@ export class EventsService {
     if (dto.maxPerOrder && dto.minPerOrder && dto.maxPerOrder < dto.minPerOrder) {
       throw new BadRequestException('maxPerOrder must be >= minPerOrder');
     }
+    // A group tier's minimum block (groupSize) must fit inside the per-order
+    // ceiling, otherwise it can never be purchased.
+    if (dto.isGroup && dto.groupSize) {
+      const maxPer = dto.maxPerOrder ?? 10;
+      if (dto.groupSize > maxPer) {
+        throw new BadRequestException(
+          'Group size must be <= the maximum tickets per order',
+        );
+      }
+    }
     if (dto.saleStartsAt && dto.saleEndsAt) {
       this.assertDateRange(dto.saleStartsAt, dto.saleEndsAt);
     }
@@ -594,6 +604,16 @@ export class EventsService {
       where: { id: tierId, eventId },
     });
     if (!existing) throw new NotFoundException('Ticket tier not found');
+
+    // Re-validate the group floor against the effective (post-patch) values.
+    const effIsGroup = dto.isGroup ?? existing.isGroup;
+    const effGroupSize = dto.groupSize ?? existing.groupSize;
+    const effMaxPer = dto.maxPerOrder ?? existing.maxPerOrder;
+    if (effIsGroup && effGroupSize && effGroupSize > effMaxPer) {
+      throw new BadRequestException(
+        'Group size must be <= the maximum tickets per order',
+      );
+    }
 
     const tier = await this.prisma.ticketTier.update({
       where: { id: tierId },

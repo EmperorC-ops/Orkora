@@ -108,9 +108,19 @@ export class RegistrationsService {
     }
 
     const qty = dto.attendees.length;
-    if (qty < tier.minPerOrder) {
+    // A group tier enforces a minimum block size: you cannot buy fewer than
+    // `groupSize` seats in one order. Pricing stays per-person; this is purely
+    // a floor on quantity. If groupSize is unset we fall back to minPerOrder so
+    // the flag can never loosen the existing floor.
+    const groupMin =
+      tier.isGroup && tier.groupSize && tier.groupSize > tier.minPerOrder
+        ? tier.groupSize
+        : tier.minPerOrder;
+    if (qty < groupMin) {
       throw new BadRequestException(
-        `This tier requires at least ${tier.minPerOrder} attendees per order`,
+        tier.isGroup && groupMin === tier.groupSize
+          ? `This is a group ticket - you must register at least ${groupMin} people per order`
+          : `This tier requires at least ${groupMin} attendees per order`,
       );
     }
     if (qty > tier.maxPerOrder) {

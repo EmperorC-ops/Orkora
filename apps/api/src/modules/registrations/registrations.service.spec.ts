@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { RegistrationsService } from './registrations.service';
 import type { RegisterAttendeesDto } from './dto/registration.dto';
 
@@ -219,5 +219,62 @@ describe('RegistrationsService.register duplicate-order guard', () => {
       .mockResolvedValue({ id: 'u1', email: 'a@b.co' });
 
     await expect(svc.register('TESTCODE', dto())).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('RegistrationsService.register group minimum', () => {
+  const groupTier = { ...tier, isGroup: true, groupSize: 4 };
+
+  it('rejects an order below the group minimum', async () => {
+    const { $transaction } = basePrismaMocks({ paidOrder: null, pendingOrder: null });
+    const prisma = {
+      event: { findUnique: jest.fn().mockResolvedValue(event) },
+      ticketTier: { findUnique: jest.fn().mockResolvedValue(groupTier) },
+      $transaction,
+    };
+    const svc = makeSvc(prisma);
+    const spyTarget = svc as unknown as {
+      upsertUserByEmail: (...args: unknown[]) => Promise<{ id: string; email: string }>;
+    };
+    jest
+      .spyOn(spyTarget, 'upsertUserByEmail')
+      .mockResolvedValue({ id: 'u1', email: 'a@b.co' });
+
+    // dto() defaults to a single attendee; groupSize is 4.
+    await expect(svc.register('TESTCODE', dto())).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('allows an order that meets the group minimum', async () => {
+    // Free group tier so the happy path stays simple (no payment provider).
+    const freeGroupTier = { ...groupTier, priceMinor: 0n };
+    const { $transaction } = basePrismaMocks({
+      paidOrder: null,
+      pendingOrder: null,
+      registration: { id: 'r1', status: 'pending' },
+    });
+    const prisma = {
+      event: { findUnique: jest.fn().mockResolvedValue(event) },
+      ticketTier: { findUnique: jest.fn().mockResolvedValue(freeGroupTier) },
+      $transaction,
+    };
+    const svc = makeSvc(prisma);
+    const spyTarget = svc as unknown as {
+      upsertUserByEmail: (...args: unknown[]) => Promise<{ id: string; email: string }>;
+    };
+    jest
+      .spyOn(spyTarget, 'upsertUserByEmail')
+      .mockResolvedValue({ id: 'u1', email: 'a@b.co' });
+
+    const four = Array.from({ length: 4 }, (_, i) => ({
+      fullName: `P ${i}`,
+      email: `p${i}@b.co`,
+      phone: undefined,
+    }));
+    // Four attendees meets groupSize=4: the group-minimum gate must not throw.
+    await expect(
+      svc.register('TESTCODE', dto({ attendees: four, paymentMethod: 'free' })),
+    ).resolves.toBeDefined();
   });
 });
