@@ -117,6 +117,15 @@ export const eventsApi = (orgId: string) => {
         method: 'POST',
         json: input,
       }),
+    updateSpeaker: (
+      eventId: string,
+      speakerId: string,
+      input: { fullName?: string; title?: string; bio?: string; avatarUrl?: string | null },
+    ) =>
+      apiFetch<EventSpeaker>(`${base}/${eventId}/speakers/${speakerId}`, {
+        method: 'PATCH',
+        json: input,
+      }),
     deleteSpeaker: (eventId: string, speakerId: string) =>
       apiFetch<{ ok: boolean }>(`${base}/${eventId}/speakers/${speakerId}`, {
         method: 'DELETE',

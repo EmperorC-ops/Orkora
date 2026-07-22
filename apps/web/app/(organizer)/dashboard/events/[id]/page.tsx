@@ -12,6 +12,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Pencil,
   Plus,
   Trash2,
   Users,
@@ -26,8 +27,10 @@ import {
   type EventDetail,
   type EventTier,
   type EventStatus,
+  type EventSpeaker,
 } from '@/lib/events';
 import { ImageUpload } from '@/components/image-upload';
+import { ActionButton } from '@/components/action-button';
 import { useToast } from '@/components/toast';
 
 const STATUS_STYLES: Record<EventStatus, string> = {
@@ -50,6 +53,9 @@ export default function EventDetailPage() {
   const [acting, setActing] = useState(false);
   const [showTierForm, setShowTierForm] = useState(false);
   const [showSpeakerForm, setShowSpeakerForm] = useState(false);
+  // The speaker currently being edited (null = the form, when open, creates a
+  // new speaker). Set by a card's Edit button; cleared on save/cancel.
+  const [editingSpeaker, setEditingSpeaker] = useState<EventSpeaker | null>(null);
   const [showTrackForm, setShowTrackForm] = useState(false);
   const [showSessionForm, setShowSessionForm] = useState(false);
 
@@ -185,13 +191,16 @@ export default function EventDetailPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={copyShareLink}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <Copy className="h-4 w-4" /> Copy share link
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <ActionButton
+                variant="secondary"
+                onAction={copyShareLink}
+                idleLabel="Copy share link"
+                pendingLabel="Copying…"
+                successLabel="Copied"
+                idleIcon={<Copy className="h-4 w-4" />}
+                onError={(m) => toast.error('Could not copy', m)}
+              />
               <Link
                 href={`/dashboard/events/${id}/registrations`}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -427,16 +436,24 @@ export default function EventDetailPage() {
           </button>
         </div>
 
-        {showSpeakerForm && orgId ? (
-          <NewSpeakerForm
+        {(showSpeakerForm || editingSpeaker) && orgId ? (
+          <SpeakerForm
             orgId={orgId}
             eventId={id}
-            onCreated={async () => {
+            speaker={editingSpeaker}
+            onSaved={async (wasEdit) => {
               setShowSpeakerForm(false);
+              setEditingSpeaker(null);
               await refresh();
-              toast.success('Speaker added');
+              toast.success(wasEdit ? 'Speaker updated' : 'Speaker added');
             }}
-            onError={(msg) => toast.error('Could not add speaker', msg)}
+            onCancel={() => {
+              setShowSpeakerForm(false);
+              setEditingSpeaker(null);
+            }}
+            onError={(msg) =>
+              toast.error(editingSpeaker ? 'Could not update speaker' : 'Could not add speaker', msg)
+            }
           />
         ) : null}
 
@@ -450,6 +467,10 @@ export default function EventDetailPage() {
               <SpeakerCard
                 key={sp.id}
                 speaker={sp}
+                onEdit={() => {
+                  setShowSpeakerForm(false);
+                  setEditingSpeaker(sp);
+                }}
                 onDelete={async () => {
                   if (!orgId) return;
                   if (!confirm(`Remove ${sp.fullName}?`)) return;
@@ -475,9 +496,11 @@ export default function EventDetailPage() {
 
 function SpeakerCard({
   speaker,
+  onEdit,
   onDelete,
 }: {
   speaker: { id: string; fullName: string; title: string | null; bio: string | null; avatarUrl: string | null };
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -502,14 +525,24 @@ function SpeakerCard({
               <p className="truncate text-xs text-slate-500">{speaker.title}</p>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="text-slate-400 transition hover:text-red-600"
-            aria-label="Remove"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex flex-none items-center gap-1">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="text-slate-400 transition hover:text-brand-700"
+              aria-label="Edit speaker"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-slate-400 transition hover:text-red-600"
+              aria-label="Remove speaker"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
         {speaker.bio ? (
           <p className="mt-2 line-clamp-2 text-xs text-slate-500">{speaker.bio}</p>
@@ -519,78 +552,93 @@ function SpeakerCard({
   );
 }
 
-function NewSpeakerForm({
+// Create OR edit a speaker. When `speaker` is provided the form is pre-filled
+// and PATCHes; otherwise it POSTs a new speaker. Save shows a Saved flash.
+function SpeakerForm({
   orgId,
   eventId,
-  onCreated,
+  speaker,
+  onSaved,
+  onCancel,
   onError,
 }: {
   orgId: string;
   eventId: string;
-  onCreated: () => void;
+  speaker: EventSpeaker | null;
+  onSaved: (wasEdit: boolean) => void;
+  onCancel: () => void;
   onError: (msg: string) => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const isEdit = !!speaker;
+  const [fullName, setFullName] = useState(speaker?.fullName ?? '');
+  const [title, setTitle] = useState(speaker?.title ?? '');
+  const [bio, setBio] = useState(speaker?.bio ?? '');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(speaker?.avatarUrl ?? null);
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    const f = new FormData(e.currentTarget);
-    try {
-      await eventsApi(orgId).createSpeaker(eventId, {
-        fullName: String(f.get('fullName') ?? '').trim(),
-        title: (String(f.get('title') ?? '').trim() || undefined),
-        bio: (String(f.get('bio') ?? '').trim() || undefined),
-        avatarUrl: avatarUrl ?? undefined,
-      });
-      onCreated();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setBusy(false);
+  async function save() {
+    const payload = {
+      fullName: fullName.trim(),
+      title: title.trim() || undefined,
+      bio: bio.trim() || undefined,
+      avatarUrl: avatarUrl ?? undefined,
+    };
+    if (!payload.fullName) {
+      onError('Speaker name is required.');
+      throw new Error('validation');
     }
+    if (isEdit && speaker) {
+      await eventsApi(orgId).updateSpeaker(eventId, speaker.id, payload);
+    } else {
+      await eventsApi(orgId).createSpeaker(eventId, payload);
+    }
+    onSaved(isEdit);
   }
 
   return (
-    <form onSubmit={submit} className="mb-4 grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-[120px_1fr]">
+    <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-[120px_1fr]">
       <div className="flex flex-col items-center gap-2">
-        <ImageUpload
-          kind="avatar"
-          value={avatarUrl}
-          onChange={setAvatarUrl}
-          aspect="square"
-        />
+        <ImageUpload kind="avatar" value={avatarUrl} onChange={setAvatarUrl} aspect="square" />
       </div>
       <div className="space-y-2">
         <input
-          name="fullName"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
           required
           placeholder="Full name"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
         <input
-          name="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
           placeholder="Role / title (optional)"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
         <textarea
-          name="bio"
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
           rows={3}
           placeholder="Short bio (optional)"
           className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
           <button
-            type="submit"
-            disabled={busy}
-            className="rounded-full bg-brand-700 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            type="button"
+            onClick={onCancel}
+            className="rounded-full px-4 py-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
           >
-            {busy ? 'Saving...' : 'Add speaker'}
+            Cancel
           </button>
+          <ActionButton
+            variant="primary"
+            onAction={save}
+            idleLabel={isEdit ? 'Save changes' : 'Add speaker'}
+            pendingLabel="Saving…"
+            successLabel="Saved"
+            onError={onError}
+          />
         </div>
       </div>
-    </form>
+    </div>
   );
 }
 
