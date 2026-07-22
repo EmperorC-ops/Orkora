@@ -26,6 +26,18 @@ const REFRESH_COOKIE = 'orkora_rt';
 const REFRESH_COOKIE_PATH = '/v1/auth';
 
 /**
+ * The CSRF companion cookie must be readable by the web app's JavaScript,
+ * which runs at page paths like `/dashboard` and `/onboarding` on the web
+ * origin. A cookie scoped to `Path=/v1/auth` (the refresh cookie's path) is
+ * NOT exposed to `document.cookie` on those pages, so `readCsrfCookie()`
+ * would return null and the double-submit header would never be sent. The
+ * CSRF cookie therefore lives at `Path=/` (readable everywhere) while the
+ * httpOnly refresh token stays narrowly scoped to `/v1/auth` (it only ever
+ * needs to be SENT to the refresh endpoint, never read by JS).
+ */
+const CSRF_COOKIE_PATH = '/';
+
+/**
  * Double-submit cookie CSRF protection on /auth/refresh.
  *
  * The refresh cookie itself is `httpOnly + SameSite=None` (so cross-site
@@ -80,11 +92,35 @@ const COOKIE_SAMESITE: 'lax' | 'none' =
   process.env.NODE_ENV === 'production' ? 'none' : 'lax';
 const COOKIE_SECURE = process.env.NODE_ENV === 'production';
 
+/**
+ * Registrable-domain scope for the auth cookies.
+ *
+ * CRITICAL for the double-submit CSRF pattern to work at all in production.
+ * The web app runs on `orkora.events` / `www.orkora.events` and the API on
+ * `api.orkora.events`. Without a Domain attribute, `res.cookie` sets the
+ * cookie HOST-ONLY on `api.orkora.events`. That makes the non-httpOnly
+ * `orkora_csrf` cookie UNREADABLE by the web app's JavaScript (which runs on
+ * a different host), so `readCsrfCookie()` on the web always returns null,
+ * the `X-CSRF-Token` header is never sent, and every cookie-path refresh
+ * fails with 403 "CSRF token mismatch". Returning visitors who hold a stale
+ * `orkora_rt` then dead-end (incognito works only because it has no stale
+ * cookie to trigger a refresh). Setting `Domain=.orkora.events` shares both
+ * cookies across every orkora.events subdomain, so the web app can read the
+ * CSRF cookie and the double-submit invariant holds.
+ *
+ * Sourced from `COOKIE_DOMAIN` env so staging (`.staging.orkora.events` or
+ * unset) and local dev (unset -> host-only on localhost) behave correctly.
+ * Leave unset anywhere the web and API are not on the same registrable
+ * domain; the cookie then falls back to host-only (the pre-fix behaviour).
+ */
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
+
 function setRefreshCookie(res: Response, refreshToken: string) {
   res.cookie(REFRESH_COOKIE, refreshToken, {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: COOKIE_SAMESITE,
+    domain: COOKIE_DOMAIN,
     path: REFRESH_COOKIE_PATH,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
@@ -100,16 +136,54 @@ function setCsrfCookie(res: Response, token: string) {
     httpOnly: false,
     secure: COOKIE_SECURE,
     sameSite: COOKIE_SAMESITE,
-    path: REFRESH_COOKIE_PATH,
+    domain: COOKIE_DOMAIN,
+    path: CSRF_COOKIE_PATH,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 }
 
 function clearRefreshCookie(res: Response) {
+  // Clear the domain-scoped cookies (the post-fix shape).
   res.clearCookie(REFRESH_COOKIE, {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: COOKIE_SAMESITE,
+    domain: COOKIE_DOMAIN,
+    path: REFRESH_COOKIE_PATH,
+  });
+  res.clearCookie(CSRF_COOKIE, {
+    httpOnly: false,
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAMESITE,
+    domain: COOKIE_DOMAIN,
+    path: CSRF_COOKIE_PATH,
+  });
+  // Also clear the LEGACY variants that returning customers still hold from
+  // before COOKIE_DOMAIN / the CSRF path change. A same-name cookie at a
+  // narrower (host-only) scope, or at the old `/v1/auth` CSRF path, would
+  // otherwise linger and collide with the new cookie. We explicitly expire
+  // each legacy shape here. All harmless when no legacy cookie exists.
+  if (COOKIE_DOMAIN) {
+    res.clearCookie(REFRESH_COOKIE, {
+      httpOnly: true,
+      secure: COOKIE_SECURE,
+      sameSite: COOKIE_SAMESITE,
+      path: REFRESH_COOKIE_PATH,
+    });
+    res.clearCookie(CSRF_COOKIE, {
+      httpOnly: false,
+      secure: COOKIE_SECURE,
+      sameSite: COOKIE_SAMESITE,
+      path: CSRF_COOKIE_PATH,
+    });
+  }
+  // Legacy CSRF cookie at the pre-fix `/v1/auth` path (domain-scoped and
+  // host-only). Expire both so it cannot shadow the new `Path=/` cookie.
+  res.clearCookie(CSRF_COOKIE, {
+    httpOnly: false,
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAMESITE,
+    domain: COOKIE_DOMAIN,
     path: REFRESH_COOKIE_PATH,
   });
   res.clearCookie(CSRF_COOKIE, {

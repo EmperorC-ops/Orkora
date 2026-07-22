@@ -125,6 +125,23 @@ it after the first successful deploy so future restarts don't try to re-run.
      gracefully so you can launch with one and add the others later.
    - `APP_URL`, `API_URL`, `CORS_ORIGINS`: leave blank for now; fill in
      after step 5.
+   - `COOKIE_DOMAIN` = `.orkora.events` (leading dot, no scheme, no path).
+     **Required in production.** The web app and the API are on different
+     hosts of the same registrable domain (`orkora.events` / `www.orkora.events`
+     for web, `api.orkora.events` for API). This env var scopes the auth
+     cookies (`orkora_rt`, `orkora_csrf`) to the shared parent domain so the
+     web app's JavaScript can read the non-httpOnly CSRF cookie and echo it as
+     the `X-CSRF-Token` header. Without it the cookie is host-only on the API
+     host, the web app cannot read it, and every returning visitor's refresh
+     fails with 403 CSRF-mismatch (incognito appears to work only because it
+     has no stale cookie to trigger a refresh). Leave unset on local dev.
+     For staging, set `.orkora.events` too (staging web + API share the same
+     parent domain) or leave unset if staging runs on a different domain.
+   - **`CORS_ORIGINS` must list BOTH the apex and www web origins**, comma
+     separated, exact match, no trailing slash:
+     `https://orkora.events,https://www.orkora.events`. With
+     `credentials: true` the browser requires an exact origin match; a
+     missing www (or apex) entry fails the credentialed refresh call.
 5. Trigger a manual redeploy after pasting. Watch the build log for
    `[entrypoint] schema is empty; applying schema.sql` (first deploy only)
    and `Nest application successfully started`.

@@ -105,7 +105,19 @@ function refreshAccessToken(): Promise<boolean> {
         credentials: 'include',
         body: '{}',
       });
-      if (!res.ok) return false;
+      if (!res.ok) {
+        // A 401/403 here means the refresh cookie is missing, expired, or the
+        // CSRF double-submit failed (the classic "stale session on a returning
+        // browser" state). Self-heal: wipe local session so the app routes to
+        // a clean re-login rather than dead-ending on a raw 401 forever. The
+        // next fresh login re-issues domain-scoped cookies that work. Without
+        // this, a customer who ever held a stale cookie was stuck until they
+        // manually cleared site data or used incognito.
+        if (res.status === 401 || res.status === 403) {
+          clearTokens();
+        }
+        return false;
+      }
       const tokens = (await res.json()) as TokenBundle;
       persistTokens(tokens);
       return true;

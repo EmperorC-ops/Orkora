@@ -13,6 +13,16 @@ export const envSchema = z.object({
   API_URL: z.string().url(),
   CORS_ORIGINS: z.string().optional(),
 
+  /**
+   * Registrable-domain scope for the auth cookies (orkora_rt, orkora_csrf).
+   * MUST be set in production to the shared parent domain of the web app and
+   * the API, with a leading dot, e.g. `.orkora.events`. Without it the
+   * cookies are host-only on the API host and the web app cannot read the
+   * CSRF cookie, breaking the double-submit refresh path for every returning
+   * visitor. Leave unset in local dev (host-only on localhost is correct).
+   */
+  COOKIE_DOMAIN: z.string().optional(),
+
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
 

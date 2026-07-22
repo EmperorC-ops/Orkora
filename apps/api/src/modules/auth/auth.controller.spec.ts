@@ -121,6 +121,52 @@ describe('AuthController.refresh CSRF', () => {
     expect((res as unknown as { status: jest.Mock }).status).toHaveBeenCalledWith(401);
     expect(out).toEqual({ message: 'No refresh token' });
   });
+
+  // Regression lock for the "signup works in incognito but not a regular
+  // browser" incident. The CSRF companion cookie MUST be set at Path=/ (so the
+  // web app running at /dashboard etc. can read it via document.cookie) and
+  // scoped to the shared registrable domain (so a www/apex web host can read a
+  // cookie set by the api host). If either regresses, the double-submit
+  // refresh silently breaks for every returning visitor.
+  it('sets the CSRF cookie at Path=/ and the domain from COOKIE_DOMAIN', async () => {
+    const prev = process.env.COOKIE_DOMAIN;
+    process.env.COOKIE_DOMAIN = '.orkora.events';
+    jest.resetModules();
+    // Re-import the controller so the module-level COOKIE_DOMAIN constant is
+    // recomputed from the env we just set.
+    const { AuthController: FreshController } = await import('./auth.controller');
+    const authMock = { refresh: jest.fn().mockResolvedValue(okBundle) };
+    const otpMock = { send: jest.fn(), verify: jest.fn() };
+    const ctrl = new FreshController(
+      authMock as unknown as AuthService,
+      otpMock as unknown as OtpService,
+    );
+    const calls: Array<{ name: string; opts: Record<string, unknown> }> = [];
+    const res = {
+      cookies: {} as Record<string, string>,
+      cookie: jest.fn((name: string, _v: string, opts: Record<string, unknown>) => {
+        calls.push({ name, opts });
+      }),
+      clearCookie: jest.fn(),
+      status: jest.fn().mockReturnThis(),
+    } as unknown as Parameters<AuthController['refresh']>[2];
+    const req = makeReq({
+      cookies: { orkora_rt: 'good-token', orkora_csrf: 'TOKEN-A' },
+      headers: { 'x-csrf-token': 'TOKEN-A' },
+    });
+    await ctrl.refresh(undefined, req, res);
+
+    const csrfSet = calls.find((c) => c.name === 'orkora_csrf');
+    const refreshSet = calls.find((c) => c.name === 'orkora_rt');
+    expect(csrfSet?.opts.path).toBe('/');
+    expect(csrfSet?.opts.domain).toBe('.orkora.events');
+    expect(csrfSet?.opts.httpOnly).toBe(false);
+    expect(refreshSet?.opts.path).toBe('/v1/auth');
+    expect(refreshSet?.opts.domain).toBe('.orkora.events');
+    expect(refreshSet?.opts.httpOnly).toBe(true);
+
+    process.env.COOKIE_DOMAIN = prev;
+  });
 });
 
 describe('AuthController.signup non-enumeration', () => {
