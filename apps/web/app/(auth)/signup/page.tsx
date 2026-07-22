@@ -29,22 +29,18 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
     try {
-      await authApi.sendOtp({ channel: 'email', destination: email, purpose: 'signup' });
-      // Credentials must NOT travel in the URL: query strings are written to
-      // browser history, edge / CDN logs, Vercel access logs, and outgoing
-      // Referer headers on any link click. Stash them in sessionStorage (same
-      // origin, same tab, cleared on tab close) and let the OTP page consume +
-      // wipe them. Only non-sensitive routing values stay in the URL.
-      try {
-        sessionStorage.setItem(
-          'orkora_pending_signup',
-          JSON.stringify({ fullName, phone, password }),
-        );
-      } catch {
-        // Storage unavailable (rare: embedded contexts with storage blocked).
-        // We deliberately do NOT fall back to in-URL credentials; the OTP
-        // page shows a "start again" error if the stash is missing.
-      }
+      // POST /v1/auth/signup creates the pending user (with hashed password,
+      // fullName, phone) AND sends the verification OTP in one call. It returns
+      // { status: 'verification_sent', destination } and never a token bundle;
+      // tokens are only issued after the OTP is exchanged on the /otp page.
+      //
+      // This replaces the previous split flow (sendOtp here, then a second
+      // /auth/signup call on /otp that was mistaken for a token-issuing call).
+      // That split created the account but never issued a session, so brand-new
+      // users reached the dashboard with a poisoned "Bearer undefined" token and
+      // no refresh cookie -> every request 401'd. Creating the account here and
+      // exchanging the OTP on /otp fixes it.
+      await authApi.signup({ email, password, fullName, phone: phone || undefined });
       const params = new URLSearchParams({ destination: email, purpose: 'signup' });
       router.push(`/otp?${params.toString()}`);
     } catch (err) {

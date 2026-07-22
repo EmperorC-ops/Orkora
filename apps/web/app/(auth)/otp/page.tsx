@@ -60,55 +60,28 @@ function OtpPageInner() {
     setLoading(true);
     setError(null);
     try {
-      if (purpose === 'signup') {
-        await authApi.verifyOtp({ destination, code, purpose });
-        // Signup details come exclusively from the sessionStorage stash
-        // written by /signup. Credentials must never travel in the URL:
-        // query params land in browser history, server logs, and Referer
-        // headers. The stash is wiped on success or failure so the password
-        // does not linger.
-        let stashed: { fullName?: string; phone?: string; password?: string } = {};
-        try {
-          const raw = sessionStorage.getItem('orkora_pending_signup');
-          if (raw) stashed = JSON.parse(raw) as typeof stashed;
-        } catch {
-          // ignore parse / storage errors; handled by the empty check below
-        }
-        const fullName = stashed.fullName ?? destination.split('@')[0] ?? destination;
-        const phone = stashed.phone ?? '';
-        const password = stashed.password ?? '';
-        if (!password) {
-          // Stash missing (storage blocked, tab restored, or link opened in a
-          // new tab). Never recoverable from the URL by design.
-          setError('Your signup session expired. Please start again.');
-          setLoading(false);
-          setTimeout(() => router.push('/signup'), 2500);
-          return;
-        }
-        try {
-          sessionStorage.removeItem('orkora_pending_signup');
-        } catch {
-          // ignore
-        }
-        const tokens = await authApi.signup({
-          email: destination,
-          password,
-          fullName,
-          phone: phone || undefined,
-        });
-        persistTokens(tokens);
-        router.push((isSuperAdmin() ? '/admin' : next) as Route);
-      } else {
-        // Magic-link / passwordless sign-in. The API verifies the OTP and
-        // issues tokens in one round trip.
-        const tokens = await apiFetch<TokenBundle>('/v1/auth/otp/exchange', {
-          method: 'POST',
-          json: { destination, code, purpose: 'login' },
-          auth: false,
-        });
-        persistTokens(tokens);
-        router.push((isSuperAdmin() ? '/admin' : next) as Route);
+      // Both signup and login converge on /v1/auth/otp/exchange: it verifies
+      // the code, marks the email verified, issues the token bundle, and sets
+      // the refresh + CSRF cookies in one round trip. The user record already
+      // exists (created by POST /v1/auth/signup on the /signup page for the
+      // signup flow, or from a prior registration for the login flow), so no
+      // password needs to travel here — which is why the old sessionStorage
+      // password stash is gone. The previous signup branch called
+      // verifyOtp + /auth/signup, the latter of which returns no tokens, so
+      // the session was never established and every later request 401'd.
+      const tokens = await apiFetch<TokenBundle>('/v1/auth/otp/exchange', {
+        method: 'POST',
+        json: { destination, code, purpose },
+        auth: false,
+      });
+      persistTokens(tokens);
+      // Clean up any stale stash left by older builds of the signup page.
+      try {
+        sessionStorage.removeItem('orkora_pending_signup');
+      } catch {
+        // ignore
       }
+      router.push((isSuperAdmin() ? '/admin' : next) as Route);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError('That code is incorrect or expired.');
