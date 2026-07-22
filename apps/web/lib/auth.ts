@@ -133,6 +133,19 @@ function refreshAccessToken(): Promise<boolean> {
 }
 
 /**
+ * Public, CSRF-aware session refresh. Callers that need a fresh access token
+ * with the latest JWT claims (e.g. after creating an organization, when a new
+ * membership must land in the token) should use this rather than hand-rolling
+ * a `fetch('/v1/auth/refresh')`, which is easy to get wrong: the double-submit
+ * CSRF guard requires the `X-CSRF-Token` header echoing the `orkora_csrf`
+ * cookie, and omitting it returns 403. This wrapper reuses the single-flight,
+ * CSRF-correct path above. Returns true when the token was refreshed.
+ */
+export function refreshSession(): Promise<boolean> {
+  return refreshAccessToken();
+}
+
+/**
  * Reads the `orkora_csrf` cookie via document.cookie. Returns null if the
  * cookie is not present (server-side render, fresh browser, or pre-login).
  * The cookie is set non-httpOnly precisely so we can read it here; the

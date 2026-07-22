@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
-import { apiFetch } from '@/lib/auth';
+import { apiFetch, refreshSession } from '@/lib/auth';
 
 function slugify(name: string): string {
   return name
@@ -62,21 +62,14 @@ export function Onboarding({ onCreated }: { onCreated?: () => void }) {
         method: 'POST',
         json: { name: name.trim(), slug, countryCode },
       });
-      // Refresh the access token so the new membership lands in the JWT
-      // claim. The refresh endpoint reads the httpOnly cookie set at signup.
-      const refreshed = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}/v1/auth/refresh`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: '{}',
-        },
-      );
-      if (refreshed.ok) {
-        const tokens = (await refreshed.json()) as { accessToken: string };
-        sessionStorage.setItem('access_token', tokens.accessToken);
-      }
+      // Refresh the access token so the new membership lands in the JWT claim.
+      // MUST go through refreshSession(), not a hand-rolled fetch: the refresh
+      // endpoint enforces the double-submit CSRF check (X-CSRF-Token header ==
+      // orkora_csrf cookie). The old inline fetch here omitted that header, so
+      // it 403'd, the membership-bearing token was never stored, and the hard
+      // reload below bounced the user straight back to this onboarding gate -
+      // the org WAS created but the UI looped as if it were not.
+      await refreshSession();
       if (onCreated) onCreated();
       // Hard reload so every hook reads the new membership claim fresh.
       window.location.assign('/dashboard');
