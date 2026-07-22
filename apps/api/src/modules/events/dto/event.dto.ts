@@ -173,6 +173,31 @@ export class CreateSpeakerDto {
   socialLinks?: Record<string, string>;
 }
 
+// Every field optional so an organiser can edit any subset of a speaker.
+export class UpdateSpeakerDto {
+  @IsOptional()
+  @IsString()
+  @Length(2, 120)
+  fullName?: string;
+
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 2000)
+  bio?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  avatarUrl?: string;
+
+  @IsOptional()
+  @IsObject()
+  socialLinks?: Record<string, string>;
+}
+
 // === Tickets ===
 
 export class CreateTicketTierDto {

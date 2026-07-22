@@ -15,7 +15,7 @@ import {
   Ticket,
   Users,
 } from 'lucide-react';
-import { authApi, clearTokens } from '@/lib/auth';
+import { apiFetch, authApi, clearTokens } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { readActiveOrgId } from '@/lib/events';
 import { isSuperAdmin } from '@/lib/admin';
@@ -37,12 +37,23 @@ interface SessionUser {
   email: string;
   fullName: string;
   initials: string;
+  role: string;
 }
+
+// Human-friendly labels for the org-level roles carried in the JWT.
+const ROLE_LABEL: Record<string, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  organizer: 'Organizer',
+  staff: 'Staff',
+  vendor: 'Vendor',
+};
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const toast = useToast();
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [orgName, setOrgName] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   // 'checking' = waiting on the JWT decode, 'none' = no memberships,
   // 'has' = at least one membership. Drives the onboarding gate.
@@ -54,7 +65,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (isSuperAdmin()) router.replace('/admin');
   }, [router]);
 
-  // Decode the JWT once on mount to surface the user's name in the header.
+  // Decode the JWT once on mount to surface the user's name + role in the
+  // header. The role comes from the active membership so the header can show
+  // "Owner", "Organizer", etc. next to the person's name.
   useEffect(() => {
     const token = sessionStorage.getItem('access_token');
     if (!token) return;
@@ -64,6 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const payload = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/'))) as {
         email?: string;
         fullName?: string;
+        memberships?: Array<{ orgId: string; role: string }>;
       };
       const email = payload.email ?? '';
       const fullName = payload.fullName ?? email.split('@')[0] ?? '';
@@ -74,17 +88,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .slice(0, 2)
           .map((p) => p[0]?.toUpperCase() ?? '')
           .join('') || '?';
-      setUser({ email, fullName, initials });
+      const ms = payload.memberships ?? [];
+      const active =
+        ms.find((m) => ['owner', 'admin', 'organizer'].includes(m.role)) ?? ms[0];
+      setUser({ email, fullName, initials, role: active?.role ?? '' });
     } catch {
       // Ignore: header just falls back to the brand mark.
     }
   }, []);
 
   // Determine whether the user has any organization memberships. If not,
-  // we render the Onboarding gate instead of the normal child routes.
+  // we render the Onboarding gate instead of the normal child routes. When
+  // there is an active org, fetch its name so the workspace header reads with
+  // the tenant's brand instead of a generic "Organizer workspace".
   useEffect(() => {
     const id = readActiveOrgId();
     setOrgState(id ? 'has' : 'none');
+    if (id) {
+      apiFetch<{ name?: string }>(`/v1/organizations/${id}`)
+        .then((org) => setOrgName(org?.name ?? null))
+        .catch(() => setOrgName(null));
+    }
   }, []);
 
   async function signOut() {
@@ -102,9 +126,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-app-gradient text-ink-primary">
       <aside className="hidden w-64 flex-col border-r border-surface-border bg-surface lg:flex">
-        <div className="flex h-16 items-center gap-2 border-b border-surface-border px-6">
-          <Brand variant="mark" width={32} className="h-8 w-8" />
-          <span className="font-bold text-ink-primary">Orkora</span>
+        <div className="flex h-16 items-center gap-2.5 border-b border-surface-border px-5">
+          <Brand variant="mark" width={32} className="h-8 w-8 flex-none" />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold leading-tight text-ink-primary">
+              {orgName ?? 'Orkora'}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-ink-muted">on Orkora</div>
+          </div>
         </div>
         <nav className="flex-1 space-y-1 p-4">
           {nav.map(({ href, label, Icon }) => (
@@ -128,7 +157,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div className="truncate text-xs font-semibold text-ink-primary">
                   {user.fullName}
                 </div>
-                <div className="truncate text-[10px] text-ink-muted">{user.email}</div>
+                <div className="truncate text-[10px] text-ink-muted">
+                  {user.role ? `${ROLE_LABEL[user.role] ?? user.role} · ` : ''}
+                  {user.email}
+                </div>
               </div>
             </div>
           ) : null}
@@ -146,11 +178,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b border-surface-border bg-surface/60 px-6 backdrop-blur">
-          <h1 className="text-lg font-semibold text-ink-primary">Organizer workspace</h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold leading-tight text-ink-primary">
+              {orgName ? `${orgName} Workspace` : 'Workspace'}
+            </h1>
+            {user?.role ? (
+              <p className="text-[11px] text-ink-muted">
+                Signed in as {ROLE_LABEL[user.role] ?? user.role}
+              </p>
+            ) : null}
+          </div>
           <div className="flex items-center gap-3">
             {user ? (
               <div className="hidden items-center gap-2 sm:flex">
-                <span className="text-xs text-ink-secondary">{user.fullName}</span>
+                <div className="text-right">
+                  <div className="text-xs font-medium text-ink-secondary">{user.fullName}</div>
+                  {user.role ? (
+                    <div className="text-[10px] uppercase tracking-wider text-brand-300">
+                      {ROLE_LABEL[user.role] ?? user.role}
+                    </div>
+                  ) : null}
+                </div>
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-gradient text-xs font-bold text-white">
                   {user.initials}
                 </span>

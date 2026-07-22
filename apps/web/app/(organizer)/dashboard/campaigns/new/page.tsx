@@ -6,6 +6,7 @@ import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Mail, Send } from 'lucide-react';
 import { readActiveOrgId } from '@/lib/events';
+import { apiFetch } from '@/lib/auth';
 import { campaignsApi, type AudienceSummary } from '@/lib/campaigns';
 import { eventsApi, type OrganizerEventSummary } from '@/lib/events';
 
@@ -20,8 +21,14 @@ export default function NewCampaignPage() {
   const [subject, setSubject] = useState('');
   const [previewText, setPreviewText] = useState('');
   const [bodyMarkdown, setBodyMarkdown] = useState('');
+  // Sender defaults so the Send-test / Send buttons are usable immediately.
+  // Without a default fromName/fromEmail the buttons stay disabled (they are
+  // in the required-field guard), which reads as an inert "nothing happens"
+  // button. The organiser can still override both. fromEmail defaults to the
+  // platform's verified Postmark sender; fromName is backfilled with the
+  // organisation's name once it loads.
   const [fromName, setFromName] = useState('');
-  const [fromEmail, setFromEmail] = useState('');
+  const [fromEmail, setFromEmail] = useState('no-reply@orkora.events');
   const [testEmail, setTestEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +43,15 @@ export default function NewCampaignPage() {
     setOrgId(id);
     eventsApi(id).list().then(setEvents).catch(() => {});
     campaignsApi(id).listAudiences().then(setAudiences).catch(() => {});
+    // Backfill the sender name with the organisation name so the send buttons
+    // are active out of the box. Best-effort; the organiser can override.
+    apiFetch<{ name?: string }>(`/v1/organizations/${id}`)
+      .then((org) => {
+        if (org?.name) setFromName((prev) => prev || org.name!);
+      })
+      .catch(() => {
+        setFromName((prev) => prev || 'Orkora');
+      });
   }, []);
 
   const api = useMemo(() => (orgId ? campaignsApi(orgId) : null), [orgId]);

@@ -11,6 +11,7 @@ import {
   CreateEventDto,
   CreateSessionDto,
   CreateSpeakerDto,
+  UpdateSpeakerDto,
   CreateTicketTierDto,
   CreateTrackDto,
   EventStatus,
@@ -485,6 +486,29 @@ export class EventsService {
     return this.prisma.speaker.findMany({
       where: { eventId },
       orderBy: { fullName: 'asc' },
+    });
+  }
+
+  async updateSpeaker(
+    orgId: string,
+    eventId: string,
+    speakerId: string,
+    dto: UpdateSpeakerDto,
+  ) {
+    await this.assertEventInOrg(orgId, eventId);
+    const speaker = await this.prisma.speaker.findFirst({
+      where: { id: speakerId, eventId },
+    });
+    if (!speaker) throw new NotFoundException('Speaker not found');
+    return this.prisma.speaker.update({
+      where: { id: speakerId },
+      data: {
+        fullName: dto.fullName ?? undefined,
+        title: dto.title ?? undefined,
+        bio: dto.bio ?? undefined,
+        avatarUrl: dto.avatarUrl ?? undefined,
+        socialLinks: dto.socialLinks ?? undefined,
+      },
     });
   }
 

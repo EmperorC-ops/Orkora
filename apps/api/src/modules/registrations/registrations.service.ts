@@ -795,20 +795,35 @@ export class RegistrationsService {
    */
   private async upsertUserByEmail(email: string, fullName: string, phone?: string) {
     const normalized = email.trim().toLowerCase();
+    const provided = fullName.trim();
     const existing = await this.prisma.user.findUnique({ where: { email: normalized } });
     if (existing) {
-      if (!existing.phone && phone) {
-        await this.prisma.user.update({
-          where: { id: existing.id },
-          data: { phone },
-        });
+      // Backfill / correct the display name. A user row can be created with an
+      // email-derived placeholder name (e.g. by the passwordless magic-link
+      // login, which sets fullName = the email local-part like "codehub.expo").
+      // When the person later registers for an event and gives their real name
+      // ("Femi Johnson"), we adopt it so dashboards and attendee lists show a
+      // human name instead of the email prefix. We only overwrite when the
+      // existing name is missing or still looks auto-derived (equals the email
+      // local-part), so we never clobber a name the user set deliberately.
+      const emailLocalPart = normalized.split('@')[0] ?? '';
+      const existingLooksDerived =
+        !existing.fullName?.trim() ||
+        existing.fullName.trim().toLowerCase() === emailLocalPart.toLowerCase();
+      const data: { phone?: string; fullName?: string } = {};
+      if (!existing.phone && phone) data.phone = phone;
+      if (provided && existingLooksDerived && provided.toLowerCase() !== emailLocalPart.toLowerCase()) {
+        data.fullName = provided;
+      }
+      if (Object.keys(data).length > 0) {
+        return this.prisma.user.update({ where: { id: existing.id }, data });
       }
       return existing;
     }
     return this.prisma.user.create({
       data: {
         email: normalized,
-        fullName: fullName.trim(),
+        fullName: provided,
         phone,
         emailVerified: false,
         locale: 'en-NG',
