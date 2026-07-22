@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
 import InstallPrompt from '../../../_components/InstallPrompt';
+import FeedbackForm from '../../../_components/FeedbackForm';
 
 interface PublicTier {
   id: string;
@@ -344,6 +345,13 @@ export default async function PublicEventPage({ params }: { params: { code: stri
               })}
             </div>
           </section>
+        )}
+
+        {(event.status === 'live' || event.status === 'ended') && (
+          <FeedbackForm
+            code={event.code}
+            sessions={(event.sessions ?? []).map((s) => ({ id: s.id, title: s.title }))}
+          />
         )}
       </div>
 

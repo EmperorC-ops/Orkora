@@ -39,6 +39,7 @@ model Organization {
   campaignAudiences   CampaignAudience[]
   campaignSends       CampaignSend[]
   emailSuppressions   EmailSuppression[]
+  eventFeedback       EventFeedback[]
 
   @@map("organizations")
 }
@@ -73,6 +74,7 @@ model User {
   campaignsCreated         Campaign[]         @relation("CampaignCreatedBy")
   campaignAudiencesCreated CampaignAudience[] @relation("CampaignAudienceCreatedBy")
   campaignSendsReceived    CampaignSend[]     @relation("CampaignSendUser")
+  eventFeedback            EventFeedback[]
 
   @@map("users")
 }
@@ -181,6 +183,7 @@ model Event {
   registrations Registration[]
   orders        Order[]
   channels      Channel[]
+  feedback      EventFeedback[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -219,6 +222,7 @@ model Session {
   track    Track?    @relation(fields: [trackId], references: [id])
   channels Channel[]
   polls    Poll[]
+  feedback EventFeedback[]
 
   @@index([eventId, startAt])
   @@map("sessions")
@@ -282,6 +286,29 @@ model Registration {
 
   @@unique([eventId, userId])
   @@map("registrations")
+}
+
+model EventFeedback {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventId        String   @map("event_id") @db.Uuid
+  sessionId      String?  @map("session_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  attendeeEmail  String?  @map("attendee_email")
+  rating         Int?     @db.SmallInt
+  npsScore       Int?     @map("nps_score") @db.SmallInt
+  comment        String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  session      Session?     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([eventId, createdAt])
+  @@index([sessionId])
+  @@index([organizationId])
+  @@map("event_feedback")
 }
 
 model Ticket {

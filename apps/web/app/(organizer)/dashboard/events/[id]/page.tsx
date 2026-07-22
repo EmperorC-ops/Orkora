@@ -12,6 +12,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  MessageSquare,
   Pencil,
   Plus,
   Trash2,
@@ -221,6 +222,12 @@ export default function EventDetailPage() {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Analytics
+              </Link>
+              <Link
+                href={`/dashboard/events/${id}/feedback`}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <MessageSquare className="h-4 w-4" /> Feedback
               </Link>
               <button
                 onClick={togglePublish}

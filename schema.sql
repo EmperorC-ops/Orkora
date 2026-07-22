@@ -597,3 +597,41 @@ create policy org_isolation_events on events
 
 -- Apply similar policies to every tenant scoped table.
 -- The NestJS TenancyInterceptor sets app.org_id on each request.
+
+-- ============================================================
+-- EVENT FEEDBACK (migration 0006, folded in for fresh installs)
+-- ============================================================
+-- Attendee feedback for an event (session_id NULL) or a single session.
+-- Each row may carry a 1-5 rating, a 0-10 NPS score, and a comment. Collected
+-- from the public event page; optional and possibly anonymous.
+
+create table if not exists event_feedback (
+  id              uuid        primary key default uuidv7(),
+  organization_id uuid        not null references organizations(id) on delete cascade,
+  event_id        uuid        not null references events(id) on delete cascade,
+  session_id      uuid        references sessions(id) on delete cascade,
+  user_id         uuid        references users(id) on delete set null,
+  attendee_email  citext,
+  rating          smallint    check (rating is null or rating between 1 and 5),
+  nps_score       smallint    check (nps_score is null or nps_score between 0 and 10),
+  comment         text,
+  created_at      timestamptz not null default now(),
+  constraint event_feedback_has_content check (
+    rating is not null
+    or nps_score is not null
+    or (comment is not null and length(btrim(comment)) > 0)
+  )
+);
+
+create index if not exists event_feedback_event_created_idx
+  on event_feedback (event_id, created_at desc);
+create index if not exists event_feedback_session_idx
+  on event_feedback (session_id) where session_id is not null;
+create index if not exists event_feedback_org_idx
+  on event_feedback (organization_id);
+
+alter table event_feedback enable row level security;
+
+drop policy if exists org_isolation_event_feedback on event_feedback;
+create policy org_isolation_event_feedback on event_feedback
+  using (organization_id = current_setting('app.org_id', true)::uuid);

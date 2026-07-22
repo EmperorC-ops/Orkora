@@ -19,6 +19,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { EngagementModule } from './modules/engagement/engagement.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -69,6 +70,7 @@ import { AdminModule } from './modules/admin/admin.module';
     UploadsModule,
     EngagementModule,
     CampaignsModule,
+    FeedbackModule,
     BillingModule,
     AnalyticsModule,
     AuditModule,
