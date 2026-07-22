@@ -12,6 +12,7 @@ import {
   CreateSessionDto,
   CreateSpeakerDto,
   UpdateSpeakerDto,
+  UpdateTrackDto,
   CreateTicketTierDto,
   CreateTrackDto,
   EventStatus,
@@ -381,6 +382,21 @@ export class EventsService {
   async listTracks(orgId: string, eventId: string) {
     await this.assertEventInOrg(orgId, eventId);
     return this.prisma.track.findMany({ where: { eventId }, orderBy: { name: 'asc' } });
+  }
+
+  async updateTrack(
+    orgId: string,
+    eventId: string,
+    trackId: string,
+    dto: UpdateTrackDto,
+  ) {
+    await this.assertEventInOrg(orgId, eventId);
+    const track = await this.prisma.track.findFirst({ where: { id: trackId, eventId } });
+    if (!track) throw new NotFoundException('Track not found');
+    return this.prisma.track.update({
+      where: { id: trackId },
+      data: { name: dto.name ?? undefined, color: dto.color ?? undefined },
+    });
   }
 
   async deleteTrack(orgId: string, eventId: string, trackId: string) {

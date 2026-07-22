@@ -24,6 +24,7 @@ import {
   readActiveOrgId,
   sameCalendarDay,
   wallTimeToUtcISO,
+  utcISOToWallTime,
   type EventDetail,
   type EventTier,
   type EventStatus,
@@ -57,7 +58,9 @@ export default function EventDetailPage() {
   // new speaker). Set by a card's Edit button; cleared on save/cancel.
   const [editingSpeaker, setEditingSpeaker] = useState<EventSpeaker | null>(null);
   const [showTrackForm, setShowTrackForm] = useState(false);
+  const [editingTrack, setEditingTrack] = useState<{ id: string; name: string; color: string | null } | null>(null);
   const [showSessionForm, setShowSessionForm] = useState(false);
+  const [editingSession, setEditingSession] = useState<EventDetail['sessions'][number] | null>(null);
 
   const orgId = typeof window !== 'undefined' ? readActiveOrgId() : null;
 
@@ -310,16 +313,24 @@ export default function EventDetailPage() {
           </button>
         </div>
 
-        {showTrackForm && orgId ? (
-          <NewTrackForm
+        {(showTrackForm || editingTrack) && orgId ? (
+          <TrackForm
             orgId={orgId}
             eventId={id}
-            onCreated={async () => {
+            track={editingTrack}
+            onSaved={async (wasEdit) => {
               setShowTrackForm(false);
+              setEditingTrack(null);
               await refresh();
-              toast.success('Track added');
+              toast.success(wasEdit ? 'Track updated' : 'Track added');
             }}
-            onError={(msg) => toast.error('Could not add track', msg)}
+            onCancel={() => {
+              setShowTrackForm(false);
+              setEditingTrack(null);
+            }}
+            onError={(msg) =>
+              toast.error(editingTrack ? 'Could not update track' : 'Could not add track', msg)
+            }
           />
         ) : null}
 
@@ -343,6 +354,17 @@ export default function EventDetailPage() {
                 {tr.name}
                 <button
                   type="button"
+                  onClick={() => {
+                    setShowTrackForm(false);
+                    setEditingTrack({ id: tr.id, name: tr.name, color: tr.color ?? null });
+                  }}
+                  className="ml-1 rounded-full p-0.5 text-slate-400 opacity-0 transition group-hover:opacity-100 hover:bg-brand-50 hover:text-brand-700"
+                  aria-label={`Edit track ${tr.name}`}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
                   onClick={async () => {
                     if (!orgId) return;
                     if (!confirm(`Delete track "${tr.name}"? Sessions on this track will lose their grouping.`)) return;
@@ -354,7 +376,7 @@ export default function EventDetailPage() {
                       toast.error('Could not delete', err instanceof Error ? err.message : '');
                     }
                   }}
-                  className="ml-1 rounded-full p-0.5 text-slate-400 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
+                  className="rounded-full p-0.5 text-slate-400 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
                   aria-label={`Delete track ${tr.name}`}
                 >
                   <Trash2 className="h-3 w-3" />
@@ -376,18 +398,26 @@ export default function EventDetailPage() {
           </button>
         </div>
 
-        {showSessionForm && orgId ? (
-          <NewSessionForm
+        {(showSessionForm || editingSession) && orgId ? (
+          <SessionForm
             orgId={orgId}
             eventId={id}
+            session={editingSession}
             tracks={event.tracks}
             timezone={event.timezone}
-            onCreated={async () => {
+            onSaved={async (wasEdit) => {
               setShowSessionForm(false);
+              setEditingSession(null);
               await refresh();
-              toast.success('Session added');
+              toast.success(wasEdit ? 'Session updated' : 'Session added');
             }}
-            onError={(msg) => toast.error('Could not add session', msg)}
+            onCancel={() => {
+              setShowSessionForm(false);
+              setEditingSession(null);
+            }}
+            onError={(msg) =>
+              toast.error(editingSession ? 'Could not update session' : 'Could not add session', msg)
+            }
           />
         ) : null}
 
@@ -407,6 +437,10 @@ export default function EventDetailPage() {
                     session={s}
                     track={track}
                     timezone={event.timezone}
+                    onEdit={() => {
+                      setShowSessionForm(false);
+                      setEditingSession(s);
+                    }}
                     onDelete={async () => {
                       if (!orgId) return;
                       if (!confirm(`Delete session "${s.title}"?`)) return;
@@ -769,117 +803,147 @@ function NewTierForm({ orgId, eventId, onCreated }: NewTierFormProps) {
 
 /* ----------------- Tracks / Sessions forms ----------------- */
 
-interface NewTrackFormProps {
+interface TrackFormProps {
   orgId: string;
   eventId: string;
-  onCreated: () => Promise<void> | void;
+  track: { id: string; name: string; color: string | null } | null;
+  onSaved: (wasEdit: boolean) => Promise<void> | void;
+  onCancel: () => void;
   onError: (msg: string) => void;
 }
 
-function NewTrackForm({ orgId, eventId, onCreated, onError }: NewTrackFormProps) {
-  const [busy, setBusy] = useState(false);
+function TrackForm({ orgId, eventId, track, onSaved, onCancel, onError }: TrackFormProps) {
+  const isEdit = !!track;
+  const [name, setName] = useState(track?.name ?? '');
+  const [color, setColor] = useState(track?.color ?? '#6D28D9');
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    const f = new FormData(e.currentTarget);
-    try {
-      await eventsApi(orgId).createTrack(eventId, {
-        name: String(f.get('name') ?? '').trim(),
-        color: (String(f.get('color') ?? '') || undefined) as string | undefined,
-      });
-      (e.target as HTMLFormElement).reset();
-      await onCreated();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setBusy(false);
+  async function save() {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Track name is required.');
+    if (isEdit) {
+      await eventsApi(orgId).updateTrack(eventId, track!.id, { name: trimmed, color });
+    } else {
+      await eventsApi(orgId).createTrack(eventId, { name: trimmed, color });
     }
   }
 
   return (
-    <form onSubmit={submit} className="mb-4 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-4">
+    <div className="mb-4 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-4">
       <input
-        name="name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
         required
         placeholder="Track name (e.g. Main stage)"
         className="flex-1 min-w-[200px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
       />
       <input
-        name="color"
+        value={color}
+        onChange={(e) => setColor(e.target.value)}
         type="color"
-        defaultValue="#6D28D9"
         className="h-10 w-12 cursor-pointer rounded-lg border border-slate-200"
         aria-label="Track colour"
       />
-      <button
-        type="submit"
-        disabled={busy}
-        className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-      >
-        {busy ? 'Saving...' : 'Add'}
-      </button>
-    </form>
+      <ActionButton
+        onAction={save}
+        idleLabel={isEdit ? 'Save changes' : 'Add'}
+        pendingLabel="Saving…"
+        successLabel="Saved"
+        variant="primary"
+        onError={onError}
+        onDone={() => onSaved(isEdit)}
+      />
+      {isEdit ? (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-700"
+        >
+          Cancel
+        </button>
+      ) : null}
+    </div>
   );
 }
 
-interface NewSessionFormProps {
+interface SessionFormProps {
   orgId: string;
   eventId: string;
+  session: EventDetail['sessions'][number] | null;
   tracks: Array<{ id: string; name: string }>;
   timezone: string;
-  onCreated: () => Promise<void> | void;
+  onSaved: (wasEdit: boolean) => Promise<void> | void;
+  onCancel: () => void;
   onError: (msg: string) => void;
 }
 
-function NewSessionForm({
+function SessionForm({
   orgId,
   eventId,
+  session,
   tracks,
   timezone,
-  onCreated,
+  onSaved,
+  onCancel,
   onError,
-}: NewSessionFormProps) {
-  const [busy, setBusy] = useState(false);
+}: SessionFormProps) {
+  const isEdit = !!session;
+  const [title, setTitle] = useState(session?.title ?? '');
+  const [trackId, setTrackId] = useState(session?.trackId ?? '');
+  const [startAt, setStartAt] = useState(
+    session ? utcISOToWallTime(session.startAt, timezone) : '',
+  );
+  const [endAt, setEndAt] = useState(
+    session ? utcISOToWallTime(session.endAt, timezone) : '',
+  );
+  const [streamUrl, setStreamUrl] = useState(session?.streamUrl ?? '');
+  const [capacity, setCapacity] = useState(
+    session?.capacity != null ? String(session.capacity) : '',
+  );
+  const [description, setDescription] = useState(session?.description ?? '');
+  const [requiresRsvp, setRequiresRsvp] = useState(session?.requiresRsvp ?? false);
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    const f = new FormData(e.currentTarget);
-    try {
-      const trackId = String(f.get('trackId') ?? '');
-      const streamUrl = String(f.get('streamUrl') ?? '').trim();
-      const capacity = String(f.get('capacity') ?? '').trim();
-      await eventsApi(orgId).createSession(eventId, {
-        title: String(f.get('title') ?? '').trim(),
-        description: (String(f.get('description') ?? '').trim() || undefined),
-        trackId: trackId || undefined,
-        startAt: wallTimeToUtcISO(String(f.get('startAt')), timezone),
-        endAt: wallTimeToUtcISO(String(f.get('endAt')), timezone),
-        streamUrl: streamUrl || undefined,
-        capacity: capacity ? Number(capacity) : undefined,
-        requiresRsvp: f.get('requiresRsvp') === 'on',
+  async function save() {
+    const t = title.trim();
+    if (!t) throw new Error('Session title is required.');
+    if (!startAt || !endAt) throw new Error('Start and end times are required.');
+    const cap = capacity.trim();
+    if (isEdit) {
+      await eventsApi(orgId).updateSession(eventId, session!.id, {
+        title: t,
+        description: description.trim() || undefined,
+        trackId: trackId || null,
+        startAt: wallTimeToUtcISO(startAt, timezone),
+        endAt: wallTimeToUtcISO(endAt, timezone),
+        streamUrl: streamUrl.trim() || null,
+        capacity: cap ? Number(cap) : null,
+        requiresRsvp,
       });
-      (e.target as HTMLFormElement).reset();
-      await onCreated();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setBusy(false);
+    } else {
+      await eventsApi(orgId).createSession(eventId, {
+        title: t,
+        description: description.trim() || undefined,
+        trackId: trackId || undefined,
+        startAt: wallTimeToUtcISO(startAt, timezone),
+        endAt: wallTimeToUtcISO(endAt, timezone),
+        streamUrl: streamUrl.trim() || undefined,
+        capacity: cap ? Number(cap) : undefined,
+        requiresRsvp,
+      });
     }
   }
 
   return (
-    <form onSubmit={submit} className="mb-4 grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-6">
+    <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-6">
       <input
-        name="title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
         required
         placeholder="Session title"
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-4"
       />
       <select
-        name="trackId"
-        defaultValue=""
+        value={trackId}
+        onChange={(e) => setTrackId(e.target.value)}
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-2"
       >
         <option value="">No track</option>
@@ -892,7 +956,8 @@ function NewSessionForm({
       <label className="text-xs font-medium text-slate-600 sm:col-span-3">
         Starts at
         <input
-          name="startAt"
+          value={startAt}
+          onChange={(e) => setStartAt(e.target.value)}
           required
           type="datetime-local"
           className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
@@ -901,45 +966,64 @@ function NewSessionForm({
       <label className="text-xs font-medium text-slate-600 sm:col-span-3">
         Ends at
         <input
-          name="endAt"
+          value={endAt}
+          onChange={(e) => setEndAt(e.target.value)}
           required
           type="datetime-local"
           className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
         />
       </label>
       <input
-        name="streamUrl"
+        value={streamUrl}
+        onChange={(e) => setStreamUrl(e.target.value)}
         type="url"
         placeholder="Stream URL (https://...)"
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-4"
       />
       <input
-        name="capacity"
+        value={capacity}
+        onChange={(e) => setCapacity(e.target.value)}
         type="number"
         min="1"
         placeholder="Capacity (optional)"
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-2"
       />
       <textarea
-        name="description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
         rows={2}
         placeholder="Description (optional)"
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-6"
       />
       <label className="flex items-center gap-2 text-xs font-medium text-slate-600 sm:col-span-4">
-        <input name="requiresRsvp" type="checkbox" />
+        <input
+          type="checkbox"
+          checked={requiresRsvp}
+          onChange={(e) => setRequiresRsvp(e.target.checked)}
+        />
         Requires RSVP (cap how many attendees can join this session)
       </label>
-      <div className="flex justify-end sm:col-span-2">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {busy ? 'Saving...' : 'Add session'}
-        </button>
+      <div className="flex items-center justify-end gap-2 sm:col-span-2">
+        {isEdit ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-700"
+          >
+            Cancel
+          </button>
+        ) : null}
+        <ActionButton
+          onAction={save}
+          idleLabel={isEdit ? 'Save changes' : 'Add session'}
+          pendingLabel="Saving…"
+          successLabel="Saved"
+          variant="primary"
+          onError={onError}
+          onDone={() => onSaved(isEdit)}
+        />
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -947,6 +1031,7 @@ function SessionRow({
   session,
   track,
   timezone,
+  onEdit,
   onDelete,
 }: {
   session: {
@@ -962,6 +1047,7 @@ function SessionRow({
   };
   track: { id: string; name: string; color: string | null } | null;
   timezone: string;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const start = new Date(session.startAt);
@@ -1027,13 +1113,22 @@ function SessionRow({
           <p className="mt-1 line-clamp-2 text-xs text-slate-500">{session.description}</p>
         ) : null}
       </div>
-      <button
-        onClick={onDelete}
-        className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-        aria-label={`Delete session ${session.title}`}
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          onClick={onEdit}
+          className="rounded-full p-1.5 text-slate-400 hover:bg-brand-50 hover:text-brand-700"
+          aria-label={`Edit session ${session.title}`}
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onDelete}
+          className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+          aria-label={`Delete session ${session.title}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
     </li>
   );
 }

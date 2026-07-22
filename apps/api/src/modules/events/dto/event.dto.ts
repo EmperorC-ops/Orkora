@@ -106,6 +106,17 @@ export class CreateTrackDto {
   color?: string;
 }
 
+export class UpdateTrackDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 60)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
+}
+
 export class CreateSessionDto {
   @IsString()
   @Length(2, 200)

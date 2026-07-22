@@ -21,6 +21,7 @@ import {
   CreateSessionDto,
   CreateSpeakerDto,
   UpdateSpeakerDto,
+  UpdateTrackDto,
   CreateTicketTierDto,
   CreateTrackDto,
   EventStatus,
@@ -144,6 +145,17 @@ export class OrganizerEventsController {
   @Roles('owner', 'admin', 'organizer', 'staff')
   listTracks(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
     return this.events.listTracks(orgId, eventId);
+  }
+
+  @Patch(':eventId/tracks/:trackId')
+  @Roles('owner', 'admin', 'organizer')
+  updateTrack(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Param('trackId') trackId: string,
+    @Body() dto: UpdateTrackDto,
+  ) {
+    return this.events.updateTrack(orgId, eventId, trackId, dto);
   }
 
   @Delete(':eventId/tracks/:trackId')

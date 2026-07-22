@@ -134,6 +134,11 @@ export const eventsApi = (orgId: string) => {
     listTracks: (eventId: string) => apiFetch<EventTrack[]>(`${base}/${eventId}/tracks`),
     createTrack: (eventId: string, input: { name: string; color?: string }) =>
       apiFetch<EventTrack>(`${base}/${eventId}/tracks`, { method: 'POST', json: input }),
+    updateTrack: (eventId: string, trackId: string, input: { name?: string; color?: string }) =>
+      apiFetch<EventTrack>(`${base}/${eventId}/tracks/${trackId}`, {
+        method: 'PATCH',
+        json: input,
+      }),
     deleteTrack: (eventId: string, trackId: string) =>
       apiFetch<{ ok: boolean }>(`${base}/${eventId}/tracks/${trackId}`, {
         method: 'DELETE',
@@ -306,6 +311,34 @@ export function wallTimeToUtcISO(naive: string, timeZone?: string): string {
   const asUtcGuess = Date.UTC(y, mo - 1, d, h, mi, s);
   const offset = tzOffsetMs(asUtcGuess, timeZone);
   return new Date(asUtcGuess - offset).toISOString();
+}
+
+/**
+ * Inverse of `wallTimeToUtcISO`: render a UTC ISO instant as the timezone-naive
+ * wall-clock string (`YYYY-MM-DDTHH:mm`) that `<input type="datetime-local">`
+ * expects, expressed in `timeZone` (the event's own zone). Used to pre-fill the
+ * session edit form's date/time inputs so an organiser abroad sees the local
+ * event time, not their browser's. Returns '' for an empty/invalid input.
+ */
+export function utcISOToWallTime(iso: string, timeZone?: string): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  // Intl gives us the wall-clock parts in the target zone directly.
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    ...(timeZone ? { timeZone } : {}),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  let hour = get('hour');
+  // Intl can emit "24" for midnight in en-CA; normalise to "00".
+  if (hour === '24') hour = '00';
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}`;
 }
 
 /**
