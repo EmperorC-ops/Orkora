@@ -222,3 +222,24 @@ export async function publishStory(orgId: string, eventId: string): Promise<void
 export async function unpublishStory(orgId: string, eventId: string): Promise<void> {
   await apiFetch(`/v1/organizations/${orgId}/events/${eventId}/story/unpublish`, { method: 'POST' });
 }
+
+export interface StoryAnalyticsSummary {
+  views: number;
+  ticketsReached: number;
+  blocks: { blockType: string; impressions: number }[];
+  scrollDepth: { depthPercent: number; count: number }[];
+}
+
+export async function getStoryAnalytics(orgId: string, eventId: string): Promise<StoryAnalyticsSummary> {
+  return apiFetch<StoryAnalyticsSummary>(`/v1/organizations/${orgId}/events/${eventId}/story/analytics`);
+}
+
+export async function createStoryPreviewToken(
+  orgId: string,
+  eventId: string,
+): Promise<{ token: string; expiresAt: string }> {
+  return apiFetch<{ token: string; expiresAt: string }>(
+    `/v1/organizations/${orgId}/events/${eventId}/story/preview-token`,
+    { method: 'POST' },
+  );
+}

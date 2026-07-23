@@ -210,6 +210,7 @@ model Event {
   feedback      EventFeedback[]
   discountCodes DiscountCode[]
   recordings    Recording[]
+  storyAnalytics StoryAnalytics[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -217,6 +218,23 @@ model Event {
   campaignAudiences  CampaignAudience[]
 
   @@map("events")
+}
+
+model StoryAnalytics {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventId      String   @map("event_id") @db.Uuid
+  kind         String
+  blockType    String?  @map("block_type")
+  blockIndex   Int?     @map("block_index")
+  depthPercent Int?     @map("depth_percent")
+  visitor      String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
+  @@index([eventId, kind])
+  @@map("story_analytics")
 }
 
 model Track {

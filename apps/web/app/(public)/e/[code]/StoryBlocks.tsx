@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { StoryBlock, CastPerson } from '@/lib/story';
+import Moodboard from './Moodboard';
 
 /**
  * Shared Story Mode block views. No 'use client' directive and no client-only
@@ -276,15 +277,7 @@ function MoodboardBlock({ block }: { block: Extract<StoryBlock, { type: 'moodboa
   if (tiles.length === 0) return null;
   return (
     <section className="mx-auto max-w-4xl px-6 py-12">
-      <div className="columns-2 gap-4 sm:columns-3 [&>*]:mb-4">
-        {tiles.map((t, i) => (
-          <figure key={i} className="overflow-hidden rounded-xl border border-surface-border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={t.url} alt={t.caption ?? ''} className="w-full" />
-            {t.caption ? <figcaption className="px-3 py-2 text-xs text-ink-muted">{t.caption}</figcaption> : null}
-          </figure>
-        ))}
-      </div>
+      <Moodboard tiles={tiles} />
     </section>
   );
 }

@@ -30,11 +30,14 @@ import {
   type BlockType,
   type StoryTemplate,
   composeClassicFrom,
+  createStoryPreviewToken,
   defaultBlock,
+  getStoryAnalytics,
   publishStory,
   saveStory,
   templateSeed,
   unpublishStory,
+  type StoryAnalyticsSummary,
 } from '@/lib/story-edit';
 
 interface PreviewSession {
@@ -100,6 +103,7 @@ export default function StoryComposerPage() {
   const [view, setView] = useState<'editor' | 'preview'>('editor');
   const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<StoryAnalyticsSummary | null>(null);
 
   // Keep the latest state accessible to the autosave interval without
   // re-registering it on every keystroke.
@@ -123,6 +127,9 @@ export default function StoryComposerPage() {
     apiFetch<OrgInfo>(`/v1/organizations/${org}`)
       .then((o) => setOrgInfo({ name: o.name, brandColor: o.brandColor, slug: o.slug }))
       .catch(() => setOrgInfo(null));
+    getStoryAnalytics(org, eventId)
+      .then(setAnalytics)
+      .catch(() => setAnalytics(null));
   }, [eventId]);
 
   const hasTickets = blocks.some((b) => b.type === 'tickets' && !b.hidden);
@@ -161,6 +168,14 @@ export default function StoryComposerPage() {
     setBlocks(composeClassicFrom(event));
     setDirty(true);
     setSelectedId(null);
+  }
+
+  async function copyPreviewLink() {
+    if (!orgId || !event) throw new Error('Not ready yet.');
+    if (dirty) await doSave();
+    const { token } = await createStoryPreviewToken(orgId, eventId);
+    const url = `${window.location.origin}/e/${event.code}?preview=${token}`;
+    await navigator.clipboard.writeText(url);
   }
 
   function mutate(next: StoryBlock[]) {
@@ -278,6 +293,16 @@ export default function StoryComposerPage() {
             <ExternalLink className="h-3.5 w-3.5" /> View live
           </a>
           {!showPicker ? (
+            <ActionButton
+              onAction={copyPreviewLink}
+              idleLabel="Copy preview link"
+              pendingLabel="..."
+              successLabel="Link copied"
+              variant="ghost"
+              onError={(m) => setError(m)}
+            />
+          ) : null}
+          {!showPicker ? (
             <div className="inline-flex rounded-full border border-surface-border bg-surface/40 p-0.5 text-xs font-semibold">
               <button
                 type="button"
@@ -346,6 +371,34 @@ export default function StoryComposerPage() {
         </div>
       ) : null}
       {notice ? <div className="text-sm text-ink-secondary">{notice}</div> : null}
+
+      {!showPicker && analytics && analytics.views > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-surface-border bg-surface/40 px-4 py-3 text-sm">
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Engagement</span>
+          <span>
+            <span className="font-semibold text-ink-primary">{analytics.views.toLocaleString()}</span>{' '}
+            <span className="text-ink-secondary">views</span>
+          </span>
+          <span>
+            <span className="font-semibold text-ink-primary">{analytics.ticketsReached.toLocaleString()}</span>{' '}
+            <span className="text-ink-secondary">reached tickets</span>
+          </span>
+          <span>
+            <span className="font-semibold text-ink-primary">
+              {analytics.views > 0 ? Math.round((analytics.ticketsReached / analytics.views) * 100) : 0}%
+            </span>{' '}
+            <span className="text-ink-secondary">scrolled to buy</span>
+          </span>
+          {analytics.blocks[0] ? (
+            <span className="text-ink-secondary">
+              Most viewed:{' '}
+              <span className="font-semibold text-ink-primary">
+                {BLOCK_LABELS[analytics.blocks[0].blockType as BlockType] ?? analytics.blocks[0].blockType}
+              </span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {showPicker ? (
         <TemplatePicker onPick={seed} onFromCurrent={seedFromCurrent} />

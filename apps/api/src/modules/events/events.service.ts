@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import {
   CreateEventDto,
@@ -20,6 +20,7 @@ import {
   UpdateEventDto,
   UpdateSessionDto,
   UpdateStoryDto,
+  StoryAnalyticsBatchDto,
   UpdateTicketTierDto,
 } from './dto/event.dto';
 import {
@@ -31,13 +32,21 @@ import {
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // omit confusing chars
 const SAFE_STATUS: EventStatus[] = ['draft', 'published', 'live', 'ended', 'archived'];
 
+// Secret for signing Story Mode preview tokens. A dedicated env is preferred;
+// we fall back to the (always-present, high-entropy) JWT private key so no new
+// secret has to be provisioned. Tokens are short-lived (24h) so coupling to the
+// signing key's lifecycle is acceptable.
+const STORY_PREVIEW_SECRET =
+  process.env.STORY_PREVIEW_SECRET || process.env.JWT_PRIVATE_KEY || 'orkora-dev-preview-secret';
+const STORY_PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class EventsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // -------- Public reads --------
 
-  async findPublicByCode(code: string) {
+  async findPublicByCode(code: string, preview?: string) {
     const event = await this.prisma.event.findUnique({
       where: { code: code.toUpperCase() },
       select: {
@@ -101,18 +110,16 @@ export class EventsService {
         },
       },
     });
-    if (
-      !event ||
-      event.status === 'draft' ||
-      event.status === 'archived' ||
-      event.organization.status === 'suspended'
-    ) {
+    if (!event) throw new NotFoundException('Event not found');
+    const authorized = preview ? this.verifyPreviewToken(preview) === event.id : false;
+    const hidden = event.status === 'draft' || event.status === 'archived';
+    if (event.organization.status === 'suspended' || (hidden && !authorized)) {
       throw new NotFoundException('Event not found');
     }
-    return this.serializeEvent(event);
+    return { ...this.serializeEvent(event), storyPreview: authorized };
   }
 
-  async findPublicBySlug(orgSlug: string, eventSlug: string) {
+  async findPublicBySlug(orgSlug: string, eventSlug: string, preview?: string) {
     const event = await this.prisma.event.findFirst({
       where: {
         slug: eventSlug.toLowerCase(),
@@ -180,15 +187,13 @@ export class EventsService {
         },
       },
     });
-    if (
-      !event ||
-      event.status === 'draft' ||
-      event.status === 'archived' ||
-      event.organization.status === 'suspended'
-    ) {
+    if (!event) throw new NotFoundException('Event not found');
+    const authorized = preview ? this.verifyPreviewToken(preview) === event.id : false;
+    const hidden = event.status === 'draft' || event.status === 'archived';
+    if (event.organization.status === 'suspended' || (hidden && !authorized)) {
       throw new NotFoundException('Event not found');
     }
-    return this.serializeEvent(event);
+    return { ...this.serializeEvent(event), storyPreview: authorized };
   }
 
   /**
@@ -377,6 +382,104 @@ export class EventsService {
         data: { storyPublishedAt: null },
       }),
     );
+  }
+
+  /**
+   * Ingest a batch of Story Mode engagement events from the public renderer.
+   * Public + unauthenticated, so it is defensive: unknown/suspended events are
+   * silently dropped, the batch is capped, and no error is surfaced to the
+   * page (analytics must never break the reader's experience).
+   */
+  async recordStoryAnalytics(code: string, dto: StoryAnalyticsBatchDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { code: code.toUpperCase() },
+      select: { id: true, organization: { select: { status: true } } },
+    });
+    if (!event || event.organization.status === 'suspended') {
+      return { ok: true };
+    }
+    const visitor = dto.visitor ? dto.visitor.slice(0, 64) : null;
+    const rows = (dto.events ?? []).slice(0, 50).map((e) => ({
+      eventId: event.id,
+      kind: e.kind,
+      blockType: e.blockType ?? null,
+      blockIndex: e.blockIndex ?? null,
+      depthPercent: e.depthPercent ?? null,
+      visitor,
+    }));
+    if (rows.length > 0) {
+      await this.prisma.storyAnalytics.createMany({ data: rows });
+    }
+    return { ok: true };
+  }
+
+  /** Aggregated Story Mode engagement for the organiser dashboard. */
+  async getStoryAnalytics(orgId: string, eventId: string) {
+    await this.assertEventInOrg(orgId, eventId);
+    const [views, ticketsReached, byBlock, byDepth] = await Promise.all([
+      this.prisma.storyAnalytics.count({ where: { eventId, kind: 'event_view' } }),
+      this.prisma.storyAnalytics.count({ where: { eventId, kind: 'tickets_scrolled_to' } }),
+      this.prisma.storyAnalytics.groupBy({
+        by: ['blockType'],
+        where: { eventId, kind: 'block_viewed' },
+        _count: { _all: true },
+      }),
+      this.prisma.storyAnalytics.groupBy({
+        by: ['depthPercent'],
+        where: { eventId, kind: 'scroll_depth' },
+        _count: { _all: true },
+      }),
+    ]);
+    return {
+      views,
+      ticketsReached,
+      blocks: byBlock
+        .map((b) => ({ blockType: b.blockType ?? 'unknown', impressions: b._count._all }))
+        .sort((a, b) => b.impressions - a.impressions),
+      scrollDepth: byDepth
+        .filter((d) => d.depthPercent !== null)
+        .map((d) => ({ depthPercent: d.depthPercent as number, count: d._count._all }))
+        .sort((a, b) => a.depthPercent - b.depthPercent),
+    };
+  }
+
+  /**
+   * Mint a signed, 24h preview token so an organiser can share an unpublished
+   * Story Mode draft. The token binds to the event id; the public read honours
+   * it to render the draft even when it is not published.
+   */
+  async createStoryPreviewToken(orgId: string, eventId: string) {
+    await this.assertEventInOrg(orgId, eventId);
+    const expMs = Date.now() + STORY_PREVIEW_TTL_MS;
+    return {
+      token: this.signPreviewToken(eventId, expMs),
+      expiresAt: new Date(expMs).toISOString(),
+    };
+  }
+
+  private signPreviewToken(eventId: string, expMs: number): string {
+    const payload = `${eventId}.${expMs}`;
+    const sig = createHmac('sha256', STORY_PREVIEW_SECRET).update(payload).digest('base64url');
+    return `${Buffer.from(payload).toString('base64url')}.${sig}`;
+  }
+
+  /** Returns the event id a preview token authorizes, or null if invalid/expired. */
+  private verifyPreviewToken(token: string): string | null {
+    try {
+      const [pB64, sig] = token.split('.');
+      if (!pB64 || !sig) return null;
+      const payload = Buffer.from(pB64, 'base64url').toString('utf8');
+      const expected = createHmac('sha256', STORY_PREVIEW_SECRET).update(payload).digest();
+      const given = Buffer.from(sig, 'base64url');
+      if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
+      const dot = payload.lastIndexOf('.');
+      const eventId = payload.slice(0, dot);
+      const expMs = Number(payload.slice(dot + 1));
+      if (!eventId || !Number.isFinite(expMs) || Date.now() > expMs) return null;
+      return eventId;
+    } catch {
+      return null;
+    }
   }
 
   async publish(orgId: string, eventId: string) {

@@ -64,6 +64,7 @@ interface PublicEvent {
   storyBlocks?: StoryBlock[];
   storyTemplate?: string;
   storyPublishedAt?: string | null;
+  storyPreview?: boolean;
   organization: { name: string; logoUrl: string | null; brandColor: string | null; slug?: string };
   tracks?: PublicTrack[];
   sessions?: PublicSession[];
@@ -71,19 +72,23 @@ interface PublicEvent {
   tiers?: PublicTier[];
 }
 
-async function getEvent(code: string): Promise<PublicEvent | null> {
+async function getEvent(code: string, preview?: string): Promise<PublicEvent | null> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  // A preview link must never be served from the shared cache, and must be
+  // re-validated on every request (the draft changes as the organiser edits).
+  const qs = preview ? `?preview=${encodeURIComponent(preview)}` : '';
+  const opts: RequestInit & { next?: { revalidate: number } } = preview
+    ? { cache: 'no-store' }
+    : { next: { revalidate: 60 } };
   // Public code endpoint returns the minimal shape; fetch the full one via id.
-  const codeRes = await fetch(`${apiUrl}/v1/events/by-code/${code}`, {
-    next: { revalidate: 60 },
-  });
+  const codeRes = await fetch(`${apiUrl}/v1/events/by-code/${code}${qs}`, opts);
   if (!codeRes.ok) return null;
   const minimal = (await codeRes.json()) as { id: string; organization: { slug?: string }; slug: string };
   if (!minimal.organization.slug) return (await codeRes.json()) as PublicEvent;
   // Re-fetch via slug endpoint for the richer payload (tracks, sessions, speakers, tiers).
   const slugRes = await fetch(
-    `${apiUrl}/v1/events/by-slug/${minimal.organization.slug}/${minimal.slug}`,
-    { next: { revalidate: 60 } },
+    `${apiUrl}/v1/events/by-slug/${minimal.organization.slug}/${minimal.slug}${qs}`,
+    opts,
   );
   if (slugRes.ok) return (await slugRes.json()) as PublicEvent;
   return (await codeRes.json()) as PublicEvent;
@@ -91,10 +96,13 @@ async function getEvent(code: string): Promise<PublicEvent | null> {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: { code: string };
+  searchParams?: { preview?: string };
 }): Promise<Metadata> {
-  const event = await getEvent(params.code);
+  const preview = typeof searchParams?.preview === 'string' ? searchParams.preview : undefined;
+  const event = await getEvent(params.code, preview);
   // Branded, designed OG card for link unfurls (WhatsApp, X, iMessage, Slack).
   // Falls back to the raw banner only if the event did not resolve.
   const ogImage = event
@@ -160,16 +168,30 @@ function groupSessionsByDay(sessions: PublicSession[], timeZone?: string) {
   return Object.entries(groups);
 }
 
-export default async function PublicEventPage({ params }: { params: { code: string } }) {
-  const event = await getEvent(params.code);
+export default async function PublicEventPage({
+  params,
+  searchParams,
+}: {
+  params: { code: string };
+  searchParams?: { preview?: string };
+}) {
+  const preview = typeof searchParams?.preview === 'string' ? searchParams.preview : undefined;
+  const event = await getEvent(params.code, preview);
   if (!event) notFound();
 
-  // Story Mode: when an organiser has composed and published a story, render
-  // the block narrative instead of the classic form-first layout. Every other
-  // event falls through to the classic layout below, untouched.
-  if (usesStoryMode(event)) {
+  // Story Mode: render the block narrative when the organiser has published a
+  // story, OR when this is an authorized preview link (draft, unpublished).
+  // Every other event falls through to the classic layout below, untouched.
+  const isPreview = event.storyPreview === true;
+  const hasBlocks = (event.storyBlocks?.length ?? 0) > 0;
+  if (usesStoryMode(event) || (isPreview && hasBlocks)) {
     return (
       <>
+        {isPreview && !event.storyPublishedAt ? (
+          <div className="bg-amber-500 px-4 py-2 text-center text-xs font-semibold text-slate-900">
+            Preview - this Story Mode draft is not published yet.
+          </div>
+        ) : null}
         <InstallPrompt variant="banner" />
         <StoryRenderer event={{ ...event, storyBlocks: event.storyBlocks ?? [] }} />
         {(event.status === 'live' || event.status === 'ended') && (

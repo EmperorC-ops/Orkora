@@ -106,6 +106,38 @@ export class UpdateStoryDto {
   blocks!: unknown[];
 }
 
+export class StoryAnalyticsEventDto {
+  @IsEnum(['event_view', 'block_viewed', 'scroll_depth', 'tickets_scrolled_to'])
+  kind!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 32)
+  blockType?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  blockIndex?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  depthPercent?: number;
+}
+
+export class StoryAnalyticsBatchDto {
+  @IsOptional()
+  @IsString()
+  @Length(0, 64)
+  visitor?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => StoryAnalyticsEventDto)
+  events!: StoryAnalyticsEventDto[];
+}
+
 // === Sessions / Tracks / Speakers ===
 
 export class CreateTrackDto {

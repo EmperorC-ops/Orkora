@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { EventsService } from './events.service';
@@ -26,6 +27,7 @@ import {
   CreateTrackDto,
   EventStatus,
   ReorderTicketTiersDto,
+  StoryAnalyticsBatchDto,
   UpdateEventDto,
   UpdateSessionDto,
   UpdateStoryDto,
@@ -42,16 +44,17 @@ export class EventsController {
   constructor(private readonly events: EventsService) {}
 
   @Get('by-code/:code')
-  findByCode(@Param('code') code: string) {
-    return this.events.findPublicByCode(code);
+  findByCode(@Param('code') code: string, @Query('preview') preview?: string) {
+    return this.events.findPublicByCode(code, preview);
   }
 
   @Get('by-slug/:orgSlug/:eventSlug')
   findBySlug(
     @Param('orgSlug') orgSlug: string,
     @Param('eventSlug') eventSlug: string,
+    @Query('preview') preview?: string,
   ) {
-    return this.events.findPublicBySlug(orgSlug, eventSlug);
+    return this.events.findPublicBySlug(orgSlug, eventSlug, preview);
   }
 
   @Get(':id')
@@ -59,6 +62,18 @@ export class EventsController {
   @UseGuards(AuthGuard('jwt'))
   findOne(@Param('id') id: string) {
     return this.events.findById(id);
+  }
+
+  /**
+   * Public, unauthenticated Story Mode analytics ingest. Fire-and-forget from
+   * the renderer; throttled to blunt abuse. Returns 202 regardless so the page
+   * never treats analytics as a hard dependency.
+   */
+  @Post('by-code/:code/story-analytics')
+  @HttpCode(202)
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  recordStoryAnalytics(@Param('code') code: string, @Body() dto: StoryAnalyticsBatchDto) {
+    return this.events.recordStoryAnalytics(code, dto);
   }
 }
 
@@ -148,6 +163,19 @@ export class OrganizerEventsController {
   @Roles('owner', 'admin', 'organizer')
   unpublishStory(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
     return this.events.unpublishStory(orgId, eventId);
+  }
+
+  @Get(':eventId/story/analytics')
+  @Roles('owner', 'admin', 'organizer', 'staff')
+  storyAnalytics(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
+    return this.events.getStoryAnalytics(orgId, eventId);
+  }
+
+  @Post(':eventId/story/preview-token')
+  @HttpCode(200)
+  @Roles('owner', 'admin', 'organizer')
+  storyPreviewToken(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
+    return this.events.createStoryPreviewToken(orgId, eventId);
   }
 
   @Delete(':eventId')

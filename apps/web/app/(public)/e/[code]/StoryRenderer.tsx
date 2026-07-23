@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import StoryTicketsBar from './StoryTicketsBar';
+import StoryAnalytics from './StoryAnalytics';
 import { BlockView, type StoryEvent } from './StoryBlocks';
 
 /**
@@ -37,8 +38,10 @@ export default function StoryRenderer({ event }: { event: StoryEvent }) {
         </div>
       </header>
 
-      {blocks.map((block) => (
-        <BlockView key={block.id} block={block} event={event} color={color} registerHref={registerHref} />
+      {blocks.map((block, i) => (
+        <div key={block.id} data-story-block data-block-type={block.type} data-block-index={i}>
+          <BlockView block={block} event={event} color={color} registerHref={registerHref} />
+        </div>
       ))}
 
       <footer className="border-t border-surface-border bg-surface/40 py-8 text-center text-xs text-ink-muted">
@@ -49,6 +52,7 @@ export default function StoryRenderer({ event }: { event: StoryEvent }) {
       </footer>
 
       <StoryTicketsBar color={color} />
+      <StoryAnalytics code={event.code} />
     </main>
   );
 }

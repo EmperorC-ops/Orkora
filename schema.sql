@@ -743,3 +743,21 @@ begin
       check (story_template in ('classic','editorial','cinematic','underground','runway'));
   end if;
 end $$;
+
+-- ============================================================
+-- STORY ANALYTICS (migration 0012, folded in for fresh installs)
+-- ============================================================
+create table if not exists story_analytics (
+  id            uuid        primary key default uuidv7(),
+  event_id      uuid        not null references events(id) on delete cascade,
+  kind          text        not null,
+  block_type    text,
+  block_index   int,
+  depth_percent int,
+  visitor       text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists story_analytics_event_created_idx
+  on story_analytics (event_id, created_at desc);
+create index if not exists story_analytics_event_kind_idx
+  on story_analytics (event_id, kind);
