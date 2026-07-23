@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -58,27 +58,28 @@ export default function CheckinPage() {
     setOrgId(readActiveOrgId());
   }, []);
 
-  // Live stats polling. Cheap because the rows are indexed.
+  // Fetch the live checked-in / issued counts. Called by the poller and, for
+  // an instant update, right after every check-in.
+  const refreshStats = useCallback(async () => {
+    if (!orgId || !eventId) return;
+    try {
+      const s = await apiFetch<CheckinStats>(
+        `/v1/organizations/${orgId}/events/${eventId}/checkin/stats`,
+      );
+      setStats(s);
+    } catch {
+      // ignore polling errors
+    }
+  }, [orgId, eventId]);
+
+  // Live stats polling. Cheap because the rows are indexed. The post-check-in
+  // refresh keeps the count instant; the poll catches other staff's scans.
   useEffect(() => {
     if (!orgId || !eventId) return;
-    let cancelled = false;
-    async function pull() {
-      try {
-        const s = await apiFetch<CheckinStats>(
-          `/v1/organizations/${orgId}/events/${eventId}/checkin/stats`,
-        );
-        if (!cancelled) setStats(s);
-      } catch {
-        // ignore polling errors
-      }
-    }
-    pull();
-    const t = setInterval(pull, 5_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, [orgId, eventId]);
+    void refreshStats();
+    const t = setInterval(() => void refreshStats(), 5_000);
+    return () => clearInterval(t);
+  }, [orgId, eventId, refreshStats]);
 
   async function startScanner() {
     setScannerError(null);
@@ -176,6 +177,8 @@ export default function CheckinPage() {
         kind: result.alreadyCheckedIn ? 'duplicate' : 'success',
         result,
       });
+      // Instant count update so staff see progress without waiting for the poll.
+      void refreshStats();
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -209,6 +212,8 @@ export default function CheckinPage() {
         kind: result.alreadyCheckedIn ? 'duplicate' : 'success',
         result,
       });
+      // Instant count update so staff see progress without waiting for the poll.
+      void refreshStats();
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -362,16 +367,31 @@ function CheckinStatsCard({ stats }: { stats: CheckinStats | null }) {
     );
   }
   const pct = stats.issued ? Math.round((stats.checkedIn / stats.issued) * 100) : 0;
+  const remaining = Math.max(0, stats.issued - stats.checkedIn);
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-surface-border bg-surface/40 px-4 py-3">
-      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/15 text-brand-300">
-        <Users className="h-4 w-4" />
-      </span>
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-ink-muted">Checked in</div>
-        <div className="text-sm font-semibold text-ink-primary">
-          {stats.checkedIn} / {stats.issued} <span className="text-ink-muted">({pct}%)</span>
+    <div className="rounded-xl border border-surface-border bg-surface/40 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-brand-500/15 text-brand-300">
+          <Users className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-wider text-ink-muted">Checked in</div>
+          <div className="text-lg font-semibold leading-tight text-ink-primary">
+            {stats.checkedIn}{' '}
+            <span className="text-sm font-normal text-ink-muted">
+              of {stats.issued} ({pct}%)
+            </span>
+          </div>
         </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-border">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-1.5 text-[11px] text-ink-muted">
+        {remaining === 0 ? 'Everyone is in' : `${remaining} still to arrive`}
       </div>
     </div>
   );
