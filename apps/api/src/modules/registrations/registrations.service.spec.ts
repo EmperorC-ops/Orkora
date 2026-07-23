@@ -376,3 +376,70 @@ describe('RegistrationsService.checkInByCode', () => {
     );
   });
 });
+
+describe('RegistrationsService.undoCheckIn', () => {
+  const evt = { id: 'evt1' };
+  const checkedInTicket = {
+    id: 't1',
+    code: 'AB12CD',
+    holderName: 'Jason Cole',
+    status: 'checked_in',
+    checkedInAt: new Date(),
+    tier: { name: 'General' },
+    registration: { event: { id: 'evt1' } },
+  };
+
+  it('reverts a checked-in ticket to issued', async () => {
+    const update = jest.fn().mockResolvedValue({
+      id: 't1',
+      code: 'AB12CD',
+      holderName: 'Jason Cole',
+      status: 'issued',
+      checkedInAt: null,
+      tier: { name: 'General' },
+    });
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: { findUnique: jest.fn().mockResolvedValue(checkedInTicket), update },
+    };
+    const svc = makeSvc(prisma);
+    const out = await svc.undoCheckIn('org1', 'evt1', 't1');
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'issued', checkedInAt: null } }),
+    );
+    expect(out.status).toBe('issued');
+    expect(out.undone).toBe(true);
+  });
+
+  it('rejects undoing a ticket that is not checked in', async () => {
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ ...checkedInTicket, status: 'issued', checkedInAt: null }),
+        update: jest.fn(),
+      },
+    };
+    const svc = makeSvc(prisma);
+    await expect(svc.undoCheckIn('org1', 'evt1', 't1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('404s for a ticket in another event', async () => {
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ ...checkedInTicket, registration: { event: { id: 'other' } } }),
+        update: jest.fn(),
+      },
+    };
+    const svc = makeSvc(prisma);
+    await expect(svc.undoCheckIn('org1', 'evt1', 't1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});

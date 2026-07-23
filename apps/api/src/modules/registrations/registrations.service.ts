@@ -589,15 +589,88 @@ export class RegistrationsService {
       select: { id: true },
     });
     if (!event) throw new NotFoundException('Event not found');
-    const [issued, checkedIn] = await Promise.all([
+    const [issued, checkedIn, tiers, perTier] = await Promise.all([
       this.prisma.ticket.count({
         where: { registration: { eventId }, status: { in: ['issued', 'checked_in'] } },
       }),
       this.prisma.ticket.count({
         where: { registration: { eventId }, status: 'checked_in' },
       }),
+      // Tier names for the breakdown, ordered as they appear on the event.
+      this.prisma.ticketTier.findMany({
+        where: { eventId },
+        select: { id: true, name: true },
+        orderBy: { position: 'asc' },
+      }),
+      // Ticket counts grouped by (tier, status) so we can split issued vs in.
+      this.prisma.ticket.groupBy({
+        by: ['tierId', 'status'],
+        where: { registration: { eventId }, status: { in: ['issued', 'checked_in'] } },
+        _count: { _all: true },
+      }),
     ]);
-    return { issued, checkedIn };
+
+    // Fold the grouped rows into per-tier { issued (total admittable), checkedIn }.
+    const byTier = new Map<string, { issued: number; checkedIn: number }>();
+    for (const row of perTier) {
+      const cur = byTier.get(row.tierId) ?? { issued: 0, checkedIn: 0 };
+      const n = row._count._all;
+      cur.issued += n; // both 'issued' and 'checked_in' count toward the total
+      if (row.status === 'checked_in') cur.checkedIn += n;
+      byTier.set(row.tierId, cur);
+    }
+    const tierBreakdown = tiers
+      .map((t) => ({
+        tierId: t.id,
+        name: t.name,
+        issued: byTier.get(t.id)?.issued ?? 0,
+        checkedIn: byTier.get(t.id)?.checkedIn ?? 0,
+      }))
+      .filter((t) => t.issued > 0);
+
+    return { issued, checkedIn, tiers: tierBreakdown };
+  }
+
+  /**
+   * Undo the most recent check-in for a ticket (mis-scan recovery). Reverts a
+   * checked_in ticket back to issued and clears the timestamp. Only valid on a
+   * currently checked-in ticket; tenancy and event ownership are enforced.
+   */
+  async undoCheckIn(orgId: string, eventId: string, ticketId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        tier: true,
+        registration: { include: { event: { select: { id: true } } } },
+      },
+    });
+    if (!ticket || ticket.registration.event.id !== event.id) {
+      throw new NotFoundException('Ticket not found');
+    }
+    if (ticket.status !== 'checked_in') {
+      throw new BadRequestException('This ticket is not checked in');
+    }
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { status: 'issued', checkedInAt: null },
+      include: { tier: true },
+    });
+    return {
+      id: updated.id,
+      code: updated.code,
+      holderName: updated.holderName,
+      tier: updated.tier.name,
+      status: updated.status,
+      checkedInAt: updated.checkedInAt,
+      undone: true,
+    };
   }
 
   /**

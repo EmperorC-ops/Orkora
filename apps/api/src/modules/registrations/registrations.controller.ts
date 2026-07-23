@@ -162,6 +162,17 @@ export class CheckinController {
     return this.service.checkInByCode(orgId, eventId, body.code);
   }
 
+  // Undo a check-in (mis-scan recovery): revert a checked-in ticket to issued.
+  @Post('undo')
+  @Roles('staff')
+  undoCheckIn(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Body() body: { ticketId: string },
+  ) {
+    return this.service.undoCheckIn(orgId, eventId, body.ticketId);
+  }
+
   @Get('stats')
   @Roles('staff')
   stats(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {

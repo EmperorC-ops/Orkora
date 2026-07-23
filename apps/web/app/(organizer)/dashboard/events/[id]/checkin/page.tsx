@@ -25,14 +25,23 @@ interface CheckinResult {
   alreadyCheckedIn: boolean;
 }
 
+interface CheckinTierStat {
+  tierId: string;
+  name: string;
+  issued: number;
+  checkedIn: number;
+}
+
 interface CheckinStats {
   issued: number;
   checkedIn: number;
+  tiers: CheckinTierStat[];
 }
 
 type Outcome =
   | { kind: 'success'; result: CheckinResult }
   | { kind: 'duplicate'; result: CheckinResult }
+  | { kind: 'undone'; result: CheckinResult }
   | { kind: 'error'; message: string }
   | null;
 
@@ -225,6 +234,27 @@ export default function CheckinPage() {
     }
   }
 
+  async function undoLast(ticketId: string) {
+    if (!orgId || !eventId) return;
+    setBusy(true);
+    try {
+      const result = await apiFetch<CheckinResult>(
+        `/v1/organizations/${orgId}/events/${eventId}/checkin/undo`,
+        { method: 'POST', json: { ticketId } },
+      );
+      setOutcome({ kind: 'undone', result });
+      void refreshStats();
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? prettify(err)
+          : (err as Error).message ?? 'Could not undo.';
+      setOutcome({ kind: 'error', message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function prettify(err: ApiError): string {
     try {
       const parsed = JSON.parse(err.message) as { detail?: string };
@@ -337,9 +367,33 @@ export default function CheckinPage() {
             ) : !outcome ? (
               <p className="text-sm text-ink-muted">Waiting for a scan.</p>
             ) : outcome.kind === 'success' ? (
-              <ScanResult tone="success" result={outcome.result} title="Checked in" />
+              <>
+                <ScanResult tone="success" result={outcome.result} title="Checked in" />
+                <UndoButton
+                  disabled={busy}
+                  onUndo={() => void undoLast(outcome.result.id)}
+                />
+              </>
             ) : outcome.kind === 'duplicate' ? (
-              <ScanResult tone="warm" result={outcome.result} title="Already checked in" />
+              <>
+                <ScanResult tone="warm" result={outcome.result} title="Already checked in" />
+                <UndoButton
+                  disabled={busy}
+                  onUndo={() => void undoLast(outcome.result.id)}
+                />
+              </>
+            ) : outcome.kind === 'undone' ? (
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-surface-border text-ink-secondary">
+                  <ArrowLeft className="h-4 w-4" />
+                </span>
+                <div>
+                  <div className="text-sm font-semibold text-ink-primary">Check-in undone</div>
+                  <div className="mt-1 text-sm text-ink-secondary">
+                    {outcome.result.holderName} is no longer checked in.
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#FF7675]/15 text-[#FF9090]">
@@ -393,7 +447,45 @@ function CheckinStatsCard({ stats }: { stats: CheckinStats | null }) {
       <div className="mt-1.5 text-[11px] text-ink-muted">
         {remaining === 0 ? 'Everyone is in' : `${remaining} still to arrive`}
       </div>
+
+      {stats.tiers.length > 1 && (
+        <div className="mt-3 space-y-2 border-t border-surface-border pt-3">
+          <div className="text-[10px] uppercase tracking-wider text-ink-muted">By tier</div>
+          {stats.tiers.map((t) => {
+            const tpct = t.issued ? Math.round((t.checkedIn / t.issued) * 100) : 0;
+            return (
+              <div key={t.tierId}>
+                <div className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="truncate text-ink-secondary">{t.name}</span>
+                  <span className="flex-none font-semibold text-ink-primary">
+                    {t.checkedIn}/{t.issued}
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-border">
+                  <div
+                    className="h-full rounded-full bg-brand-400 transition-all duration-500"
+                    style={{ width: `${tpct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
+  );
+}
+
+function UndoButton({ disabled, onUndo }: { disabled: boolean; onUndo: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onUndo}
+      className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface-deep/40 px-3 py-1.5 text-xs font-semibold text-ink-secondary transition hover:border-[#FF7675]/40 hover:text-[#FF9090] disabled:opacity-50"
+    >
+      <ArrowLeft className="h-3.5 w-3.5" /> Undo check-in
+    </button>
   );
 }
 
