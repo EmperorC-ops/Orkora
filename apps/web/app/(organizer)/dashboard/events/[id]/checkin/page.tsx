@@ -83,11 +83,25 @@ export default function CheckinPage() {
   async function startScanner() {
     setScannerError(null);
     if (!videoRef.current) return;
-    try {
-      const QrScannerModule = await import('qr-scanner');
-      const QrScanner = QrScannerModule.default;
-      const scanner = new QrScanner(
-        videoRef.current,
+    const video = videoRef.current;
+
+    const QrScannerModule = await import('qr-scanner');
+    const QrScanner = QrScannerModule.default;
+
+    // If the device has no camera at all (common on a desktop PC), say so
+    // plainly instead of a generic "could not access" so the operator knows to
+    // switch to a phone or use the paste-a-token fallback below.
+    const hasCamera = await QrScanner.hasCamera().catch(() => false);
+    if (!hasCamera) {
+      setScannerError(
+        'No camera found on this device. Open this check-in page on a phone or tablet, or paste a ticket token below.',
+      );
+      return;
+    }
+
+    const build = (preferredCamera: 'environment' | 'user') =>
+      new QrScanner(
+        video,
         (r) => {
           handleScan(typeof r === 'string' ? r : r.data);
         },
@@ -95,13 +109,32 @@ export default function CheckinPage() {
           highlightScanRegion: true,
           highlightCodeOutline: true,
           maxScansPerSecond: 4,
+          preferredCamera,
         },
       );
+
+    // Prefer the rear ('environment') camera for scanning at a door, but many
+    // laptops only have a front ('user') camera, and qr-scanner reports
+    // "Camera not found." when the preferred facing mode cannot be satisfied.
+    // Fall back to the front camera before giving up.
+    try {
+      const scanner = build('environment');
+      await scanner.start();
+      scannerRef.current = scanner;
+      setScanning(true);
+      return;
+    } catch {
+      scannerRef.current?.destroy();
+      scannerRef.current = null;
+    }
+    try {
+      const scanner = build('user');
       await scanner.start();
       scannerRef.current = scanner;
       setScanning(true);
     } catch (err) {
-      // qr-scanner can reject with an Error OR a plain string, so normalize.
+      scannerRef.current?.destroy();
+      scannerRef.current = null;
       const detail =
         err instanceof Error ? err.message : typeof err === 'string' ? err : '';
       setScannerError(
