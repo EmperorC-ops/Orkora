@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { RegistrationsService } from './registrations.service';
 import type { RegisterAttendeesDto } from './dto/registration.dto';
 
@@ -276,5 +280,99 @@ describe('RegistrationsService.register group minimum', () => {
     await expect(
       svc.register('TESTCODE', dto({ attendees: four, paymentMethod: 'free' })),
     ).resolves.toBeDefined();
+  });
+});
+
+describe('RegistrationsService.checkInByCode', () => {
+  const evt = { id: 'evt1' };
+  function makeTicket(over: Record<string, unknown> = {}) {
+    return {
+      id: 't1',
+      code: 'AB12CD',
+      holderName: 'Jason Cole',
+      status: 'issued',
+      checkedInAt: null,
+      tier: { name: 'General' },
+      registration: { event: { id: 'evt1' } },
+      ...over,
+    };
+  }
+
+  it('404s when no ticket has that code for the event', async () => {
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const svc = makeSvc(prisma);
+    await expect(svc.checkInByCode('org1', 'evt1', 'nope')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('404s when the ticket belongs to a different event', async () => {
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(makeTicket({ registration: { event: { id: 'other' } } })),
+      },
+    };
+    const svc = makeSvc(prisma);
+    await expect(svc.checkInByCode('org1', 'evt1', 'AB12CD')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('checks in a valid ticket, normalizing the typed code', async () => {
+    const findUnique = jest.fn().mockResolvedValue(makeTicket());
+    const update = jest.fn().mockResolvedValue({
+      id: 't1',
+      code: 'AB12CD',
+      holderName: 'Jason Cole',
+      status: 'checked_in',
+      checkedInAt: new Date(),
+      tier: { name: 'General' },
+    });
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: { findUnique, update },
+    };
+    const svc = makeSvc(prisma);
+    // Lowercase with a stray space/dash: the service should normalize to AB12CD.
+    const out = await svc.checkInByCode('org1', 'evt1', ' ab-12cd ');
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { code: 'AB12CD' } }),
+    );
+    expect(out.alreadyCheckedIn).toBe(false);
+    expect(out.status).toBe('checked_in');
+  });
+
+  it('is idempotent: an already checked-in ticket returns alreadyCheckedIn', async () => {
+    const update = jest.fn();
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(makeTicket({ status: 'checked_in', checkedInAt: new Date() })),
+        update,
+      },
+    };
+    const svc = makeSvc(prisma);
+    const out = await svc.checkInByCode('org1', 'evt1', 'AB12CD');
+    expect(out.alreadyCheckedIn).toBe(true);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a refunded (void) ticket', async () => {
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      ticket: { findUnique: jest.fn().mockResolvedValue(makeTicket({ status: 'void' })) },
+    };
+    const svc = makeSvc(prisma);
+    await expect(svc.checkInByCode('org1', 'evt1', 'AB12CD')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

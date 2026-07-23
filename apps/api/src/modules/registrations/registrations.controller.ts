@@ -151,6 +151,17 @@ export class CheckinController {
     return this.service.checkIn(orgId, eventId, body.qrToken);
   }
 
+  // Manual check-in by the short ticket code, for when no camera is available.
+  @Post('by-code')
+  @Roles('staff')
+  checkInByCode(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Body() body: { code: string },
+  ) {
+    return this.service.checkInByCode(orgId, eventId, body.code);
+  }
+
   @Get('stats')
   @Roles('staff')
   stats(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {

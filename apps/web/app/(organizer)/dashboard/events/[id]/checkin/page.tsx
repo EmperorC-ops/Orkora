@@ -187,6 +187,39 @@ export default function CheckinPage() {
     }
   }
 
+  // Manual entry accepts either the short ticket code (typed by hand) or a full
+  // signed QR token (base64url.base64url, which contains a dot). Route by shape.
+  function submitManual(raw: string) {
+    const value = raw.trim();
+    if (!value) return;
+    if (value.includes('.')) void submit(value);
+    else void submitByCode(value);
+  }
+
+  async function submitByCode(code: string) {
+    if (!orgId || !eventId) return;
+    setBusy(true);
+    setOutcome(null);
+    try {
+      const result = await apiFetch<CheckinResult>(
+        `/v1/organizations/${orgId}/events/${eventId}/checkin/by-code`,
+        { method: 'POST', json: { code } },
+      );
+      setOutcome({
+        kind: result.alreadyCheckedIn ? 'duplicate' : 'success',
+        result,
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? prettify(err)
+          : (err as Error).message ?? 'Check-in failed.';
+      setOutcome({ kind: 'error', message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function prettify(err: ApiError): string {
     try {
       const parsed = JSON.parse(err.message) as { detail?: string };
@@ -253,29 +286,37 @@ export default function CheckinPage() {
             )}
           </div>
 
-          <details className="mt-6 rounded-xl border border-surface-border bg-surface-deep/40 p-4">
+          <details className="mt-6 rounded-xl border border-surface-border bg-surface-deep/40 p-4" open>
             <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-ink-muted">
-              Or paste a token
+              Or enter a ticket code
             </summary>
-            <div className="mt-3 flex gap-2">
+            <p className="mt-2 text-xs text-ink-muted">
+              Type the short code printed on the ticket (for example AB12CD). No camera needed.
+            </p>
+            <form
+              className="mt-3 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitManual(manualToken);
+                setManualToken('');
+              }}
+            >
               <input
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value)}
-                placeholder="Paste qrToken from a ticket"
-                className="flex-1 rounded-lg border border-surface-border bg-surface-deep/60 px-3 py-2 text-sm text-ink-primary placeholder-ink-muted outline-none focus:border-brand-500"
+                placeholder="Ticket code"
+                autoCapitalize="characters"
+                autoComplete="off"
+                className="flex-1 rounded-lg border border-surface-border bg-surface-deep/60 px-3 py-2 text-sm uppercase tracking-wider text-ink-primary placeholder-ink-muted outline-none focus:border-brand-500"
               />
               <button
-                type="button"
+                type="submit"
                 disabled={!manualToken || busy}
-                onClick={() => {
-                  void submit(manualToken.trim());
-                  setManualToken('');
-                }}
                 className="rounded-lg bg-brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 Check in
               </button>
-            </div>
+            </form>
           </details>
         </div>
 

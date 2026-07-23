@@ -498,6 +498,22 @@ export class RegistrationsService {
     if (ticket.registration.event.id !== event.id) {
       throw new BadRequestException('Ticket does not belong to this event');
     }
+    return this.applyCheckIn(ticket);
+  }
+
+  /**
+   * Shared check-in settlement: validate the ticket lifecycle status, no-op if
+   * already checked in, otherwise flip it to checked_in. Used by both the
+   * QR-token path (checkIn) and the manual ticket-code path (checkInByCode).
+   */
+  private async applyCheckIn(ticket: {
+    id: string;
+    code: string;
+    holderName: string;
+    status: string;
+    checkedInAt: Date | null;
+    tier: { name: string };
+  }) {
     if (ticket.status === 'cancelled') {
       throw new BadRequestException('Ticket is cancelled');
     }
@@ -536,6 +552,35 @@ export class RegistrationsService {
       checkedInAt: updated.checkedInAt,
       alreadyCheckedIn: false,
     };
+  }
+
+  /**
+   * Manual check-in by the short human ticket code printed on the ticket, for
+   * when no camera is available. Same tenancy and lifecycle rules as the QR
+   * path. The code is normalized (whitespace/dashes stripped, uppercased)
+   * since it is typed by hand.
+   */
+  async checkInByCode(orgId: string, eventId: string, rawCode: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const code = (rawCode ?? '').replace(/[\s-]/g, '').toUpperCase();
+    if (!code) throw new BadRequestException('Enter a ticket code');
+
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { code },
+      include: {
+        tier: true,
+        registration: { include: { event: { select: { id: true } } } },
+      },
+    });
+    if (!ticket || ticket.registration.event.id !== event.id) {
+      throw new NotFoundException('No ticket with that code for this event');
+    }
+    return this.applyCheckIn(ticket);
   }
 
   async getCheckinStats(orgId: string, eventId: string) {
