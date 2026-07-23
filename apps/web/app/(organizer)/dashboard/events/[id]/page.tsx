@@ -16,6 +16,7 @@ import {
   Pencil,
   Plus,
   Radio,
+  Sparkles,
   Tag,
   Trash2,
   Users,
@@ -208,6 +209,12 @@ export default function EventDetailPage() {
                 idleIcon={<Copy className="h-4 w-4" />}
                 onError={(m) => toast.error('Could not copy', m)}
               />
+              <Link
+                href={`/dashboard/events/${id}/story`}
+                className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100"
+              >
+                <Sparkles className="h-4 w-4" /> Story Mode
+              </Link>
               <Link
                 href={`/dashboard/events/${id}/registrations`}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

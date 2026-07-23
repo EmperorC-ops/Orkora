@@ -19,8 +19,14 @@ import {
   ReorderTicketTiersDto,
   UpdateEventDto,
   UpdateSessionDto,
+  UpdateStoryDto,
   UpdateTicketTierDto,
 } from './dto/event.dto';
+import {
+  STORY_TEMPLATES,
+  StoryCompositionSchema,
+  hasVisibleTicketsBlock,
+} from './story.schema';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // omit confusing chars
 const SAFE_STATUS: EventStatus[] = ['draft', 'published', 'live', 'ended', 'archived'];
@@ -309,6 +315,68 @@ export class EventsService {
       },
     });
     return this.serializeEvent(event);
+  }
+
+  // -------- Story Mode --------
+
+  /**
+   * Save an event's Story Mode composition (blocks + optional template). The
+   * one hard rule: a visible tickets block must exist, because "every event
+   * page needs a way to buy tickets" (D2). Deep block shape is validated by the
+   * composition schema; per-block data is stored as-is and read defensively by
+   * the renderer.
+   */
+  async updateStory(orgId: string, eventId: string, dto: UpdateStoryDto) {
+    const existing = await this.assertEventInOrg(orgId, eventId);
+
+    const parsed = StoryCompositionSchema.safeParse(dto.blocks);
+    if (!parsed.success) {
+      throw new BadRequestException('Invalid story composition');
+    }
+    if (!hasVisibleTicketsBlock(parsed.data)) {
+      throw new BadRequestException('Every event page needs a way to buy tickets.');
+    }
+
+    const template =
+      dto.template && (STORY_TEMPLATES as readonly string[]).includes(dto.template)
+        ? dto.template
+        : existing.storyTemplate;
+
+    return this.serializeEvent(
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: {
+          storyBlocks: parsed.data as unknown as Prisma.InputJsonValue,
+          storyTemplate: template,
+        },
+      }),
+    );
+  }
+
+  /** Flip the event to the Story Mode renderer. Requires a valid composition. */
+  async publishStory(orgId: string, eventId: string) {
+    const existing = await this.assertEventInOrg(orgId, eventId);
+    const parsed = StoryCompositionSchema.safeParse(existing.storyBlocks);
+    if (!parsed.success || !hasVisibleTicketsBlock(parsed.data)) {
+      throw new BadRequestException('Compose a story with a tickets block before publishing.');
+    }
+    return this.serializeEvent(
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { storyPublishedAt: new Date() },
+      }),
+    );
+  }
+
+  /** Revert to the classic layout without discarding the composition. */
+  async unpublishStory(orgId: string, eventId: string) {
+    await this.assertEventInOrg(orgId, eventId);
+    return this.serializeEvent(
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { storyPublishedAt: null },
+      }),
+    );
   }
 
   async publish(orgId: string, eventId: string) {

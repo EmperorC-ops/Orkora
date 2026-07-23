@@ -28,6 +28,7 @@ import {
   ReorderTicketTiersDto,
   UpdateEventDto,
   UpdateSessionDto,
+  UpdateStoryDto,
   UpdateTicketTierDto,
 } from './dto/event.dto';
 
@@ -121,6 +122,32 @@ export class OrganizerEventsController {
   @Roles('owner', 'admin')
   archive(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
     return this.events.archive(orgId, eventId);
+  }
+
+  // ---- Story Mode ----
+
+  @Patch(':eventId/story')
+  @Roles('owner', 'admin', 'organizer')
+  updateStory(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Body() dto: UpdateStoryDto,
+  ) {
+    return this.events.updateStory(orgId, eventId, dto);
+  }
+
+  @Post(':eventId/story/publish')
+  @HttpCode(200)
+  @Roles('owner', 'admin', 'organizer')
+  publishStory(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
+    return this.events.publishStory(orgId, eventId);
+  }
+
+  @Post(':eventId/story/unpublish')
+  @HttpCode(200)
+  @Roles('owner', 'admin', 'organizer')
+  unpublishStory(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
+    return this.events.unpublishStory(orgId, eventId);
   }
 
   @Delete(':eventId')

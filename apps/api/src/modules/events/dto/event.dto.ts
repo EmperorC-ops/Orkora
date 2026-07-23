@@ -94,6 +94,18 @@ export class UpdateEventDto {
   theme?: Record<string, unknown>;
 }
 
+// === Story Mode ===
+
+export class UpdateStoryDto {
+  @IsOptional()
+  @IsEnum(['classic', 'editorial', 'cinematic', 'underground', 'runway'])
+  template?: string;
+
+  // Deep shape validated in the service via the Story composition zod schema.
+  @IsArray()
+  blocks!: unknown[];
+}
+
 // === Sessions / Tracks / Speakers ===
 
 export class CreateTrackDto {
