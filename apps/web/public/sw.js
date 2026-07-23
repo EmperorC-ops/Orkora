@@ -53,7 +53,10 @@
 // gradient-square + Orkora wordmark even after Vercel ships the lockup.
 // v4 2026-07-07: cacheFirst no longer synthesizes 503s for failed script
 // fetches (broke hydration when fetch(req) threw); clean-URL retry added.
-const VERSION = 'orkora-v4-2026-07-07';
+// v5 2026-07-23: flush caches so installs pick up the CSP change that lets the
+// QR check-in scanner worker run (worker-src blob:). Old cached page shells
+// carried the pre-fix CSP and kept the scanner blocked.
+const VERSION = 'orkora-v5-2026-07-23';
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
