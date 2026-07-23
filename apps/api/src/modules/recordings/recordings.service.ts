@@ -232,7 +232,7 @@ export class RecordingsService {
       title: recording.title,
       source: recording.source,
       durationSec: recording.durationSec,
-      playbackUrl: this.playbackUrlFor(recording),
+      playbackUrl: await this.playbackUrlFor(recording),
     };
   }
 
@@ -336,24 +336,24 @@ export class RecordingsService {
     }
   }
 
-  private playbackUrlFor(recording: {
+  private async playbackUrlFor(recording: {
     source: string;
     url: string | null;
     storageKey: string | null;
-  }): string {
+  }): Promise<string> {
     if (recording.source === 'link') {
       if (!recording.url) {
         throw new NotFoundException('This recording has no playable source.');
       }
       return recording.url;
     }
-    // Uploaded recordings live in the public-read R2 media bucket, so we hand
-    // back the public URL derived from S3_PUBLIC_BASE_URL. No per-object
-    // signing is needed while the bucket serves objects publicly.
+    // Uploaded recordings: when a private recordings bucket is configured,
+    // recordingPlaybackUrl returns a short-lived signed URL so a leaked link
+    // expires. Otherwise it falls back to the public media URL (best-effort).
     if (!recording.storageKey) {
       throw new NotFoundException('This recording has no playable source.');
     }
-    return this.storage.publicUrlFor(recording.storageKey);
+    return this.storage.recordingPlaybackUrl(recording.storageKey);
   }
 
   private shapeForOrganizer(

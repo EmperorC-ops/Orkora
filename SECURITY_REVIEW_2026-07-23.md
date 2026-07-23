@@ -20,7 +20,7 @@ patterns.
 
 | ID | Severity | Area | Status |
 | -- | -------- | ---- | ------ |
-| R-1 | Medium | Recordings: gated uploads served from a public bucket | Open, remediation below |
+| R-1 | Medium | Recordings: gated uploads served from a public bucket | Fixed in code; needs `S3_BUCKET_RECORDINGS` set in prod |
 | D-1 | Low | Discounts: percent value had no app-layer ceiling | Fixed in this pass |
 | Notes | Info | Enumeration / brute-force surface | Accepted (throttled, high-entropy) |
 
@@ -58,6 +58,21 @@ Remediation options (pick per how sensitive recordings are):
    consistent.
 
 Recommended: option 1 for uploads before promoting recordings to paid tiers.
+
+Status update (implemented): option 1 is now in the code. `StorageService`
+supports an optional private recordings bucket via `S3_BUCKET_RECORDINGS`. When
+set, recording uploads go to that bucket (created without the public-read
+policy), and `resolvePlayback` returns a short-lived signed GET URL (6h) instead
+of a public URL, so a shared link expires. When the env var is unset the
+behavior is unchanged (recordings use the public media bucket), so this is
+non-breaking. To activate in production:
+1. Create a private R2 bucket (do NOT attach a public-read policy or custom
+   public domain to it).
+2. Set `S3_BUCKET_RECORDINGS=<that bucket>` on the API service and restart.
+3. Re-upload any recordings created before the switch (older objects live in
+   the public media bucket; the app does not migrate them automatically).
+`link` recordings still point at whatever URL the organizer supplied, so an
+unlisted YouTube/Vimeo link remains best-effort by nature.
 
 ## D-1 (Low) Discount percent had no application-layer upper bound (fixed)
 

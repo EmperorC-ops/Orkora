@@ -32,6 +32,9 @@ function makePrisma(over: Record<string, unknown> = {}) {
 function makeStorage() {
   return {
     publicUrlFor: jest.fn((key: string) => `https://cdn.test/${key}`),
+    // Mirrors the no-private-bucket fallback: returns the public URL. When a
+    // private bucket is configured the real method returns a signed URL.
+    recordingPlaybackUrl: jest.fn(async (key: string) => `https://cdn.test/${key}`),
   } as never;
 }
 

@@ -55,6 +55,10 @@ export const envSchema = z.object({
   AWS_REGION: z.string().default('eu-west-1'),
   S3_BUCKET_MEDIA: z.string().optional(),
   S3_BUCKET_EXPORTS: z.string().optional(),
+  // Optional PRIVATE bucket for gated recordings. When set, uploaded
+  // recordings go here (no public-read policy) and play back via short-lived
+  // signed URLs. When unset, recordings use the public media bucket.
+  S3_BUCKET_RECORDINGS: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),

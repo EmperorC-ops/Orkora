@@ -53,10 +53,16 @@ export class UploadsService {
     if (!ext) throw new BadRequestException('Could not infer file extension');
 
     const key = `${input.kind}s/${input.userId}/${randomUUID()}.${ext}`;
+    // Gated recordings go to the private recordings bucket when one is
+    // configured; everything else (and recordings when no private bucket is
+    // set) uses the default public media bucket.
+    const bucket =
+      input.kind === 'recording' ? this.storage.recordingsBucketName ?? undefined : undefined;
     const { uploadUrl, publicUrl } = await this.storage.presignUpload({
       key,
       contentType: input.contentType,
       contentLength: input.sizeBytes,
+      bucket,
     });
     return {
       key,

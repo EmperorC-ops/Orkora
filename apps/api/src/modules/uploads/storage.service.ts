@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   PutBucketPolicyCommand,
   PutObjectCommand,
@@ -24,6 +25,14 @@ export class StorageService implements OnModuleInit {
   private readonly client: S3Client | null;
   private readonly bucket: string | null;
   private readonly publicBaseUrl: string | null;
+  /**
+   * Optional PRIVATE bucket for gated recordings. When set (and distinct from
+   * the public media bucket), uploaded recordings land here with no public-read
+   * policy and are served via short-lived signed GET URLs, so a leaked URL
+   * expires instead of granting permanent access. When unset, recordings fall
+   * back to the public media bucket (best-effort gating, the pre-fix behavior).
+   */
+  private readonly recordingsBucket: string | null;
 
   constructor(cfg: ConfigService) {
     const endpoint = cfg.get<string>('S3_ENDPOINT');
@@ -33,6 +42,7 @@ export class StorageService implements OnModuleInit {
     const forcePathStyle = cfg.get<boolean>('S3_FORCE_PATH_STYLE') ?? true;
     this.bucket = cfg.get<string>('S3_BUCKET_MEDIA') ?? null;
     this.publicBaseUrl = cfg.get<string>('S3_PUBLIC_BASE_URL') ?? null;
+    this.recordingsBucket = cfg.get<string>('S3_BUCKET_RECORDINGS') ?? null;
 
     if (!endpoint || !accessKeyId || !secretAccessKey || !this.bucket) {
       this.logger.warn(
@@ -60,9 +70,32 @@ export class StorageService implements OnModuleInit {
     return this.client !== null && this.bucket !== null;
   }
 
+  /**
+   * True when a dedicated private recordings bucket is configured (and it is
+   * not just the public media bucket). Recordings then upload to it and are
+   * played back through signed, expiring URLs.
+   */
+  get recordingsPrivate(): boolean {
+    return (
+      this.client !== null &&
+      this.recordingsBucket !== null &&
+      this.recordingsBucket !== this.bucket
+    );
+  }
+
+  /** The bucket recording uploads should target, or null to use the default. */
+  get recordingsBucketName(): string | null {
+    return this.recordingsPrivate ? this.recordingsBucket : null;
+  }
+
   async onModuleInit(): Promise<void> {
     if (!this.client || !this.bucket) return;
-    await this.ensureBucket(this.bucket);
+    await this.ensureBucket(this.bucket, { publicRead: true });
+    // A dedicated recordings bucket must stay PRIVATE (no public-read policy),
+    // otherwise the signed-URL gating would be pointless.
+    if (this.recordingsPrivate && this.recordingsBucket) {
+      await this.ensureBucket(this.recordingsBucket, { publicRead: false });
+    }
   }
 
   /**
@@ -82,12 +115,21 @@ export class StorageService implements OnModuleInit {
      */
     contentLength?: number;
     expiresIn?: number;
-  }): Promise<{ uploadUrl: string; publicUrl: string }> {
+    /**
+     * Target bucket. Defaults to the public media bucket. Callers pass the
+     * private recordings bucket for gated video. When the target is not the
+     * public media bucket we return `publicUrl: null` because a private object
+     * has no reachable public URL (playback uses a signed URL instead).
+     */
+    bucket?: string;
+  }): Promise<{ uploadUrl: string; publicUrl: string | null }> {
     if (!this.client || !this.bucket) {
       throw new Error('Storage is not configured');
     }
+    const targetBucket = input.bucket ?? this.bucket;
+    const isPublicBucket = targetBucket === this.bucket;
     const cmd = new PutObjectCommand({
-      Bucket: this.bucket,
+      Bucket: targetBucket,
       Key: input.key,
       ContentType: input.contentType,
       // When the caller declares an exact size, embed it as ContentLength
@@ -107,7 +149,48 @@ export class StorageService implements OnModuleInit {
       signableHeaders:
         input.contentLength !== undefined ? new Set(['content-length']) : undefined,
     });
-    return { uploadUrl, publicUrl: this.publicUrlFor(input.key) };
+    return {
+      uploadUrl,
+      publicUrl: isPublicBucket ? this.publicUrlFor(input.key) : null,
+    };
+  }
+
+  /**
+   * Presigned GET URL for a private object, valid for a short window. Used to
+   * play back gated recordings that live in the private recordings bucket, so a
+   * shared link stops working once the URL expires.
+   */
+  async getSignedDownloadUrl(input: {
+    key: string;
+    bucket?: string;
+    expiresIn?: number;
+  }): Promise<string> {
+    if (!this.client || !this.bucket) {
+      throw new Error('Storage is not configured');
+    }
+    const cmd = new GetObjectCommand({
+      Bucket: input.bucket ?? this.bucket,
+      Key: input.key,
+    });
+    return getSignedUrl(this.client, cmd, {
+      expiresIn: input.expiresIn ?? 60 * 60 * 6, // 6 hours
+    });
+  }
+
+  /**
+   * Resolve the playback URL for an uploaded recording. When a private
+   * recordings bucket is configured we hand back a short-lived signed URL;
+   * otherwise we fall back to the public media URL (the pre-fix behavior, which
+   * gates only at hand-out time).
+   */
+  async recordingPlaybackUrl(storageKey: string): Promise<string> {
+    if (this.recordingsPrivate && this.recordingsBucket) {
+      return this.getSignedDownloadUrl({
+        key: storageKey,
+        bucket: this.recordingsBucket,
+      });
+    }
+    return this.publicUrlFor(storageKey);
   }
 
   publicUrlFor(key: string): string {
@@ -140,19 +223,28 @@ export class StorageService implements OnModuleInit {
     );
   }
 
-  private async ensureBucket(name: string): Promise<void> {
+  private async ensureBucket(
+    name: string,
+    opts: { publicRead: boolean } = { publicRead: true },
+  ): Promise<void> {
     if (!this.client) return;
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: name }));
-      this.logger.log(`Media bucket ${name} is reachable`);
+      this.logger.log(`Bucket ${name} is reachable`);
     } catch {
-      this.logger.log(`Creating media bucket ${name}`);
+      this.logger.log(`Creating bucket ${name}`);
       try {
         await this.client.send(new CreateBucketCommand({ Bucket: name }));
       } catch (err) {
-        this.logger.warn({ err }, `Could not create media bucket ${name}`);
+        this.logger.warn({ err }, `Could not create bucket ${name}`);
         return;
       }
+    }
+    // A private bucket (recordings) gets no public-read policy, so its objects
+    // are only reachable via signed URLs.
+    if (!opts.publicRead) {
+      this.logger.log(`Bucket ${name} kept private (signed-URL access only)`);
+      return;
     }
     // Public-read policy so direct image URLs render without per-object
     // signing. Only object reads are public; uploads still require a
