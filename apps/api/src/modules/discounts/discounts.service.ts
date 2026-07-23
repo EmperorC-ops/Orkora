@@ -107,6 +107,12 @@ export class DiscountsService {
 
   async createCode(orgId: string, eventId: string, dto: CreateDiscountCodeDto) {
     await this.assertEventInOrg(orgId, eventId);
+    // A percentage must be 1..100. The DB has a CHECK constraint too, but we
+    // enforce it here so an out-of-range value returns a clean 400 instead of
+    // surfacing a raw database error as a 500.
+    if (dto.kind === 'percent' && (dto.value < 1 || dto.value > 100)) {
+      throw new BadRequestException('A percentage discount must be between 1 and 100.');
+    }
     const code = dto.code.trim().toUpperCase();
     // Fixed codes keep their currency (uppercased) when supplied, else null,
     // which means the code applies to any currency. Percent codes never carry
@@ -151,6 +157,12 @@ export class DiscountsService {
     if (!existing) throw new NotFoundException('Discount code not found');
 
     const nextKind = dto.kind ?? existing.kind;
+    const nextValue = dto.value ?? existing.value;
+    // Re-check the percentage ceiling against the effective (post-patch) values
+    // so a code cannot be edited into an out-of-range percentage.
+    if (nextKind === 'percent' && (nextValue < 1 || nextValue > 100)) {
+      throw new BadRequestException('A percentage discount must be between 1 and 100.');
+    }
     // Recompute currency when either the kind or currency changes so a code
     // flipped to 'percent' never keeps a stale currency.
     let currency: string | null | undefined;
