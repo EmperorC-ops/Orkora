@@ -193,6 +193,9 @@ model Event {
   bannerUrl       String?  @map("banner_url")
   theme           Json     @default("{}")
   status          String   @default("draft")
+  storyBlocks     Json     @default("[]") @map("story_blocks")
+  storyTemplate   String   @default("classic") @map("story_template")
+  storyPublishedAt DateTime? @map("story_published_at") @db.Timestamptz
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

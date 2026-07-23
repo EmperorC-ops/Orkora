@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
+import { usesStoryMode, type StoryBlock } from '@/lib/story';
+import StoryRenderer from './StoryRenderer';
 import InstallPrompt from '../../../_components/InstallPrompt';
 import FeedbackForm from '../../../_components/FeedbackForm';
 
@@ -59,6 +61,9 @@ interface PublicEvent {
   timezone: string;
   bannerUrl: string | null;
   status: 'draft' | 'published' | 'live' | 'ended' | 'archived';
+  storyBlocks?: StoryBlock[];
+  storyTemplate?: string;
+  storyPublishedAt?: string | null;
   organization: { name: string; logoUrl: string | null; brandColor: string | null; slug?: string };
   tracks?: PublicTrack[];
   sessions?: PublicSession[];
@@ -158,6 +163,26 @@ function groupSessionsByDay(sessions: PublicSession[], timeZone?: string) {
 export default async function PublicEventPage({ params }: { params: { code: string } }) {
   const event = await getEvent(params.code);
   if (!event) notFound();
+
+  // Story Mode: when an organiser has composed and published a story, render
+  // the block narrative instead of the classic form-first layout. Every other
+  // event falls through to the classic layout below, untouched.
+  if (usesStoryMode(event)) {
+    return (
+      <>
+        <InstallPrompt variant="banner" />
+        <StoryRenderer event={{ ...event, storyBlocks: event.storyBlocks ?? [] }} />
+        {(event.status === 'live' || event.status === 'ended') && (
+          <div className="mx-auto max-w-3xl px-6 pb-16">
+            <FeedbackForm
+              code={event.code}
+              sessions={(event.sessions ?? []).map((s) => ({ id: s.id, title: s.title }))}
+            />
+          </div>
+        )}
+      </>
+    );
+  }
 
   const start = new Date(event.startAt);
   const end = new Date(event.endAt);

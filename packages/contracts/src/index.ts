@@ -1,9 +1,13 @@
 import { z } from 'zod';
+import { StoryComposition } from './story-blocks';
 
 /**
  * Shared Zod schemas. Both API (Nest) and clients (Next, Expo) import from here.
  * If you change a shape, every TypeScript consumer breaks at compile time.
  */
+
+// Story Mode block contracts (event page composition).
+export * from './story-blocks';
 
 // ===== Enums =====
 
@@ -129,6 +133,9 @@ export const PublicEvent = z.object({
   bannerUrl: z.string().url().nullable(),
   theme: z.record(z.unknown()).default({}),
   status: EventStatus,
+  storyTemplate: z.string().default('classic'),
+  storyPublishedAt: z.string().nullable().optional(),
+  storyBlocks: StoryComposition.default([]),
   organization: z.object({
     name: z.string(),
     logoUrl: z.string().url().nullable().optional(),

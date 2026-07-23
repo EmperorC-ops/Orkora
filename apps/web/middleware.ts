@@ -72,6 +72,10 @@ function buildCsp(nonce: string): string {
     // default-src 'self' and are blocked.
     "media-src 'self' blob: https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://cdn.orkora.events",
     "font-src 'self' data:",
+    // frame-src covers Story Mode embeds: playlist providers (Spotify, Apple
+    // Music, SoundCloud, YouTube) and optional map embeds. Preset providers
+    // only; there is no arbitrary-iframe block in R1.
+    "frame-src 'self' https://open.spotify.com https://embed.music.apple.com https://w.soundcloud.com https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://maps.google.com https://www.openstreetmap.org",
     `connect-src 'self' ${apiOrigin} ${apiWsOrigin}`,
     `report-uri ${apiOrigin}/v1/csp-reports`,
   ].join('; ');

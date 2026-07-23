@@ -727,3 +727,19 @@ create table if not exists brand_subscribers (
 );
 create index if not exists brand_subscribers_org_created_idx
   on brand_subscribers (organization_id, created_at desc);
+
+-- ============================================================
+-- STORY MODE (migration 0011, folded in for fresh installs)
+-- ============================================================
+alter table events add column if not exists story_blocks       jsonb       not null default '[]'::jsonb;
+alter table events add column if not exists story_template     text        not null default 'classic';
+alter table events add column if not exists story_published_at timestamptz;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'events_story_template_check') then
+    alter table events
+      add constraint events_story_template_check
+      check (story_template in ('classic','editorial','cinematic','underground','runway'));
+  end if;
+end $$;

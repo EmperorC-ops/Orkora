@@ -47,6 +47,9 @@ export class EventsService {
         bannerUrl: true,
         theme: true,
         status: true,
+        storyBlocks: true,
+        storyTemplate: true,
+        storyPublishedAt: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
@@ -122,6 +125,9 @@ export class EventsService {
         bannerUrl: true,
         theme: true,
         status: true,
+        storyBlocks: true,
+        storyTemplate: true,
+        storyPublishedAt: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
