@@ -53,6 +53,12 @@ export class TicketsController {
   getByCode(@Param('code') code: string) {
     return this.service.getTicketByCode(code);
   }
+
+  // Safe share payload (no qrToken) for the shareable card + share landing page.
+  @Get(':code/share')
+  getShare(@Param('code') code: string) {
+    return this.service.getTicketShare(code);
+  }
 }
 
 /**

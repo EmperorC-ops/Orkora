@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, Calendar, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { registrationApi, type PublicTicket } from '@/lib/registration';
+import ShareActions from './ShareActions';
 
 export default function TicketPage() {
   const params = useParams<{ code: string }>();
@@ -90,6 +91,12 @@ export default function TicketPage() {
                 <p className="mt-3 font-mono text-[11px] text-slate-500">{ticket.code}</p>
               </div>
             </div>
+
+            <ShareActions
+              code={ticket.code}
+              eventCode={ticket.event.code}
+              eventTitle={ticket.event.title}
+            />
           </>
         )}
       </div>

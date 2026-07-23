@@ -454,6 +454,74 @@ export class RegistrationsService {
     return this.publicTicket(ticket);
   }
 
+  /**
+   * Safe, public share payload for a ticket. Powers the shareable card (OG
+   * image + share landing page). Deliberately excludes the signed qrToken and
+   * any check-in data, so a shared link cannot be used to admit anyone. Returns
+   * just enough to render a brand-styled "I am going" card.
+   */
+  async getTicketShare(code: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { code },
+      select: {
+        holderName: true,
+        registration: {
+          select: {
+            event: {
+              select: {
+                title: true,
+                code: true,
+                slug: true,
+                startAt: true,
+                endAt: true,
+                timezone: true,
+                bannerUrl: true,
+                status: true,
+                organization: {
+                  select: {
+                    name: true,
+                    slug: true,
+                    brandColor: true,
+                    logoUrl: true,
+                    status: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    const event = ticket.registration.event;
+    if (
+      event.status === 'draft' ||
+      event.status === 'archived' ||
+      event.organization.status === 'suspended'
+    ) {
+      throw new NotFoundException('Ticket not found');
+    }
+    const firstName = (ticket.holderName ?? '').trim().split(/\s+/)[0] ?? '';
+    return {
+      attendeeFirstName: firstName,
+      event: {
+        title: event.title,
+        code: event.code,
+        slug: event.slug,
+        orgSlug: event.organization.slug,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt.toISOString(),
+        timezone: event.timezone,
+        bannerUrl: event.bannerUrl,
+      },
+      brand: {
+        name: event.organization.name,
+        brandColor: event.organization.brandColor,
+        logoUrl: event.organization.logoUrl,
+      },
+    };
+  }
+
   async listMyTickets(userId: string) {
     const tickets = await this.prisma.ticket.findMany({
       where: { registration: { userId } },
