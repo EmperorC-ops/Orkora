@@ -79,3 +79,31 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @orkora/api exec prisma generate
       - run: pnpm build
+
+  # Dedicated web build gate. Runs `next build` on its own, independent of the
+  # test job, so a broken import or a page that fails to compile is caught by a
+  # clearly named, fast check even if the test suite is red or slow. This is the
+  # gate that would have caught the misplaced FeedbackForm import that silently
+  # failed every Vercel deploy from 5a72919 onward. Make it a REQUIRED status
+  # check in branch protection (see DEPLOY.md) so it blocks the merge.
+  web-build:
+    name: Build web (next build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      # Web does not need the Prisma client, but generating it is cheap and
+      # keeps shared type imports resolvable if that ever changes.
+      - run: pnpm --filter @orkora/api exec prisma generate
+      - run: pnpm --filter @orkora/web build
+        env:
+          # next build only needs these to exist; a broken import fails the
+          # build regardless of their values.
+          NEXT_PUBLIC_API_URL: https://api.orkora.events
+          NEXT_TELEMETRY_DISABLED: '1'

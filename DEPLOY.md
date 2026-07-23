@@ -290,12 +290,37 @@ Once everything is green:
 
 GitHub Actions workflows live under `.github/workflows/`:
 
-- `ci.yml` runs lint + typecheck + tests on every push and PR.
+- `ci.yml` runs lint + typecheck + tests, a full `turbo build`, and a
+  dedicated `Build web (next build)` job on every push and PR.
 - `deploy-api.yml` triggers Render's deploy hook on `main`.
 
 After step 4, copy the **Deploy Hook URL** from Render's `orkora-api`
 service into a GitHub repo secret named `RENDER_DEPLOY_HOOK_API`. The
 deploy workflow already references it. Vercel watches `main` directly.
+
+### 9.1 Make the web build block bad deploys (branch protection)
+
+Vercel deploys `main` on every push, independent of CI. That means a commit
+that fails `next build` (for example a moved/renamed file whose import path no
+longer resolves) is pushed and then fails to deploy silently, so production
+keeps serving the last good build while new work never ships. The
+`Build web (next build)` CI job catches this, but CI passing has to be a
+*requirement* to merge, otherwise a red check does not stop anything.
+
+Enable this once, in GitHub repo settings (Settings -> Branches -> Add branch
+ruleset / protection rule) for `main` and `staging`:
+
+1. Require a pull request before merging (stop pushing straight to `main`).
+2. Require status checks to pass before merging, and select these checks:
+   - `Lint, typecheck, test`
+   - `Build`
+   - `Build web (next build)`
+3. Require branches to be up to date before merging.
+
+With that in place, a broken import fails `Build web (next build)`, the PR
+cannot be merged, and the bad commit never reaches `main` (so Vercel never
+tries to deploy it). Optionally, in Vercel's Git settings you can also set an
+"Ignored Build Step" that only deploys when CI is green, as a second layer.
 
 ## 10. Observability
 
