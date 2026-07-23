@@ -556,6 +556,25 @@ export class RegistrationsService {
   }
 
   /**
+   * The name to display for an attendee. The ticket holder name is the name the
+   * person actually typed at registration ("Jason Cole"), so it wins. We only
+   * fall back to the account's full name (which the passwordless login seeds
+   * from the email local-part like "jason.cole"), and finally to the email
+   * local-part, when no holder name is available.
+   */
+  private displayAttendeeName(
+    holderName: string | null | undefined,
+    accountName: string | null | undefined,
+    email: string,
+  ): string {
+    const holder = holderName?.trim();
+    if (holder) return holder;
+    const account = accountName?.trim();
+    if (account) return account;
+    return email.split('@')[0] ?? email;
+  }
+
+  /**
    * Org-wide registrations list. Identical shape to listForOrgEvent but
    * spans every event the org owns. Filters: status, q (name/email),
    * eventId. Pagination via take/skip; capped at 200 per page.
@@ -576,6 +595,8 @@ export class RegistrationsService {
       where.OR = [
         { user: { email: { contains: query.q, mode: 'insensitive' } } },
         { user: { fullName: { contains: query.q, mode: 'insensitive' } } },
+        // Also match the name typed at registration (ticket holder name).
+        { tickets: { some: { holderName: { contains: query.q, mode: 'insensitive' } } } },
       ];
     }
 
@@ -604,7 +625,11 @@ export class RegistrationsService {
         createdAt: r.createdAt,
         user: {
           id: r.user.id,
-          fullName: r.user.fullName,
+          fullName: this.displayAttendeeName(
+            r.tickets.find((t) => t.holderName?.trim())?.holderName,
+            r.user.fullName,
+            r.user.email,
+          ),
           email: r.user.email,
           avatarUrl: r.user.avatarUrl,
         },
@@ -720,13 +745,48 @@ export class RegistrationsService {
       search,
     );
 
+    // The account name is often the email local-part; the name people actually
+    // typed at registration lives on their tickets. Fetch the most recent
+    // holder name per user on this page so the list shows the real name. Uses
+    // the Prisma query builder (not raw SQL) so the userId list binds safely.
+    const userIds = rows.map((r) => r.user_id);
+    const holderByUser = new Map<string, string>();
+    if (userIds.length > 0) {
+      const holderTickets = await this.prisma.ticket.findMany({
+        where: {
+          holderName: { not: '' },
+          registration: {
+            userId: { in: userIds },
+            event: { organizationId: orgId },
+          },
+        },
+        select: {
+          holderName: true,
+          registration: { select: { userId: true } },
+        },
+        orderBy: { issuedAt: 'desc' },
+      });
+      // orderBy issuedAt desc means the first row seen per user is the most
+      // recent; keep that one.
+      for (const t of holderTickets) {
+        const uid = t.registration.userId;
+        if (!holderByUser.has(uid) && t.holderName?.trim()) {
+          holderByUser.set(uid, t.holderName);
+        }
+      }
+    }
+
     return {
       total: Number(totalRow[0]?.count ?? 0),
       take,
       skip,
       rows: rows.map((r) => ({
         userId: r.user_id,
-        fullName: r.full_name,
+        fullName: this.displayAttendeeName(
+          holderByUser.get(r.user_id),
+          r.full_name,
+          r.email,
+        ),
         email: r.email,
         avatarUrl: r.avatar_url,
         eventsAttended: Number(r.events_attended),
@@ -793,8 +853,19 @@ export class RegistrationsService {
         (totalSpentByCurrency[o.currency] ?? 0) + Number(o.totalMinor);
     }
 
+    // Prefer the name typed at registration (ticket holder name) over the
+    // email-derived account name.
+    const holderName = registrations
+      .flatMap((r) => r.tickets)
+      .map((t) => t.holderName)
+      .find((n) => n?.trim());
+    const displayUser = {
+      ...user,
+      fullName: this.displayAttendeeName(holderName, user.fullName, user.email),
+    };
+
     return {
-      user,
+      user: displayUser,
       stats: {
         eventsAttended: new Set(registrations.map((r) => r.eventId)).size,
         ticketCount: registrations.reduce((s, r) => s + r.tickets.length, 0),
@@ -841,6 +912,8 @@ export class RegistrationsService {
       where.OR = [
         { user: { email: { contains: query.q, mode: 'insensitive' } } },
         { user: { fullName: { contains: query.q, mode: 'insensitive' } } },
+        // Also match the name typed at registration (ticket holder name).
+        { tickets: { some: { holderName: { contains: query.q, mode: 'insensitive' } } } },
       ];
     }
 
@@ -860,7 +933,11 @@ export class RegistrationsService {
       createdAt: r.createdAt,
       user: {
         id: r.user.id,
-        fullName: r.user.fullName,
+        fullName: this.displayAttendeeName(
+          r.tickets.find((t) => t.holderName?.trim())?.holderName,
+          r.user.fullName,
+          r.user.email,
+        ),
         email: r.user.email,
         avatarUrl: r.user.avatarUrl,
       },
