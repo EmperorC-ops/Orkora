@@ -101,9 +101,13 @@ export default function CheckinPage() {
       scannerRef.current = scanner;
       setScanning(true);
     } catch (err) {
+      // qr-scanner can reject with an Error OR a plain string, so normalize.
+      const detail =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : '';
       setScannerError(
-        (err as Error).message ??
-          'Could not access the camera. Allow camera permission and try again.',
+        detail
+          ? `Could not start the camera: ${detail}`
+          : 'Could not access the camera. Allow camera permission and try again.',
       );
     }
   }

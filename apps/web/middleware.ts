@@ -56,6 +56,11 @@ function buildCsp(nonce: string): string {
     "frame-ancestors 'none'",
     "form-action 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // The QR check-in scanner (qr-scanner) decodes frames in a Web Worker it
+    // spins up from a blob: URL. Without worker-src allowing blob:, the worker
+    // is blocked by default-src 'self' and the scanner fails to start with a
+    // generic "could not access the camera" error.
+    "worker-src 'self' blob:",
     // Style still needs 'unsafe-inline' because Tailwind-emitted style tags
     // in dev and some third-party components (notably react-day-picker)
     // inject inline styles without nonces. Style injection is a lower-risk
