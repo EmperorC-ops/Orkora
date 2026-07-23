@@ -699,3 +699,31 @@ create index if not exists recordings_session_idx on recordings (session_id);
 -- Q&A MODERATION (migration 0009, folded in for fresh installs)
 -- ============================================================
 alter table messages add column if not exists answered_at timestamptz;
+
+-- ============================================================
+-- BRAND HOME (migration 0010, folded in for fresh installs)
+-- ============================================================
+alter table organizations add column if not exists tagline         text;
+alter table organizations add column if not exists hero_variant    text not null default 'default';
+alter table organizations add column if not exists hero_media_url  text;
+alter table organizations add column if not exists hero_media_type text;
+alter table organizations add column if not exists hero_bio        text;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'organizations_hero_variant_check') then
+    alter table organizations
+      add constraint organizations_hero_variant_check
+      check (hero_variant in ('default','cinematic','editorial'));
+  end if;
+end $$;
+
+create table if not exists brand_subscribers (
+  id              uuid        primary key default uuidv7(),
+  organization_id uuid        not null references organizations(id) on delete cascade,
+  email           citext      not null,
+  created_at      timestamptz not null default now(),
+  unique (organization_id, email)
+);
+create index if not exists brand_subscribers_org_created_idx
+  on brand_subscribers (organization_id, created_at desc);

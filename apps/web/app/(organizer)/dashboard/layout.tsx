@@ -12,6 +12,7 @@ import {
   Mail,
   CreditCard,
   Settings,
+  Sparkles,
   Ticket,
   Users,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ const nav = [
   { href: '/dashboard/attendees', label: 'Attendees', Icon: Users },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart3 },
   { href: '/dashboard/campaigns', label: 'Campaigns', Icon: Mail },
+  { href: '/dashboard/branding', label: 'Brand Home', Icon: Sparkles },
   { href: '/dashboard/billing', label: 'Billing', Icon: CreditCard },
   { href: '/dashboard/settings', label: 'Settings', Icon: Settings },
 ] as const;

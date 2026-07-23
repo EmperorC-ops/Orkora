@@ -19,6 +19,12 @@ interface UpdateOrgInput {
   logoUrl?: string | null;
   brandColor?: string | null;
   countryCode?: string;
+  // Brand Home composer fields.
+  tagline?: string | null;
+  heroVariant?: string;
+  heroMediaUrl?: string | null;
+  heroMediaType?: string | null;
+  heroBio?: string | null;
 }
 
 const ALLOWED_ROLES = ['owner', 'admin', 'organizer', 'staff', 'vendor'] as const;
@@ -113,7 +119,19 @@ export class OrgsService {
   async getPublicBrand(slug: string) {
     const org = await this.prisma.organization.findUnique({
       where: { slug },
-      select: { id: true, name: true, slug: true, logoUrl: true, brandColor: true, status: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        logoUrl: true,
+        brandColor: true,
+        tagline: true,
+        heroVariant: true,
+        heroMediaUrl: true,
+        heroMediaType: true,
+        heroBio: true,
+        status: true,
+      },
     });
     if (!org || org.status === 'suspended') {
       throw new NotFoundException('Brand not found');
@@ -163,8 +181,62 @@ export class OrgsService {
       slug: org.slug,
       logoUrl: org.logoUrl,
       brandColor: org.brandColor,
+      tagline: org.tagline,
+      heroVariant: org.heroVariant,
+      heroMediaUrl: org.heroMediaUrl,
+      heroMediaType: org.heroMediaType,
+      heroBio: org.heroBio,
       upcoming,
       past,
+    };
+  }
+
+  /**
+   * Community subscribe from the public Brand Home. Idempotent per (org, email):
+   * a repeat submission is a no-op success so we never leak whether an email is
+   * already on the list. Rejected for suspended/unknown brands.
+   */
+  async subscribeToBrand(slug: string, rawEmail: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { slug },
+      select: { id: true, status: true },
+    });
+    if (!org || org.status === 'suspended') {
+      throw new NotFoundException('Brand not found');
+    }
+    const email = (rawEmail ?? '').trim().toLowerCase();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      throw new BadRequestException('Enter a valid email address.');
+    }
+    try {
+      await this.prisma.brandSubscriber.create({
+        data: { organizationId: org.id, email },
+      });
+    } catch {
+      // Unique-violation (already subscribed) or transient: treat as success so
+      // the form does not reveal membership and stays friendly.
+    }
+    return { status: 'subscribed' as const };
+  }
+
+  /**
+   * Organizer view of the brand audience: total count plus the most recent
+   * subscribers. Tenancy is the caller's org (enforced by RolesGuard on the
+   * route via the orgId param).
+   */
+  async listBrandSubscribers(orgId: string, take = 100) {
+    const [total, recent] = await Promise.all([
+      this.prisma.brandSubscriber.count({ where: { organizationId: orgId } }),
+      this.prisma.brandSubscriber.findMany({
+        where: { organizationId: orgId },
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(Math.max(take, 1), 500),
+        select: { email: true, createdAt: true },
+      }),
+    ]);
+    return {
+      total,
+      recent: recent.map((s) => ({ email: s.email, createdAt: s.createdAt.toISOString() })),
     };
   }
 
@@ -195,6 +267,11 @@ export class OrgsService {
         ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
         ...(input.brandColor !== undefined ? { brandColor: input.brandColor } : {}),
         ...(input.countryCode !== undefined ? { countryCode: input.countryCode } : {}),
+        ...(input.tagline !== undefined ? { tagline: input.tagline } : {}),
+        ...(input.heroVariant !== undefined ? { heroVariant: input.heroVariant } : {}),
+        ...(input.heroMediaUrl !== undefined ? { heroMediaUrl: input.heroMediaUrl } : {}),
+        ...(input.heroMediaType !== undefined ? { heroMediaType: input.heroMediaType } : {}),
+        ...(input.heroBio !== undefined ? { heroBio: input.heroBio } : {}),
       },
     });
 

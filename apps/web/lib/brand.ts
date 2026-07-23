@@ -17,8 +17,33 @@ export interface Brand {
   slug: string;
   logoUrl: string | null;
   brandColor: string | null;
+  tagline: string | null;
+  heroVariant: 'default' | 'cinematic' | 'editorial' | string;
+  heroMediaUrl: string | null;
+  heroMediaType: 'image' | 'video' | string | null;
+  heroBio: string | null;
   upcoming: BrandEvent[];
   past: BrandEvent[];
+}
+
+/** Community subscribe from the public Brand Home. Idempotent server-side. */
+export async function subscribeToBrand(
+  slug: string,
+  email: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${API}/v1/public/orgs/${encodeURIComponent(slug)}/subscribe`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**

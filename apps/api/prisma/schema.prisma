@@ -21,6 +21,12 @@ model Organization {
   name          String
   logoUrl       String?  @map("logo_url")
   brandColor    String?  @default("#6D28D9") @map("brand_color")
+  // Brand Home composer fields.
+  tagline       String?
+  heroVariant   String   @default("default") @map("hero_variant")
+  heroMediaUrl  String?  @map("hero_media_url")
+  heroMediaType String?  @map("hero_media_type")
+  heroBio       String?  @map("hero_bio")
   plan          String   @default("starter")
   // Platform lifecycle: "active" | "suspended". A super admin can suspend an
   // org from the platform console; suspended orgs are hidden from the public
@@ -40,8 +46,22 @@ model Organization {
   campaignSends       CampaignSend[]
   emailSuppressions   EmailSuppression[]
   eventFeedback       EventFeedback[]
+  brandSubscribers    BrandSubscriber[]
 
   @@map("organizations")
+}
+
+model BrandSubscriber {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  email          String   @db.Citext
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId, createdAt])
+  @@map("brand_subscribers")
 }
 
 model User {

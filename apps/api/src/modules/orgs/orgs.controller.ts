@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   IsHexColor,
   IsIn,
@@ -67,6 +68,35 @@ class UpdateOrgDto {
   @IsString()
   @Length(2, 2)
   countryCode?: string;
+
+  // Brand Home composer fields.
+  @IsOptional()
+  @IsString()
+  @Length(0, 80)
+  tagline?: string | null;
+
+  @IsOptional()
+  @IsIn(['default', 'cinematic', 'editorial'])
+  heroVariant?: string;
+
+  @IsOptional()
+  @IsUrl({ require_protocol: true })
+  heroMediaUrl?: string | null;
+
+  @IsOptional()
+  @IsIn(['image', 'video'])
+  heroMediaType?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 400)
+  heroBio?: string | null;
+}
+
+class SubscribeDto {
+  @IsString()
+  @Length(3, 320)
+  email!: string;
 }
 
 class UpdateMemberRoleDto {
@@ -89,6 +119,13 @@ export class PublicBrandController {
   getBrand(@Param('slug') slug: string) {
     return this.orgs.getPublicBrand(slug);
   }
+
+  @Post(':slug/subscribe')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  subscribe(@Param('slug') slug: string, @Body() dto: SubscribeDto) {
+    return this.orgs.subscribeToBrand(slug, dto.email);
+  }
 }
 
 @ApiTags('organizations')
@@ -101,6 +138,14 @@ export class OrgsController {
   @UseGuards(AuthGuard('jwt'))
   create(@Body() dto: CreateOrgDto, @CurrentUser() user: AuthUser) {
     return this.orgs.create(user.userId, dto);
+  }
+
+  // Brand Home audience: total + recent subscribers, for the composer.
+  @Get(':orgId/brand/subscribers')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('owner', 'admin', 'organizer')
+  brandSubscribers(@Param('orgId') orgId: string) {
+    return this.orgs.listBrandSubscribers(orgId);
   }
 
   @Get(':orgId')

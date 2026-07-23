@@ -67,6 +67,10 @@ function buildCsp(nonce: string): string {
     // vector than script injection.
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://cdn.orkora.events",
+    // media-src covers <video>/<audio> sources: Brand Home hero videos and the
+    // recordings player, both served from R2. Without it these fall back to
+    // default-src 'self' and are blocked.
+    "media-src 'self' blob: https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://cdn.orkora.events",
     "font-src 'self' data:",
     `connect-src 'self' ${apiOrigin} ${apiWsOrigin}`,
     `report-uri ${apiOrigin}/v1/csp-reports`,

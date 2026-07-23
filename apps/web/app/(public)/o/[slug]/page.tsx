@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getBrand, type BrandEvent } from '@/lib/brand';
+import { getBrand, type Brand, type BrandEvent } from '@/lib/brand';
+import SubscribeForm from './SubscribeForm';
 
 export const revalidate = 120;
 
@@ -80,41 +81,13 @@ export default async function BrandHomePage({
             {brand.past.length > 0 ? (
               <a href="#archive" className="transition hover:text-ink-primary">Past</a>
             ) : null}
+            <a href="#connect" className="transition hover:text-ink-primary">Connect</a>
           </nav>
         </div>
       </header>
 
-      {/* Hero */}
-      <section
-        className="relative overflow-hidden border-b border-surface-border"
-        style={{
-          backgroundImage: `radial-gradient(120% 120% at 0% 0%, ${color} 0%, rgba(11,11,20,0.25) 45%, #0B0B14 80%)`,
-        }}
-      >
-        <div className="mx-auto max-w-5xl px-6 py-24 sm:py-32">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-            A world on Orkora
-          </p>
-          <h1 className="mt-4 text-5xl font-extrabold leading-[1.02] tracking-tight text-white sm:text-7xl">
-            {brand.name}
-          </h1>
-          <p className="mt-6 max-w-xl text-lg text-white/80">
-            {next
-              ? 'The world is year-round. The next event is below.'
-              : 'The next event is coming. Check back soon.'}
-          </p>
-          {next ? (
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href={eventHref(next.code)}
-                className="inline-flex items-center rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:bg-white/90"
-              >
-                See the next event
-              </Link>
-            </div>
-          ) : null}
-        </div>
-      </section>
+      {/* Hero (variant chosen in the composer) */}
+      <Hero brand={brand} color={color} nextCode={next?.code ?? null} />
 
       <div className="mx-auto max-w-5xl space-y-16 px-6 py-16">
         {/* Upcoming */}
@@ -163,6 +136,17 @@ export default async function BrandHomePage({
             </div>
           </section>
         ) : null}
+
+        {/* Connect / community subscribe */}
+        <section id="connect" className="rounded-2xl border border-surface-border bg-surface/40 p-8">
+          <h2 className="text-2xl font-bold">Stay in the world</h2>
+          <p className="mt-2 max-w-md text-sm text-ink-secondary">
+            Get the next drop from {brand.name} before anyone else.
+          </p>
+          <div className="mt-5">
+            <SubscribeForm slug={brand.slug} color={color} />
+          </div>
+        </section>
       </div>
 
       <footer className="border-t border-surface-border bg-surface/40 py-8 text-center text-xs text-ink-muted">
@@ -172,6 +156,146 @@ export default async function BrandHomePage({
         </Link>
       </footer>
     </main>
+  );
+}
+
+function Hero({
+  brand,
+  color,
+  nextCode,
+}: {
+  brand: Brand;
+  color: string;
+  nextCode: string | null;
+}) {
+  const tagline =
+    brand.tagline ??
+    (nextCode ? 'The world is year-round. The next event is below.' : 'The next event is coming.');
+  const hasMedia = !!brand.heroMediaUrl;
+  const isVideo = brand.heroMediaType === 'video';
+
+  const ctas = (
+    <div className="mt-8 flex flex-wrap gap-3">
+      {nextCode ? (
+        <Link
+          href={eventHref(nextCode)}
+          className="inline-flex items-center rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:bg-white/90"
+        >
+          See the next event
+        </Link>
+      ) : null}
+      <a
+        href="#connect"
+        className="inline-flex items-center rounded-full border border-white/40 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+      >
+        Subscribe
+      </a>
+    </div>
+  );
+
+  // Editorial: split layout with media on the right, name + bio on the left.
+  if (brand.heroVariant === 'editorial') {
+    return (
+      <section className="border-b border-surface-border bg-surface-deep">
+        <div className="mx-auto grid max-w-5xl gap-8 px-6 py-20 lg:grid-cols-2 lg:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-ink-muted">
+              A world on Orkora
+            </p>
+            <h1 className="mt-4 text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+              {brand.name}
+            </h1>
+            {brand.heroBio ? (
+              <p className="mt-6 max-w-md whitespace-pre-line text-lg text-ink-secondary">
+                {brand.heroBio}
+              </p>
+            ) : (
+              <p className="mt-6 max-w-md text-lg text-ink-secondary">{tagline}</p>
+            )}
+            {ctas}
+          </div>
+          <div
+            className="aspect-[4/5] w-full overflow-hidden rounded-3xl border border-surface-border bg-cover bg-center"
+            style={{
+              backgroundColor: color,
+              backgroundImage:
+                hasMedia && !isVideo ? `url(${brand.heroMediaUrl})` : undefined,
+            }}
+          >
+            {hasMedia && isVideo ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video
+                src={brand.heroMediaUrl ?? undefined}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="h-full w-full object-cover"
+              />
+            ) : null}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Cinematic: full-bleed media with the name overlaid. Falls back to gradient.
+  if (brand.heroVariant === 'cinematic') {
+    return (
+      <section className="relative isolate overflow-hidden border-b border-surface-border">
+        {hasMedia && isVideo ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video
+            src={brand.heroMediaUrl ?? undefined}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundColor: color,
+              backgroundImage: hasMedia ? `url(${brand.heroMediaUrl})` : undefined,
+            }}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B14] via-[#0B0B14]/50 to-[#0B0B14]/20" />
+        <div className="relative mx-auto flex min-h-[70vh] max-w-5xl flex-col justify-end px-6 py-20">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+            A world on Orkora
+          </p>
+          <h1 className="mt-4 text-5xl font-extrabold leading-[1.02] tracking-tight text-white sm:text-7xl">
+            {brand.name}
+          </h1>
+          <p className="mt-6 max-w-xl text-lg text-white/85">{tagline}</p>
+          {ctas}
+        </div>
+      </section>
+    );
+  }
+
+  // Default: auto-composed gradient hero.
+  return (
+    <section
+      className="relative overflow-hidden border-b border-surface-border"
+      style={{
+        backgroundImage: `radial-gradient(120% 120% at 0% 0%, ${color} 0%, rgba(11,11,20,0.25) 45%, #0B0B14 80%)`,
+      }}
+    >
+      <div className="mx-auto max-w-5xl px-6 py-24 sm:py-32">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+          A world on Orkora
+        </p>
+        <h1 className="mt-4 text-5xl font-extrabold leading-[1.02] tracking-tight text-white sm:text-7xl">
+          {brand.name}
+        </h1>
+        <p className="mt-6 max-w-xl text-lg text-white/80">{tagline}</p>
+        {ctas}
+      </div>
+    </section>
   );
 }
 
