@@ -53,6 +53,11 @@ export class RegisterAttendeesDto {
   @IsOptional()
   @IsObject()
   formResponses?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  discountCode?: string;
 }
 
 export class RegistrationListQueryDto {

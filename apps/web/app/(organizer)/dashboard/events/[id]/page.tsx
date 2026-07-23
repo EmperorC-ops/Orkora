@@ -15,8 +15,11 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Radio,
+  Tag,
   Trash2,
   Users,
+  Video,
 } from 'lucide-react';
 import {
   eventsApi,
@@ -228,6 +231,24 @@ export default function EventDetailPage() {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 <MessageSquare className="h-4 w-4" /> Feedback
+              </Link>
+              <Link
+                href={`/dashboard/events/${id}/discounts`}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Tag className="h-4 w-4" /> Discounts
+              </Link>
+              <Link
+                href={`/dashboard/events/${id}/recordings`}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Video className="h-4 w-4" /> Recordings
+              </Link>
+              <Link
+                href={`/dashboard/events/${id}/live`}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Radio className="h-4 w-4" /> Live
               </Link>
               <button
                 onClick={togglePublish}

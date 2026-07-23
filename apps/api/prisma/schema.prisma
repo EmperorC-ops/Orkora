@@ -75,6 +75,7 @@ model User {
   campaignAudiencesCreated CampaignAudience[] @relation("CampaignAudienceCreatedBy")
   campaignSendsReceived    CampaignSend[]     @relation("CampaignSendUser")
   eventFeedback            EventFeedback[]
+  discountRedemptions      DiscountRedemption[]
 
   @@map("users")
 }
@@ -184,6 +185,8 @@ model Event {
   orders        Order[]
   channels      Channel[]
   feedback      EventFeedback[]
+  discountCodes DiscountCode[]
+  recordings    Recording[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -223,6 +226,7 @@ model Session {
   channels Channel[]
   polls    Poll[]
   feedback EventFeedback[]
+  recordings Recording[]
 
   @@index([eventId, startAt])
   @@map("sessions")
@@ -266,6 +270,7 @@ model TicketTier {
   event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets    Ticket[]
   orderItems OrderItem[]
+  recordings Recording[]
 
   @@index([eventId, position])
   @@map("ticket_tiers")
@@ -286,6 +291,73 @@ model Registration {
 
   @@unique([eventId, userId])
   @@map("registrations")
+}
+
+model DiscountCode {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventId        String    @map("event_id") @db.Uuid
+  code           String
+  // 'percent' (value = 1..100) or 'fixed' (value = amount in minor units).
+  kind           String
+  value          Int
+  // Only meaningful for 'fixed' codes: the currency the fixed amount is in.
+  currency       String?   @db.Char(3)
+  maxRedemptions Int?      @map("max_redemptions")
+  timesRedeemed  Int       @default(0) @map("times_redeemed")
+  startsAt       DateTime? @map("starts_at") @db.Timestamptz
+  endsAt         DateTime? @map("ends_at") @db.Timestamptz
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  event       Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  redemptions DiscountRedemption[]
+  orders      Order[]
+
+  @@unique([eventId, code])
+  @@index([eventId])
+  @@map("discount_codes")
+}
+
+model DiscountRedemption {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  discountCodeId String   @map("discount_code_id") @db.Uuid
+  orderId        String   @unique @map("order_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  amountMinor    BigInt   @map("amount_minor")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  discountCode DiscountCode @relation(fields: [discountCodeId], references: [id], onDelete: Cascade)
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([discountCodeId])
+  @@map("discount_redemptions")
+}
+
+model Recording {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventId        String    @map("event_id") @db.Uuid
+  sessionId      String?   @map("session_id") @db.Uuid
+  title          String
+  description    String?
+  // 'link' (external url: YouTube/Vimeo/HLS) or 'upload' (R2 storage key).
+  source         String
+  url            String?
+  storageKey     String?   @map("storage_key")
+  durationSec    Int?      @map("duration_sec")
+  // 'public' (anyone), 'ticket' (any ticket holder), 'tier' (a specific tier).
+  visibility     String    @default("ticket")
+  requiredTierId String?   @map("required_tier_id") @db.Uuid
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  event        Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  session      Session?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  requiredTier TicketTier? @relation(fields: [requiredTierId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([sessionId])
+  @@map("recordings")
 }
 
 model EventFeedback {
@@ -350,6 +422,8 @@ model Order {
   registrationId String?   @map("registration_id") @db.Uuid
   subtotalMinor  BigInt    @map("subtotal_minor")
   feesMinor      BigInt    @default(0) @map("fees_minor")
+  discountMinor  BigInt    @default(0) @map("discount_minor")
+  discountCodeId String?   @map("discount_code_id") @db.Uuid
   totalMinor     BigInt    @map("total_minor")
   currency       String    @db.Char(3)
   status         String    @default("pending")
@@ -366,6 +440,8 @@ model Order {
   event        Event              @relation(fields: [eventId], references: [id])
   user         User               @relation(fields: [userId], references: [id])
   registration Registration?      @relation(fields: [registrationId], references: [id])
+  discountCode DiscountCode?      @relation(fields: [discountCodeId], references: [id])
+  discountRedemption DiscountRedemption?
   items        OrderItem[]
   tickets      Ticket[]
   notifications NotificationLog[]
@@ -450,6 +526,8 @@ model Message {
   replyToId String?   @map("reply_to_id") @db.Uuid
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  // Q&A moderation: when an organizer marks a question answered.
+  answeredAt DateTime? @map("answered_at") @db.Timestamptz
 
   channel Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user    User            @relation(fields: [userId], references: [id])

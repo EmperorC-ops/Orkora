@@ -10,6 +10,10 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
+  DiscountsService,
+  type DiscountCheckInput,
+} from '../discounts/discounts.service';
+import {
   RegisterAttendeesDto,
   type PaymentMethod,
   PAYMENT_METHODS,
@@ -272,6 +276,63 @@ export class RegistrationsService {
       let checkoutUrl: string | null = null;
       if (!isFree) {
         const subtotal = BigInt(tier.priceMinor) * BigInt(qty);
+
+        // Optional discount code. We lock the discount row FOR UPDATE inside
+        // this same transaction so two concurrent buyers cannot both slip past
+        // a limited code's redemption cap. The validity checks mirror the
+        // public validate endpoint exactly, but run against the authoritative
+        // locked row rather than a stale read.
+        let discountMinor = 0n;
+        let discountCodeId: string | null = null;
+        const enteredCode = dto.discountCode?.trim().toUpperCase();
+        if (enteredCode) {
+          const codeRows = await tx.$queryRawUnsafe<
+            Array<{
+              id: string;
+              kind: string;
+              value: number;
+              currency: string | null;
+              active: boolean;
+              starts_at: Date | null;
+              ends_at: Date | null;
+              max_redemptions: number | null;
+              times_redeemed: number;
+            }>
+          >(
+            'select id, kind, value, currency, active, starts_at, ends_at, max_redemptions, times_redeemed from discount_codes where event_id = $1::uuid and code = $2 for update',
+            event.id,
+            enteredCode,
+          );
+          const codeRow = codeRows[0];
+          if (!codeRow) {
+            throw new BadRequestException('Invalid discount code');
+          }
+          const check: DiscountCheckInput = {
+            kind: codeRow.kind,
+            value: codeRow.value,
+            currency: codeRow.currency,
+            active: codeRow.active,
+            startsAt: codeRow.starts_at,
+            endsAt: codeRow.ends_at,
+            maxRedemptions: codeRow.max_redemptions,
+            timesRedeemed: codeRow.times_redeemed,
+          };
+          const result = DiscountsService.checkValidity(
+            check,
+            new Date(),
+            tier.currency,
+            subtotal,
+          );
+          if (!result.ok) {
+            throw new BadRequestException(result.reason ?? 'Invalid discount code');
+          }
+          discountMinor = result.discountMinor;
+          discountCodeId = codeRow.id;
+        }
+
+        // Clamp so the payable total can never fall below zero.
+        const total = subtotal - discountMinor > 0n ? subtotal - discountMinor : 0n;
+
         order = await tx.order.create({
           data: {
             eventId: event.id,
@@ -279,7 +340,9 @@ export class RegistrationsService {
             registrationId: registration.id,
             subtotalMinor: subtotal,
             feesMinor: BigInt(0),
-            totalMinor: subtotal,
+            discountMinor,
+            discountCodeId,
+            totalMinor: total,
             currency: tier.currency,
             status: 'pending',
             provider: requestedMethod,
@@ -295,6 +358,22 @@ export class RegistrationsService {
           },
           include: { items: true },
         });
+
+        // Record the redemption and bump the counter, still inside the lock so
+        // the count that the next buyer reads reflects this order.
+        if (discountCodeId) {
+          await tx.$executeRawUnsafe(
+            'insert into discount_redemptions (discount_code_id, order_id, user_id, amount_minor) values ($1::uuid, $2::uuid, $3::uuid, $4)',
+            discountCodeId,
+            order.id,
+            user.id,
+            discountMinor,
+          );
+          await tx.$executeRawUnsafe(
+            'update discount_codes set times_redeemed = times_redeemed + 1 where id = $1::uuid',
+            discountCodeId,
+          );
+        }
         // The actual hosted-checkout URL is minted by the payments module on
         // demand (createCheckoutForOrder). We deliberately return `null` here
         // so the front end always goes through `paymentsApi.startCheckout`,
@@ -688,7 +767,7 @@ export class RegistrationsService {
 
     if (registrations.length === 0) {
       // Tenancy: this user has nothing in this org. Don't leak that they exist
-      // somewhere else — fail the same way as a non-existent user.
+      // somewhere else. Fail the same way as a non-existent user.
       throw new NotFoundException('User not found');
     }
 

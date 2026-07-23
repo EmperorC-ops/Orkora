@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import {
   OrganizerPollsController,
+  OrganizerQaController,
   PublicEngagementController,
 } from './engagement.controller';
 import { EngagementGateway } from './engagement.gateway';
@@ -21,7 +22,11 @@ import { EngagementService } from './engagement.service';
       }),
     }),
   ],
-  controllers: [PublicEngagementController, OrganizerPollsController],
+  controllers: [
+    PublicEngagementController,
+    OrganizerPollsController,
+    OrganizerQaController,
+  ],
   providers: [EngagementService, EngagementGateway],
   exports: [EngagementService],
 })

@@ -3,11 +3,15 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { IsBoolean } from 'class-validator';
+import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { EngagementGateway } from './engagement.gateway';
@@ -18,6 +22,16 @@ interface CreatePollDto {
   question: string;
   options: string[];
   multiSelect?: boolean;
+}
+
+class SetAnsweredDto {
+  @IsBoolean()
+  answered!: boolean;
+}
+
+class SetHiddenDto {
+  @IsBoolean()
+  hidden!: boolean;
 }
 
 /**
@@ -60,6 +74,15 @@ export class OrganizerPollsController {
     private readonly gateway: EngagementGateway,
   ) {}
 
+  @Get()
+  @Roles('owner', 'admin', 'organizer')
+  list(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+  ) {
+    return this.service.listPolls(orgId, eventId);
+  }
+
   @Post()
   @Roles('organizer')
   async create(
@@ -83,5 +106,55 @@ export class OrganizerPollsController {
     const closed = await this.service.closePoll({ orgId, eventId, pollId });
     this.gateway.emitPollUpdate(eventId, closed);
     return closed;
+  }
+}
+
+/**
+ * Organizer-side Q&A moderation. Nested under organizations/:orgId so the
+ * RolesGuard + tenancy checks apply; the service also re-verifies organizer
+ * membership on the question's own event before mutating.
+ */
+@ApiTags('engagement-organizer')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Controller('organizations/:orgId/events/:eventId/qa')
+export class OrganizerQaController {
+  constructor(private readonly service: EngagementService) {}
+
+  @Get()
+  @Roles('owner', 'admin', 'organizer')
+  list(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.service.listQuestionsForOrganizer(eventId, user.userId);
+  }
+
+  @Patch(':questionId/answered')
+  @Roles('owner', 'admin', 'organizer')
+  setAnswered(
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SetAnsweredDto,
+  ) {
+    return this.service.markQuestionAnswered({
+      questionId,
+      userId: user.userId,
+      answered: dto.answered,
+    });
+  }
+
+  @Patch(':questionId/hidden')
+  @Roles('owner', 'admin', 'organizer')
+  setHidden(
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SetHiddenDto,
+  ) {
+    return this.service.setQuestionHidden({
+      questionId,
+      userId: user.userId,
+      hidden: dto.hidden,
+    });
   }
 }

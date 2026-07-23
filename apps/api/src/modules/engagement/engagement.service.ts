@@ -226,6 +226,92 @@ export class EngagementService {
     return { upvoted: !existing, count };
   }
 
+  // ----- Q&A moderation (organizer) -----
+
+  /**
+   * Marks (or unmarks) a question as answered. Setting `answered` stamps
+   * `answeredAt`; clearing it nulls the column. Organizer-gated on the
+   * question's own event so an organizer of one org cannot moderate another
+   * org's Q&A by id.
+   */
+  async markQuestionAnswered(input: {
+    questionId: string;
+    userId: string;
+    answered: boolean;
+  }) {
+    const question = await this.prisma.message.findUnique({
+      where: { id: input.questionId },
+      include: { channel: { select: { eventId: true } } },
+    });
+    if (!question) throw new NotFoundException('Question not found');
+    await this.assertEventOrganizer(input.userId, question.channel.eventId);
+    const updated = await this.prisma.message.update({
+      where: { id: input.questionId },
+      data: { answeredAt: input.answered ? new Date() : null },
+      select: { id: true, answeredAt: true },
+    });
+    return { id: updated.id, answeredAt: updated.answeredAt };
+  }
+
+  /**
+   * Hides (soft-deletes) or unhides a question. Hidden questions drop out of
+   * the public `listQuestions` feed (which filters `deletedAt: null`) but stay
+   * visible to organizers via `listQuestionsForOrganizer`.
+   */
+  async setQuestionHidden(input: {
+    questionId: string;
+    userId: string;
+    hidden: boolean;
+  }) {
+    const question = await this.prisma.message.findUnique({
+      where: { id: input.questionId },
+      include: { channel: { select: { eventId: true } } },
+    });
+    if (!question) throw new NotFoundException('Question not found');
+    await this.assertEventOrganizer(input.userId, question.channel.eventId);
+    const updated = await this.prisma.message.update({
+      where: { id: input.questionId },
+      data: { deletedAt: input.hidden ? new Date() : null },
+      select: { id: true, deletedAt: true },
+    });
+    return { id: updated.id, hidden: !!updated.deletedAt };
+  }
+
+  /**
+   * Organizer view of the Q&A: returns ALL top-level questions including hidden
+   * ones (we do not filter `deletedAt`) so moderators can unhide. Shapes the
+   * moderation fields (answeredAt, hidden) alongside the usual body/upvotes.
+   */
+  async listQuestionsForOrganizer(eventId: string, userId: string) {
+    await this.assertEventOrganizer(userId, eventId);
+    const channel = await this.getOrCreateEventQa(eventId);
+    const rows = await this.prisma.message.findMany({
+      where: { channelId: channel.id, replyToId: null },
+      include: {
+        user: { select: { id: true, fullName: true, avatarUrl: true } },
+        _count: { select: { upvotes: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+    });
+    // Most-upvoted first, then most recent (mirrors listQuestions ordering).
+    rows.sort((a, b) => {
+      const da = b._count.upvotes - a._count.upvotes;
+      if (da !== 0) return da;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+    return rows.map((q) => ({
+      id: q.id,
+      channelId: channel.id,
+      body: q.body,
+      createdAt: q.createdAt,
+      answeredAt: q.answeredAt,
+      hidden: !!q.deletedAt,
+      upvotes: q._count.upvotes,
+      authorName: q.user?.fullName ?? null,
+    }));
+  }
+
   // ----- polls -----
 
   async createPoll(input: {
@@ -264,6 +350,25 @@ export class EngagementService {
   }
 
   async listPollsForEvent(eventId: string) {
+    const polls = await this.prisma.poll.findMany({
+      where: { session: { eventId } },
+      include: { votes: true, session: { select: { id: true, title: true } } },
+      orderBy: { sessionId: 'asc' },
+    });
+    return polls.map((p) => this.shapePoll(p));
+  }
+
+  /**
+   * Organizer-scoped poll list for an event. Tenancy-checks that the event
+   * belongs to `orgId` before returning, so an organizer of one org cannot
+   * read another org's polls by guessing the event id.
+   */
+  async listPolls(orgId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found for this org');
     const polls = await this.prisma.poll.findMany({
       where: { session: { eventId } },
       include: { votes: true, session: { select: { id: true, title: true } } },

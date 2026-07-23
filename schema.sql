@@ -635,3 +635,67 @@ alter table event_feedback enable row level security;
 drop policy if exists org_isolation_event_feedback on event_feedback;
 create policy org_isolation_event_feedback on event_feedback
   using (organization_id = current_setting('app.org_id', true)::uuid);
+
+-- ============================================================
+-- DISCOUNT CODES (migration 0007, folded in for fresh installs)
+-- ============================================================
+create table if not exists discount_codes (
+  id              uuid        primary key default uuidv7(),
+  event_id        uuid        not null references events(id) on delete cascade,
+  code            text        not null,
+  kind            text        not null check (kind in ('percent','fixed')),
+  value           integer     not null check (value > 0),
+  currency        char(3),
+  max_redemptions integer,
+  times_redeemed  integer     not null default 0,
+  starts_at       timestamptz,
+  ends_at         timestamptz,
+  active          boolean     not null default true,
+  created_at      timestamptz not null default now(),
+  constraint discount_codes_percent_range check (kind <> 'percent' or value between 1 and 100)
+);
+create unique index if not exists discount_codes_event_code_uniq on discount_codes (event_id, code);
+create index if not exists discount_codes_event_idx on discount_codes (event_id);
+
+create table if not exists discount_redemptions (
+  id               uuid        primary key default uuidv7(),
+  discount_code_id uuid        not null references discount_codes(id) on delete cascade,
+  order_id         uuid        not null unique references orders(id) on delete cascade,
+  user_id          uuid        references users(id),
+  amount_minor     bigint      not null,
+  created_at       timestamptz not null default now()
+);
+create index if not exists discount_redemptions_code_idx on discount_redemptions (discount_code_id);
+
+alter table orders add column if not exists discount_minor   bigint not null default 0;
+alter table orders add column if not exists discount_code_id uuid references discount_codes(id);
+
+-- ============================================================
+-- RECORDINGS (migration 0008, folded in for fresh installs)
+-- ============================================================
+create table if not exists recordings (
+  id               uuid        primary key default uuidv7(),
+  event_id         uuid        not null references events(id) on delete cascade,
+  session_id       uuid        references sessions(id) on delete set null,
+  title            text        not null,
+  description      text,
+  source           text        not null check (source in ('link','upload')),
+  url              text,
+  storage_key      text,
+  duration_sec     integer,
+  visibility       text        not null default 'ticket' check (visibility in ('public','ticket','tier')),
+  required_tier_id uuid        references ticket_tiers(id) on delete set null,
+  published_at     timestamptz,
+  created_at       timestamptz not null default now(),
+  constraint recordings_source_shape check (
+    (source = 'link'   and url is not null) or
+    (source = 'upload' and storage_key is not null)
+  )
+);
+create index if not exists recordings_event_idx   on recordings (event_id);
+create index if not exists recordings_session_idx on recordings (session_id);
+
+-- ============================================================
+-- Q&A MODERATION (migration 0009, folded in for fresh installs)
+-- ============================================================
+alter table messages add column if not exists answered_at timestamptz;

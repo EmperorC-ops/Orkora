@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Plus, Trash2, Calendar, Ticket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Trash2, Calendar, Ticket, Tag } from 'lucide-react';
 import { ApiError } from '@/lib/auth';
 import {
   type AttendeeInput,
@@ -13,6 +13,8 @@ import {
   formatMoney,
   formatEventDates,
 } from '@/lib/registration';
+import { validateDiscount } from '@/lib/discounts';
+import { ActionButton } from '@/components/action-button';
 
 interface PublicTier {
   id: string;
@@ -57,6 +59,12 @@ export default function RegisterPage() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [discountInput, setDiscountInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    discountMinor: number;
+  } | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +101,32 @@ export default function RegisterPage() {
 
   const isFree = tier ? tier.priceMinor === 0 : false;
   const total = tier ? tier.priceMinor * attendees.length : 0;
+  // A code is only trustworthy for the exact tier + quantity it was validated
+  // against, so we clear it whenever either changes (see effect below). The
+  // payable total reflects the applied discount, clamped at zero.
+  const payable = appliedDiscount
+    ? Math.max(0, total - appliedDiscount.discountMinor)
+    : total;
+
+  // Drop any applied discount when the selected tier or attendee count changes
+  // so we never send a stale code to the register call.
+  useEffect(() => {
+    setAppliedDiscount(null);
+    setDiscountError(null);
+  }, [tierId, attendees.length]);
+
+  async function applyDiscount() {
+    if (!tier) throw new Error('Select a ticket first.');
+    const entered = discountInput.trim();
+    if (!entered) throw new Error('Enter a discount code.');
+    const result = await validateDiscount(code, {
+      code: entered,
+      tierId: tier.id,
+      quantity: attendees.length,
+    });
+    setAppliedDiscount({ code: entered.toUpperCase(), discountMinor: result.discountMinor });
+    setDiscountError(null);
+  }
 
   // Minimum attendees required for the selected tier. A group tier enforces a
   // floor of `groupSize` (never below the tier's own minPerOrder). Pricing is
@@ -170,6 +204,7 @@ export default function RegisterPage() {
           phone: a.phone?.trim() || undefined,
         })),
         paymentMethod,
+        ...(appliedDiscount ? { discountCode: appliedDiscount.code } : {}),
       });
 
       if (isFree) {
@@ -416,7 +451,7 @@ export default function RegisterPage() {
                 ? 'Processing...'
                 : isFree
                   ? `Register ${attendees.length} attendee${attendees.length > 1 ? 's' : ''}`
-                  : `Continue to payment ${tier ? formatMoney(total, tier.currency) : ''}`}{' '}
+                  : `Continue to payment ${tier ? formatMoney(payable, tier.currency) : ''}`}{' '}
               <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-center text-xs text-ink-muted">
@@ -442,10 +477,56 @@ export default function RegisterPage() {
                   <span className="text-sm text-ink-secondary">Quantity</span>
                   <span className="text-sm text-ink-primary">{attendees.length}</span>
                 </div>
+
+                {!isFree && (
+                  <div className="mt-4 border-t border-surface-border pt-4">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                      Discount code
+                    </span>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        value={discountInput}
+                        onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
+                        placeholder="Enter code"
+                        className="w-full rounded-xl border border-surface-border bg-surface-deep/60 px-3 py-2 text-sm text-ink-primary placeholder-ink-muted outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                      />
+                      <ActionButton
+                        variant="secondary"
+                        onAction={applyDiscount}
+                        idleLabel="Apply"
+                        pendingLabel="Checking..."
+                        successLabel="Applied"
+                        idleIcon={<Tag className="h-4 w-4" />}
+                        onError={(m) => {
+                          setAppliedDiscount(null);
+                          setDiscountError(m);
+                        }}
+                      />
+                    </div>
+                    {discountError && (
+                      <p className="mt-2 text-xs text-[#FF9090]">{discountError}</p>
+                    )}
+                    {appliedDiscount && (
+                      <p className="mt-2 text-xs text-[#34D399]">
+                        Code {appliedDiscount.code} applied.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {appliedDiscount && (
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <span className="text-sm text-ink-secondary">Discount</span>
+                    <span className="text-sm text-[#34D399]">
+                      -{formatMoney(appliedDiscount.discountMinor, tier.currency)}
+                    </span>
+                  </div>
+                )}
+
                 <div className="mt-4 flex items-baseline justify-between border-t border-surface-border pt-4">
                   <span className="text-sm font-semibold text-ink-primary">Total</span>
                   <span className="text-lg font-semibold text-ink-primary">
-                    {tier.priceMinor === 0 ? 'Free' : formatMoney(total, tier.currency)}
+                    {tier.priceMinor === 0 ? 'Free' : formatMoney(payable, tier.currency)}
                   </span>
                 </div>
               </>
