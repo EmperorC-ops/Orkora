@@ -104,6 +104,70 @@ export class OrgsService {
     return org;
   }
 
+  /**
+   * Public "Brand Home" payload: the brand's identity plus its publishable
+   * events, split into upcoming (still to come or in progress) and past. Draft
+   * and archived events are never exposed, and a suspended org is hidden. No
+   * auth: this powers the public /o/<slug> page.
+   */
+  async getPublicBrand(slug: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { slug },
+      select: { id: true, name: true, slug: true, logoUrl: true, brandColor: true, status: true },
+    });
+    if (!org || org.status === 'suspended') {
+      throw new NotFoundException('Brand not found');
+    }
+
+    const events = await this.prisma.event.findMany({
+      where: {
+        organizationId: org.id,
+        status: { in: ['published', 'live', 'ended'] },
+      },
+      select: {
+        id: true,
+        title: true,
+        code: true,
+        slug: true,
+        kind: true,
+        startAt: true,
+        endAt: true,
+        timezone: true,
+        bannerUrl: true,
+        status: true,
+      },
+      orderBy: { startAt: 'asc' },
+    });
+
+    const now = new Date();
+    const shape = (e: (typeof events)[number]) => ({
+      title: e.title,
+      code: e.code,
+      slug: e.slug,
+      kind: e.kind,
+      startAt: e.startAt.toISOString(),
+      endAt: e.endAt.toISOString(),
+      timezone: e.timezone,
+      bannerUrl: e.bannerUrl,
+      status: e.status,
+    });
+    // Upcoming = not finished yet (includes live). Past = finished, newest first.
+    const upcoming = events.filter((e) => e.endAt >= now).map(shape);
+    const past = events
+      .filter((e) => e.endAt < now)
+      .sort((a, b) => b.startAt.getTime() - a.startAt.getTime())
+      .map(shape);
+
+    return {
+      name: org.name,
+      slug: org.slug,
+      logoUrl: org.logoUrl,
+      brandColor: org.brandColor,
+      upcoming,
+      past,
+    };
+  }
+
   async update(
     orgId: string,
     actorUserId: string,

@@ -77,6 +77,22 @@ class UpdateMemberRoleDto {
 
 @ApiTags('organizations')
 @ApiBearerAuth()
+/**
+ * Public Brand Home endpoint. Unauthenticated; powers orkora.events/o/<slug>.
+ */
+@ApiTags('public-brand')
+@Controller('public/orgs')
+export class PublicBrandController {
+  constructor(private readonly orgs: OrgsService) {}
+
+  @Get(':slug')
+  getBrand(@Param('slug') slug: string) {
+    return this.orgs.getPublicBrand(slug);
+  }
+}
+
+@ApiTags('organizations')
+@ApiBearerAuth()
 @Controller('organizations')
 export class OrgsController {
   constructor(private readonly orgs: OrgsService) {}

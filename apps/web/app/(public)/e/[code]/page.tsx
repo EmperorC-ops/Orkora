@@ -185,7 +185,16 @@ export default async function PublicEventPage({ params }: { params: { code: stri
         )}
         <div className="relative mx-auto max-w-5xl px-6 py-24">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-100">
-            {event.organization.name}
+            {event.organization.slug ? (
+              <Link
+                href={`/o/${event.organization.slug}`}
+                className="underline-offset-4 transition hover:text-white hover:underline"
+              >
+                {event.organization.name}
+              </Link>
+            ) : (
+              event.organization.name
+            )}
           </p>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight sm:text-6xl">
             {event.title}
