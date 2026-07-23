@@ -90,6 +90,11 @@ export async function generateMetadata({
   params: { code: string };
 }): Promise<Metadata> {
   const event = await getEvent(params.code);
+  // Branded, designed OG card for link unfurls (WhatsApp, X, iMessage, Slack).
+  // Falls back to the raw banner only if the event did not resolve.
+  const ogImage = event
+    ? `/og/event/${encodeURIComponent(params.code)}?format=og`
+    : event?.bannerUrl;
   return {
     title: event?.title ?? 'Event',
     description: event?.description ?? undefined,
@@ -97,7 +102,13 @@ export async function generateMetadata({
       type: 'website',
       title: event?.title,
       description: event?.description ?? undefined,
-      images: event?.bannerUrl ? [{ url: event.bannerUrl }] : undefined,
+      images: ogImage ? [{ url: ogImage, width: 1200, height: 630 }] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: event?.title,
+      description: event?.description ?? undefined,
+      images: ogImage ? [ogImage] : undefined,
     },
   };
 }
