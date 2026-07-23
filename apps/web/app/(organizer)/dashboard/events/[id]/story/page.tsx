@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  GripVertical,
   Plus,
   Trash2,
   Sparkles,
@@ -18,6 +19,8 @@ import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
 import { ActionButton } from '@/components/action-button';
 import type { StoryBlock } from '@/lib/story';
+import type { StoryEvent } from '@/app/(public)/e/[code]/StoryBlocks';
+import StoryPreview from './StoryPreview';
 import {
   ADDABLE_BLOCKS,
   BLOCK_LABELS,
@@ -34,15 +37,51 @@ import {
   unpublishStory,
 } from '@/lib/story-edit';
 
+interface PreviewSession {
+  id: string;
+  title: string;
+  description: string | null;
+  startAt: string;
+  endAt: string;
+  trackId: string | null;
+}
+interface PreviewSpeaker {
+  id: string;
+  fullName: string;
+  title: string | null;
+  avatarUrl: string | null;
+}
+interface PreviewTier {
+  id: string;
+  name: string;
+  description: string | null;
+  priceMinor: number;
+  currency: string;
+  quantityTotal: number | null;
+  quantitySold: number;
+  isGroup: boolean;
+  groupSize: number | null;
+}
+
 interface EventDetail {
   id: string;
   code: string;
   title: string;
   description: string | null;
   bannerUrl: string | null;
+  timezone: string;
   storyBlocks: StoryBlock[];
   storyTemplate: string;
   storyPublishedAt: string | null;
+  sessions?: PreviewSession[];
+  speakers?: PreviewSpeaker[];
+  tiers?: PreviewTier[];
+}
+
+interface OrgInfo {
+  name: string;
+  brandColor: string | null;
+  slug: string;
 }
 
 export default function StoryComposerPage() {
@@ -58,6 +97,9 @@ export default function StoryComposerPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [view, setView] = useState<'editor' | 'preview'>('editor');
+  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
 
   // Keep the latest state accessible to the autosave interval without
   // re-registering it on every keystroke.
@@ -78,6 +120,9 @@ export default function StoryComposerPage() {
         setSelectedId(existing[0]?.id ?? null);
       })
       .catch((err: Error) => setError(err.message));
+    apiFetch<OrgInfo>(`/v1/organizations/${org}`)
+      .then((o) => setOrgInfo({ name: o.name, brandColor: o.brandColor, slug: o.slug }))
+      .catch(() => setOrgInfo(null));
   }, [eventId]);
 
   const hasTickets = blocks.some((b) => b.type === 'tickets' && !b.hidden);
@@ -158,6 +203,21 @@ export default function StoryComposerPage() {
     if (selectedId === id) setSelectedId(null);
   }
 
+  // Native HTML5 drag-drop reorder. Reorders live as you drag over a target,
+  // so the list settles into place before you drop. Move up/down remains as a
+  // keyboard-friendly fallback.
+  function onDragOverBlock(e: React.DragEvent, overId: string) {
+    e.preventDefault();
+    if (!dragId || dragId === overId) return;
+    const from = blocks.findIndex((b) => b.id === dragId);
+    const to = blocks.findIndex((b) => b.id === overId);
+    if (from < 0 || to < 0) return;
+    const next = [...blocks];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    mutate(next);
+  }
+
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
   const liveHref = event ? `/e/${event.code}` : '#';
 
@@ -169,6 +229,23 @@ export default function StoryComposerPage() {
   }
 
   const showPicker = blocks.length === 0;
+
+  const previewEvent: StoryEvent = {
+    code: event.code,
+    title: event.title,
+    timezone: event.timezone ?? 'Africa/Lagos',
+    bannerUrl: event.bannerUrl,
+    status: publishedAt ? 'published' : 'draft',
+    storyBlocks: blocks,
+    organization: {
+      name: orgInfo?.name ?? event.title,
+      brandColor: orgInfo?.brandColor ?? null,
+      slug: orgInfo?.slug,
+    },
+    sessions: event.sessions,
+    speakers: event.speakers,
+    tiers: event.tiers,
+  };
 
   return (
     <div className="space-y-6 text-ink-primary">
@@ -200,6 +277,24 @@ export default function StoryComposerPage() {
           >
             <ExternalLink className="h-3.5 w-3.5" /> View live
           </a>
+          {!showPicker ? (
+            <div className="inline-flex rounded-full border border-surface-border bg-surface/40 p-0.5 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setView('editor')}
+                className={`rounded-full px-3 py-1 transition ${view === 'editor' ? 'bg-brand-500 text-white' : 'text-ink-secondary hover:text-ink-primary'}`}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('preview')}
+                className={`rounded-full px-3 py-1 transition ${view === 'preview' ? 'bg-brand-500 text-white' : 'text-ink-secondary hover:text-ink-primary'}`}
+              >
+                Preview
+              </button>
+            </div>
+          ) : null}
           {!showPicker ? (
             <ActionButton
               onAction={doSave}
@@ -254,6 +349,8 @@ export default function StoryComposerPage() {
 
       {showPicker ? (
         <TemplatePicker onPick={seed} onFromCurrent={seedFromCurrent} />
+      ) : view === 'preview' ? (
+        <StoryPreview event={previewEvent} />
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Block list */}
@@ -288,10 +385,15 @@ export default function StoryComposerPage() {
               {blocks.map((b, i) => (
                 <li
                   key={b.id}
+                  draggable
+                  onDragStart={() => setDragId(b.id)}
+                  onDragOver={(e) => onDragOverBlock(e, b.id)}
+                  onDragEnd={() => setDragId(null)}
                   className={`flex items-center gap-2 rounded-xl border p-3 transition ${
                     selectedId === b.id ? 'border-brand-500 bg-brand-500/10' : 'border-surface-border bg-surface/40'
-                  } ${b.hidden ? 'opacity-60' : ''}`}
+                  } ${b.hidden ? 'opacity-60' : ''} ${dragId === b.id ? 'opacity-40' : ''}`}
                 >
+                  <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-ink-muted" />
                   <button type="button" onClick={() => setSelectedId(b.id)} className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-ink-primary">{BLOCK_LABELS[b.type]}</span>
