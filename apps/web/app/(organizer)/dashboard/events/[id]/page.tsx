@@ -37,6 +37,7 @@ import {
 } from '@/lib/events';
 import { ImageUpload } from '@/components/image-upload';
 import { ActionButton } from '@/components/action-button';
+import ComposeStoryPrompt from './ComposeStoryPrompt';
 import { useToast } from '@/components/toast';
 
 const STATUS_STYLES: Record<EventStatus, string> = {
@@ -166,6 +167,8 @@ export default function EventDetailPage() {
       >
         <ArrowLeft className="h-4 w-4" /> Back to events
       </Link>
+
+      <ComposeStoryPrompt eventId={id} published={!!event.storyPublishedAt} />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="group relative h-40 w-full overflow-hidden bg-brand-gradient">

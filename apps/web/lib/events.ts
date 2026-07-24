@@ -73,6 +73,7 @@ export interface EventDetail extends OrganizerEventSummary {
   sessions: EventSession[];
   speakers: EventSpeaker[];
   tiers: EventTier[];
+  storyPublishedAt?: string | null;
 }
 
 export interface CreateEventInput {

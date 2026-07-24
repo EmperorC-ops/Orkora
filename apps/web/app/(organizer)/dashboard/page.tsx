@@ -14,6 +14,7 @@ import {
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
 import { Skeleton } from '@/components/skeleton';
+import ComposeBrandHomeBanner from './ComposeBrandHomeBanner';
 
 interface Overview {
   eventsCount: number;
@@ -62,6 +63,7 @@ export default function DashboardOverview() {
 
   return (
     <div className="space-y-8 text-ink-primary">
+      <ComposeBrandHomeBanner />
       {/* Greeting */}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
