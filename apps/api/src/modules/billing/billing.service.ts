@@ -73,7 +73,7 @@ export class BillingService {
         platformFeePercent: PLATFORM_FEE_BPS / 100,
         notes: [
           'Platform fee is currently 0% during private beta; the 3% figure is advisory only.',
-          'Stripe processing fees are charged separately by your payment provider, not by Orkora.',
+          'Payment processing fees are charged separately by your payment provider, not by Orkora.',
         ],
       },
       lifetime: {

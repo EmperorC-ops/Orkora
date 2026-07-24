@@ -68,8 +68,18 @@ export async function apiFetch<T>(path: string, init?: FetchInit): Promise<T> {
     const detail = await res.text().catch(() => '');
     throw new ApiError(res.status, detail || res.statusText);
   }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  // Tolerate empty bodies. Some endpoints (test-send, publish, void POSTs)
+  // return 200/201/204 with no body; calling res.json() on an empty body throws
+  // "Unexpected end of JSON input". Read as text first and only parse if there
+  // is something to parse.
+  if (res.status === 204 || res.status === 205) return undefined as T;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 /**

@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import Image from 'next/image';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 
@@ -31,6 +30,7 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const ratio = aspect ?? (kind === 'avatar' ? 'square' : 'banner');
 
@@ -70,6 +70,7 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
         const txt = await put.text().catch(() => '');
         throw new Error(`Upload failed (${put.status}): ${txt.slice(0, 120)}`);
       }
+      setLoadError(false);
       onChange(presign.publicUrl);
     } catch (err) {
       setError((err as Error).message ?? 'Upload failed.');
@@ -98,13 +99,16 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
         className={`group relative ${aspectClass} ${radiusClass} overflow-hidden border border-dashed border-slate-300 bg-slate-50 transition hover:border-brand-500/60`}
       >
         {value ? (
-          <Image
+          // Plain <img> (not next/image) so the R2 public URL renders without
+          // depending on the Image optimizer's remote-domain allowlist, which
+          // is a common cause of "uploaded but the preview never appears".
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={value}
             alt=""
-            fill
-            sizes={ratio === 'square' ? '128px' : '720px'}
-            className="object-cover"
-            unoptimized
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => setLoadError(true)}
+            onLoad={() => setLoadError(false)}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center text-slate-400">
@@ -150,6 +154,13 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
 
       {error ? (
         <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>
+      ) : null}
+
+      {loadError && value ? (
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          The image uploaded but is not loading from its public URL. Confirm your media bucket allows public
+          reads (S3_PUBLIC_BASE_URL / R2 public access).
+        </p>
       ) : null}
     </div>
   );

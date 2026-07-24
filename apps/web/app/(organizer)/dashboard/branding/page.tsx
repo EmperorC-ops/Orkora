@@ -5,6 +5,7 @@ import { ExternalLink, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
 import { ActionButton } from '@/components/action-button';
+import { ImageUpload } from '@/components/image-upload';
 
 interface OrgBrand {
   slug: string;
@@ -57,13 +58,22 @@ export default function BrandingPage() {
 
   async function save() {
     if (!orgId) throw new Error('No organization selected.');
+    // Normalize a pasted media URL: add https:// if the user left off the
+    // scheme, so the API's URL validation does not reject an otherwise-fine
+    // link with "heroMediaUrl must be a URL address".
+    const media = heroMediaUrl.trim();
+    const normalizedMedia = media
+      ? /^https?:\/\//i.test(media)
+        ? media
+        : `https://${media}`
+      : null;
     await apiFetch(`/v1/organizations/${orgId}`, {
       method: 'PATCH',
       json: {
         tagline: tagline.trim() || null,
         heroVariant,
-        heroMediaUrl: heroMediaUrl.trim() || null,
-        heroMediaType: heroMediaUrl.trim() ? heroMediaType : null,
+        heroMediaUrl: normalizedMedia,
+        heroMediaType: normalizedMedia ? heroMediaType : null,
         heroBio: heroBio.trim() || null,
       },
     });
@@ -134,8 +144,22 @@ export default function BrandingPage() {
           {usesMedia ? (
             <>
               <Field
-                label="Hero media URL"
-                hint="Paste a hosted image or video URL. Leave blank to use the gradient."
+                label="Hero image"
+                hint="Upload an image for the hero, or paste a hosted image/video URL below."
+              >
+                <ImageUpload
+                  kind="banner"
+                  aspect="banner"
+                  value={heroMediaType === 'image' ? heroMediaUrl || null : null}
+                  onChange={(url) => {
+                    setHeroMediaUrl(url ?? '');
+                    if (url) setHeroMediaType('image');
+                  }}
+                />
+              </Field>
+              <Field
+                label="Or paste a media URL"
+                hint="A full https:// link to a hosted image or video. Leave blank to use the gradient."
               >
                 <input
                   value={heroMediaUrl}
