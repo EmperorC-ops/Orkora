@@ -274,6 +274,31 @@ export class OrgsService {
     return { ok: true };
   }
 
+  /**
+   * Public sitemap source: every discoverable Brand Home and published event.
+   * Excludes suspended orgs and draft/archived events. Consumed by the web
+   * app's sitemap.xml route.
+   */
+  async getSitemap() {
+    const [orgs, events] = await Promise.all([
+      this.prisma.organization.findMany({
+        where: { status: { not: 'suspended' } },
+        select: { slug: true, updatedAt: true },
+      }),
+      this.prisma.event.findMany({
+        where: {
+          status: { in: ['published', 'live', 'ended'] },
+          organization: { status: { not: 'suspended' } },
+        },
+        select: { code: true, updatedAt: true },
+      }),
+    ]);
+    return {
+      orgs: orgs.map((o) => ({ slug: o.slug, updatedAt: o.updatedAt.toISOString() })),
+      events: events.map((e) => ({ code: e.code, updatedAt: e.updatedAt.toISOString() })),
+    };
+  }
+
   /** Aggregated brand engagement for the organiser dashboard. */
   async getBrandAnalytics(orgId: string) {
     const [byKind, bySource] = await Promise.all([

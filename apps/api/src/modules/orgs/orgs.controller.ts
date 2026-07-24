@@ -136,6 +136,12 @@ class UpdateMemberRoleDto {
 export class PublicBrandController {
   constructor(private readonly orgs: OrgsService) {}
 
+  // Declared before :slug so "sitemap" is not captured as a brand slug.
+  @Get('sitemap')
+  sitemap() {
+    return this.orgs.getSitemap();
+  }
+
   @Get(':slug')
   getBrand(@Param('slug') slug: string) {
     return this.orgs.getPublicBrand(slug);

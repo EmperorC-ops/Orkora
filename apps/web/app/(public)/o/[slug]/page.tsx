@@ -111,7 +111,15 @@ export default async function BrandHomePage({
         {/* Archive */}
         {brand.past.length > 0 ? (
           <section id="archive">
-            <h2 className="mb-6 text-2xl font-bold">Past editions</h2>
+            <div className="mb-6 flex items-end justify-between gap-4">
+              <h2 className="text-2xl font-bold">Past editions</h2>
+              <Link
+                href={`/o/${brand.slug}/past`}
+                className="text-sm font-semibold text-brand-300 transition hover:text-brand-200"
+              >
+                See the full archive
+              </Link>
+            </div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {brand.past.map((e) => (
                 <Link
