@@ -26,6 +26,67 @@ export interface Brand {
   past: BrandEvent[];
 }
 
+/**
+ * Fire-and-forget brand engagement event (Brand Home view, Shareable Card
+ * generate/view/download). Best-effort: uses sendBeacon so it survives an
+ * imminent navigation, and never throws.
+ */
+export function recordBrandEvent(
+  slug: string,
+  kind:
+    | 'brand_home.viewed'
+    | 'shareable_card.generated'
+    | 'shareable_card.viewed'
+    | 'shareable_card.downloaded',
+  source?: string | null,
+): void {
+  if (!slug) return;
+  try {
+    const url = `${API}/v1/public/orgs/${encodeURIComponent(slug)}/analytics`;
+    const body = JSON.stringify({ kind, source: source ?? undefined });
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+    } else {
+      void fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      });
+    }
+  } catch {
+    // best-effort; analytics must never break the page
+  }
+}
+
+/**
+ * Fire-and-forget Shareable Card event keyed by ticket code (the API resolves
+ * the owning brand). Used on the ticket page where the org slug is not loaded.
+ */
+export function recordTicketCardEvent(
+  code: string,
+  kind: 'shareable_card.generated' | 'shareable_card.downloaded',
+  source?: string | null,
+): void {
+  if (!code) return;
+  try {
+    const url = `${API}/v1/tickets/${encodeURIComponent(code)}/card-analytics`;
+    const body = JSON.stringify({ kind, source: source ?? undefined });
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+    } else {
+      void fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      });
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 /** Community subscribe from the public Brand Home. Idempotent server-side. */
 export async function subscribeToBrand(
   slug: string,

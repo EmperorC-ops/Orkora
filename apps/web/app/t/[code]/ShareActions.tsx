@@ -12,8 +12,9 @@
  *     attendee posts can be used to view their QR or check in as them.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download, Share2, Check, Copy } from 'lucide-react';
+import { recordTicketCardEvent } from '@/lib/brand';
 
 const APP = process.env.NEXT_PUBLIC_APP_URL ?? 'https://orkora.events';
 
@@ -27,6 +28,12 @@ export default function ShareActions({
   eventTitle: string;
 }) {
   const [copied, setCopied] = useState(false);
+
+  // The attendee is shown a generated card on this page - count it once. The
+  // API resolves the brand from the ticket code, so no org slug is needed here.
+  useEffect(() => {
+    recordTicketCardEvent(code, 'shareable_card.generated', 'ticket_page');
+  }, [code]);
 
   // Same-origin route in the web app. Relative URLs keep it origin-correct.
   const storyUrl = `/og/ticket/${encodeURIComponent(code)}?format=story`;
@@ -91,6 +98,7 @@ export default function ShareActions({
           <a
             href={storyUrl}
             download={`orkora-${eventCode}-story.png`}
+            onClick={() => recordTicketCardEvent(code, 'shareable_card.downloaded', 'story')}
             className="inline-flex items-center justify-center gap-2 rounded-full border border-surface-border bg-surface/60 px-4 py-2.5 text-sm font-semibold text-ink-primary transition hover:bg-white/5"
           >
             <Download className="h-4 w-4" /> Download story card (9:16)
@@ -99,6 +107,7 @@ export default function ShareActions({
           <a
             href={squareUrl}
             download={`orkora-${eventCode}-square.png`}
+            onClick={() => recordTicketCardEvent(code, 'shareable_card.downloaded', 'square')}
             className="inline-flex items-center justify-center gap-2 rounded-full border border-surface-border bg-surface/60 px-4 py-2.5 text-sm font-semibold text-ink-primary transition hover:bg-white/5"
           >
             <Download className="h-4 w-4" /> Download square card (1:1)

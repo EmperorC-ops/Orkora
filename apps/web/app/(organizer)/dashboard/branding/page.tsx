@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ExternalLink, Users } from 'lucide-react';
+import { ExternalLink, Eye, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
 import { ActionButton } from '@/components/action-button';
@@ -22,6 +22,14 @@ interface Subscribers {
   total: number;
 }
 
+interface BrandAnalyticsSummary {
+  brandHomeViews: number;
+  cardGenerated: number;
+  cardViewed: number;
+  cardDownloaded: number;
+  topSources: { source: string; count: number }[];
+}
+
 export default function BrandingPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -32,6 +40,7 @@ export default function BrandingPage() {
   const [heroMediaType, setHeroMediaType] = useState('image');
   const [heroBio, setHeroBio] = useState('');
   const [subscribers, setSubscribers] = useState<number | null>(null);
+  const [analytics, setAnalytics] = useState<BrandAnalyticsSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +63,9 @@ export default function BrandingPage() {
     apiFetch<Subscribers>(`/v1/organizations/${orgId}/brand/subscribers`)
       .then((s) => setSubscribers(s.total))
       .catch(() => setSubscribers(null));
+    apiFetch<BrandAnalyticsSummary>(`/v1/organizations/${orgId}/brand/analytics`)
+      .then(setAnalytics)
+      .catch(() => setAnalytics(null));
   }, [orgId]);
 
   async function save() {
@@ -103,11 +115,60 @@ export default function BrandingPage() {
         ) : null}
       </header>
 
-      {subscribers !== null ? (
-        <div className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface/40 px-4 py-2 text-sm">
-          <Users className="h-4 w-4 text-brand-300" />
-          <span className="font-semibold">{subscribers.toLocaleString()}</span>
-          <span className="text-ink-secondary">community subscribers</span>
+      <div className="flex flex-wrap items-center gap-3">
+        {subscribers !== null ? (
+          <div className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface/40 px-4 py-2 text-sm">
+            <Users className="h-4 w-4 text-brand-300" />
+            <span className="font-semibold">{subscribers.toLocaleString()}</span>
+            <span className="text-ink-secondary">community subscribers</span>
+          </div>
+        ) : null}
+        {analytics ? (
+          <div className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface/40 px-4 py-2 text-sm">
+            <Eye className="h-4 w-4 text-brand-300" />
+            <span className="font-semibold">{analytics.brandHomeViews.toLocaleString()}</span>
+            <span className="text-ink-secondary">Brand Home views</span>
+          </div>
+        ) : null}
+      </div>
+
+      {analytics && (analytics.cardViewed > 0 || analytics.cardGenerated > 0) ? (
+        <div className="rounded-2xl border border-surface-border bg-surface/40 p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-secondary">
+            Shareable Card reach
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <Stat label="Cards shown" value={analytics.cardGenerated} />
+            <Stat label="Downloads" value={analytics.cardDownloaded} />
+            <Stat label="Card-driven event views" value={analytics.cardViewed} />
+            <div>
+              <div className="font-semibold text-ink-primary">
+                {analytics.cardGenerated > 0
+                  ? (analytics.cardViewed / analytics.cardGenerated).toFixed(1)
+                  : '0.0'}
+                x
+              </div>
+              <div className="text-xs text-ink-muted">reach per card</div>
+            </div>
+          </div>
+          {analytics.topSources.length > 0 ? (
+            <div className="mt-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Top Brand Home sources
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {analytics.topSources.map((s) => (
+                  <span
+                    key={s.source}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-surface-border px-2.5 py-1 text-xs text-ink-secondary"
+                  >
+                    {s.source}
+                    <span className="font-semibold text-ink-primary">{s.count.toLocaleString()}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -210,6 +271,15 @@ export default function BrandingPage() {
           Loading...
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="font-semibold text-ink-primary">{value.toLocaleString()}</div>
+      <div className="text-xs text-ink-muted">{label}</div>
     </div>
   );
 }

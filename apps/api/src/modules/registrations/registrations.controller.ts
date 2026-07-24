@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { IsIn, IsOptional, IsString, Length } from 'class-validator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
@@ -44,6 +45,22 @@ export class PublicRegistrationsController {
  * confirmation email; sharing the URL is intentional within a small group
  * but the QR token bound to the ticket is what actually authorises check-in.
  */
+class CardAnalyticsDto {
+  @IsString()
+  @IsIn(['shareable_card.generated', 'shareable_card.viewed', 'shareable_card.downloaded'])
+  kind!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 120)
+  source?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 64)
+  visitor?: string;
+}
+
 @ApiTags('tickets')
 @Controller('tickets')
 export class TicketsController {
@@ -58,6 +75,15 @@ export class TicketsController {
   @Get(':code/share')
   getShare(@Param('code') code: string) {
     return this.service.getTicketShare(code);
+  }
+
+  // Public, fire-and-forget Shareable Card analytics (generated/downloaded).
+  // Resolves the owning brand from the ticket code. Returns 202 regardless.
+  @Post(':code/card-analytics')
+  @HttpCode(202)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  recordCardAnalytics(@Param('code') code: string, @Body() dto: CardAnalyticsDto) {
+    return this.service.recordCardAnalytics(code, dto);
   }
 }
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getBrand, type Brand, type BrandEvent } from '@/lib/brand';
 import SubscribeForm from './SubscribeForm';
+import BrandHomeAnalytics from './BrandHomeAnalytics';
 
 export const revalidate = 120;
 
@@ -61,6 +62,7 @@ export default async function BrandHomePage({
 
   return (
     <main className="min-h-screen bg-surface-deep text-ink-primary">
+      <BrandHomeAnalytics slug={brand.slug} />
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-surface-border bg-surface-deep/80 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center gap-3 px-6">

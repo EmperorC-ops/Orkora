@@ -240,6 +240,68 @@ export class OrgsService {
     };
   }
 
+  /**
+   * Ingest a brand-level engagement event from a public surface (Brand Home
+   * view, Shareable Card generated/viewed/downloaded). Public + unauthenticated,
+   * so it is defensive: unknown/suspended orgs are silently dropped, the kind is
+   * validated, and free-text fields are length-capped. Never throws to the
+   * caller - analytics must not break the page.
+   */
+  async recordBrandAnalytics(
+    slug: string,
+    input: { kind: string; source?: string | null; visitor?: string | null },
+  ) {
+    const allowed = new Set([
+      'brand_home.viewed',
+      'shareable_card.generated',
+      'shareable_card.viewed',
+      'shareable_card.downloaded',
+    ]);
+    if (!allowed.has(input.kind)) return { ok: true };
+    const org = await this.prisma.organization.findUnique({
+      where: { slug },
+      select: { id: true, status: true },
+    });
+    if (!org || org.status === 'suspended') return { ok: true };
+    await this.prisma.brandAnalytics.create({
+      data: {
+        organizationId: org.id,
+        kind: input.kind,
+        source: input.source ? input.source.slice(0, 120) : null,
+        visitor: input.visitor ? input.visitor.slice(0, 64) : null,
+      },
+    });
+    return { ok: true };
+  }
+
+  /** Aggregated brand engagement for the organiser dashboard. */
+  async getBrandAnalytics(orgId: string) {
+    const [byKind, bySource] = await Promise.all([
+      this.prisma.brandAnalytics.groupBy({
+        by: ['kind'],
+        where: { organizationId: orgId },
+        _count: { _all: true },
+      }),
+      this.prisma.brandAnalytics.groupBy({
+        by: ['source'],
+        where: { organizationId: orgId, kind: 'brand_home.viewed' },
+        _count: { _all: true },
+      }),
+    ]);
+    const count = (kind: string) =>
+      byKind.find((k) => k.kind === kind)?._count._all ?? 0;
+    return {
+      brandHomeViews: count('brand_home.viewed'),
+      cardGenerated: count('shareable_card.generated'),
+      cardViewed: count('shareable_card.viewed'),
+      cardDownloaded: count('shareable_card.downloaded'),
+      topSources: bySource
+        .map((s) => ({ source: s.source ?? 'direct', count: s._count._all }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8),
+    };
+  }
+
   async update(
     orgId: string,
     actorUserId: string,

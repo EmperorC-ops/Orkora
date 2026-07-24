@@ -761,3 +761,20 @@ create index if not exists story_analytics_event_created_idx
   on story_analytics (event_id, created_at desc);
 create index if not exists story_analytics_event_kind_idx
   on story_analytics (event_id, kind);
+
+-- ============================================================
+-- BRAND ANALYTICS (migration 0013, folded in for fresh installs)
+-- ============================================================
+create table if not exists brand_analytics (
+  id              uuid        primary key default uuidv7(),
+  organization_id uuid        not null references organizations(id) on delete cascade,
+  kind            text        not null,
+  source          text,
+  meta            jsonb       not null default '{}'::jsonb,
+  visitor         text,
+  created_at      timestamptz not null default now()
+);
+create index if not exists brand_analytics_org_created_idx
+  on brand_analytics (organization_id, created_at desc);
+create index if not exists brand_analytics_org_kind_idx
+  on brand_analytics (organization_id, kind);

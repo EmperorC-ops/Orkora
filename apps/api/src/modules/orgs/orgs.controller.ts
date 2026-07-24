@@ -99,6 +99,27 @@ class SubscribeDto {
   email!: string;
 }
 
+class BrandAnalyticsDto {
+  @IsString()
+  @IsIn([
+    'brand_home.viewed',
+    'shareable_card.generated',
+    'shareable_card.viewed',
+    'shareable_card.downloaded',
+  ])
+  kind!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 120)
+  source?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 64)
+  visitor?: string;
+}
+
 class UpdateMemberRoleDto {
   @IsString()
   @IsIn(['owner', 'admin', 'organizer', 'staff', 'vendor'])
@@ -126,6 +147,16 @@ export class PublicBrandController {
   subscribe(@Param('slug') slug: string, @Body() dto: SubscribeDto) {
     return this.orgs.subscribeToBrand(slug, dto.email);
   }
+
+  // Public, fire-and-forget engagement analytics (Brand Home views, Shareable
+  // Card generate/view/download). Returns 202 regardless so the page never
+  // treats analytics as a dependency.
+  @Post(':slug/analytics')
+  @HttpCode(202)
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  recordAnalytics(@Param('slug') slug: string, @Body() dto: BrandAnalyticsDto) {
+    return this.orgs.recordBrandAnalytics(slug, dto);
+  }
 }
 
 @ApiTags('organizations')
@@ -146,6 +177,14 @@ export class OrgsController {
   @Roles('owner', 'admin', 'organizer')
   brandSubscribers(@Param('orgId') orgId: string) {
     return this.orgs.listBrandSubscribers(orgId);
+  }
+
+  // Brand engagement rollup (Brand Home views, card reach, top sources).
+  @Get(':orgId/brand/analytics')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('owner', 'admin', 'organizer', 'staff')
+  brandAnalytics(@Param('orgId') orgId: string) {
+    return this.orgs.getBrandAnalytics(orgId);
   }
 
   @Get(':orgId')

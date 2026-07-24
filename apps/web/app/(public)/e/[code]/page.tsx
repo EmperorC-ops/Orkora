@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
 import { usesStoryMode, type StoryBlock } from '@/lib/story';
 import StoryRenderer from './StoryRenderer';
+import EventArrivalAnalytics from './EventArrivalAnalytics';
 import InstallPrompt from '../../../_components/InstallPrompt';
 import FeedbackForm from '../../../_components/FeedbackForm';
 
@@ -187,6 +188,7 @@ export default async function PublicEventPage({
   if (usesStoryMode(event) || (isPreview && hasBlocks)) {
     return (
       <>
+        <EventArrivalAnalytics slug={event.organization.slug ?? ''} />
         {isPreview && !event.storyPublishedAt ? (
           <div className="bg-amber-500 px-4 py-2 text-center text-xs font-semibold text-slate-900">
             Preview - this Story Mode draft is not published yet.
@@ -219,6 +221,7 @@ export default async function PublicEventPage({
           Surfaced here on the public event page because that is exactly
           the moment an attendee is engaging with Orkora for the first
           time and is most likely to want it on their home screen. */}
+      <EventArrivalAnalytics slug={event.organization.slug ?? ''} />
       <InstallPrompt variant="banner" />
 
       <header className="relative isolate overflow-hidden bg-brand-gradient text-white">

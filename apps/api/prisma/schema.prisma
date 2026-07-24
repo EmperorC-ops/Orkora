@@ -47,6 +47,7 @@ model Organization {
   emailSuppressions   EmailSuppression[]
   eventFeedback       EventFeedback[]
   brandSubscribers    BrandSubscriber[]
+  brandAnalytics      BrandAnalytics[]
 
   @@map("organizations")
 }
@@ -62,6 +63,22 @@ model BrandSubscriber {
   @@unique([organizationId, email])
   @@index([organizationId, createdAt])
   @@map("brand_subscribers")
+}
+
+model BrandAnalytics {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  kind           String
+  source         String?
+  meta           Json     @default("{}")
+  visitor        String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, kind])
+  @@map("brand_analytics")
 }
 
 model User {

@@ -532,6 +532,50 @@ export class RegistrationsService {
   }
 
   /**
+   * Ingest a Shareable Card engagement event (generated/downloaded) keyed by
+   * ticket code. Resolves the owning brand from the ticket so the row lands in
+   * brand_analytics alongside Brand Home events. Public + fire-and-forget:
+   * unknown/suspended orgs are dropped, kind is validated, never throws.
+   */
+  async recordCardAnalytics(
+    code: string,
+    input: { kind: string; source?: string | null; visitor?: string | null },
+  ) {
+    const allowed = new Set([
+      'shareable_card.generated',
+      'shareable_card.viewed',
+      'shareable_card.downloaded',
+    ]);
+    if (!allowed.has(input.kind)) return { ok: true };
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { code },
+      select: {
+        registration: {
+          select: {
+            event: {
+              select: {
+                organizationId: true,
+                organization: { select: { status: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const event = ticket?.registration.event;
+    if (!event || event.organization.status === 'suspended') return { ok: true };
+    await this.prisma.brandAnalytics.create({
+      data: {
+        organizationId: event.organizationId,
+        kind: input.kind,
+        source: input.source ? input.source.slice(0, 120) : null,
+        visitor: input.visitor ? input.visitor.slice(0, 64) : null,
+      },
+    });
+    return { ok: true };
+  }
+
+  /**
    * Verify a scanned QR token and mark the ticket as checked-in. Idempotent
    * if already checked-in: returns the existing record without changing it.
    *
