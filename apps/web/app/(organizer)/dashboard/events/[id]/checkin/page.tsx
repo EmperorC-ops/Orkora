@@ -98,24 +98,53 @@ export default function CheckinPage() {
     const QrScannerModule = await import('qr-scanner');
     const QrScanner = QrScannerModule.default;
 
-    // Enumerate cameras, requesting permission so we get real device labels.
-    // listCameras(true) triggers the getUserMedia prompt; on a desktop with an
-    // external/USB webcam this is what actually surfaces the device. Forcing a
-    // facingMode ('environment'/'user') instead makes qr-scanner throw "Camera
-    // not found." when no camera reports that facing mode - exactly the failure
-    // an external HD webcam hits.
-    const cameras = await QrScanner.listCameras(true).catch(
-      () => [] as { id: string; label: string }[],
-    );
-    if (cameras.length === 0) {
+    // Translate the browser's real DOMException into an operator-friendly line.
+    // qr-scanner's own start() collapses every failure into a generic "Camera
+    // not found.", which hides whether the problem is permission, another app
+    // holding the device, or no camera at all. We acquire the stream ourselves
+    // first precisely so we can see (and explain) the actual cause.
+    const describeCameraError = (err: unknown): string => {
+      const name =
+        err && typeof err === 'object' && 'name' in err
+          ? String((err as { name: unknown }).name)
+          : '';
+      if (name === 'NotAllowedError' || name === 'SecurityError')
+        return 'Camera access is blocked for this site. Click the camera icon in the address bar, choose Allow, then click Start scanner again.';
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError')
+        return 'No camera was detected. Plug in a webcam (or use a phone/tablet), then try again - or paste a ticket token below.';
+      if (name === 'NotReadableError' || name === 'TrackStartError')
+        return 'The camera is being used by another app (Zoom, Teams, the Camera app, etc.). Close that app, then click Start scanner again.';
+      const detail = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+      return detail
+        ? `Could not start the camera: ${detail}`
+        : 'Could not access the camera. Allow camera permission and try again.';
+    };
+
+    if (!navigator.mediaDevices?.getUserMedia) {
       setScannerError(
-        'No camera found on this device. Allow camera permission for this site, or open this check-in page on a phone or tablet, or paste a ticket token below.',
+        'This browser cannot access the camera. Use an up-to-date browser over HTTPS, or paste a ticket token below.',
       );
       return;
     }
 
-    const build = (preferredCamera: string) =>
-      new QrScanner(
+    // Probe for the camera directly. Prefer a rear camera if one exists, but
+    // never *require* a facing mode (desktops and external webcams have none).
+    // This yields the exact deviceId and, on failure, the real error.
+    let deviceId: string | undefined;
+    try {
+      const probe = await navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+        .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+      deviceId = probe.getVideoTracks()[0]?.getSettings().deviceId;
+      // Release the probe stream; qr-scanner opens its own on the same device.
+      probe.getTracks().forEach((t) => t.stop());
+    } catch (err) {
+      setScannerError(describeCameraError(err));
+      return;
+    }
+
+    try {
+      const scanner = new QrScanner(
         video,
         (r) => {
           handleScan(typeof r === 'string' ? r : r.data);
@@ -124,41 +153,17 @@ export default function CheckinPage() {
           highlightScanRegion: true,
           highlightCodeOutline: true,
           maxScansPerSecond: 4,
-          preferredCamera,
+          preferredCamera: deviceId ?? 'environment',
         },
       );
-
-    // Prefer a rear-facing camera at a door if a label hints at one, then try
-    // each enumerated camera by its exact deviceId (this is what makes external
-    // and USB webcams work), and finally fall back to the facing-mode strings.
-    const rear = cameras.find((c) => /back|rear|environment/i.test(c.label));
-    const candidates = [
-      rear?.id,
-      ...cameras.map((c) => c.id),
-      'environment',
-      'user',
-    ].filter((c): c is string => Boolean(c));
-
-    let lastDetail = '';
-    for (const cam of candidates) {
-      try {
-        const scanner = build(cam);
-        await scanner.start();
-        scannerRef.current = scanner;
-        setScanning(true);
-        return;
-      } catch (err) {
-        scannerRef.current?.destroy();
-        scannerRef.current = null;
-        lastDetail = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
-      }
+      await scanner.start();
+      scannerRef.current = scanner;
+      setScanning(true);
+    } catch (err) {
+      scannerRef.current?.destroy();
+      scannerRef.current = null;
+      setScannerError(describeCameraError(err));
     }
-
-    setScannerError(
-      lastDetail
-        ? `Could not start the camera: ${lastDetail}`
-        : 'Could not access the camera. Allow camera permission and try again.',
-    );
   }
 
   function stopScanner() {
