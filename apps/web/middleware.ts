@@ -76,7 +76,13 @@ function buildCsp(nonce: string): string {
     // Music, SoundCloud, YouTube) and optional map embeds. Preset providers
     // only; there is no arbitrary-iframe block in R1.
     "frame-src 'self' https://open.spotify.com https://embed.music.apple.com https://w.soundcloud.com https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://maps.google.com https://www.openstreetmap.org",
-    `connect-src 'self' ${apiOrigin} ${apiWsOrigin}`,
+    // connect-src must include the R2 storage hosts. Uploads go straight from
+    // the browser to a presigned PUT URL on the S3 endpoint
+    // (*.r2.cloudflarestorage.com); without it here the fetch is blocked by CSP
+    // ("Refused to connect...") and the banner/hero upload silently fails with
+    // no image ever produced. *.r2.dev is included so any direct fetch of a
+    // public object (not just <img>) is also allowed.
+    `connect-src 'self' ${apiOrigin} ${apiWsOrigin} https://*.r2.cloudflarestorage.com https://*.r2.dev https://*.amazonaws.com https://cdn.orkora.events`,
     `report-uri ${apiOrigin}/v1/csp-reports`,
   ].join('; ');
 }
