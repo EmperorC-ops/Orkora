@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, Calendar, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { registrationApi, type PublicTicket } from '@/lib/registration';
+import { isFeatureEnabled } from '@/lib/flags';
 import ShareActions from './ShareActions';
 
 export default function TicketPage() {
@@ -92,11 +93,13 @@ export default function TicketPage() {
               </div>
             </div>
 
-            <ShareActions
-              code={ticket.code}
-              eventCode={ticket.event.code}
-              eventTitle={ticket.event.title}
-            />
+            {isFeatureEnabled('shareable_cards') ? (
+              <ShareActions
+                code={ticket.code}
+                eventCode={ticket.event.code}
+                eventTitle={ticket.event.title}
+              />
+            ) : null}
           </>
         )}
       </div>

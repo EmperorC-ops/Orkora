@@ -16,6 +16,7 @@ import { Throttle } from '@nestjs/throttler';
 import {
   IsHexColor,
   IsIn,
+  IsObject,
   IsOptional,
   IsString,
   IsUrl,
@@ -91,6 +92,19 @@ class UpdateOrgDto {
   @IsString()
   @Length(0, 400)
   heroBio?: string | null;
+
+  @IsOptional()
+  @IsHexColor()
+  brandAccent?: string | null;
+
+  @IsOptional()
+  @IsHexColor()
+  brandSurface?: string | null;
+
+  // Sanitised in the service to known channels with valid URLs.
+  @IsOptional()
+  @IsObject()
+  socials?: Record<string, string>;
 }
 
 class SubscribeDto {

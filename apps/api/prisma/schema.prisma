@@ -27,6 +27,9 @@ model Organization {
   heroMediaUrl  String?  @map("hero_media_url")
   heroMediaType String?  @map("hero_media_type")
   heroBio       String?  @map("hero_bio")
+  brandAccent   String?  @map("brand_accent")
+  brandSurface  String?  @map("brand_surface")
+  socials       Json     @default("{}")
   plan          String   @default("starter")
   // Platform lifecycle: "active" | "suspended". A super admin can suspend an
   // org from the platform console; suspended orgs are hidden from the public

@@ -778,3 +778,10 @@ create index if not exists brand_analytics_org_created_idx
   on brand_analytics (organization_id, created_at desc);
 create index if not exists brand_analytics_org_kind_idx
   on brand_analytics (organization_id, kind);
+
+-- ============================================================
+-- BRAND SURFACE + SOCIALS (migration 0014, folded in for fresh installs)
+-- ============================================================
+alter table organizations add column if not exists brand_accent  text;
+alter table organizations add column if not exists brand_surface text;
+alter table organizations add column if not exists socials       jsonb not null default '{}'::jsonb;

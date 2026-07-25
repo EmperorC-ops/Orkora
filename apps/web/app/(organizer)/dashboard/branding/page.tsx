@@ -16,7 +16,17 @@ interface OrgBrand {
   heroMediaUrl: string | null;
   heroMediaType: string | null;
   heroBio: string | null;
+  brandAccent: string | null;
+  brandSurface: string | null;
+  socials: Record<string, string> | null;
 }
+
+const SOCIAL_FIELDS = [
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'tiktok', label: 'TikTok' },
+  { key: 'x', label: 'X' },
+  { key: 'whatsapp', label: 'WhatsApp channel' },
+] as const;
 
 interface Subscribers {
   total: number;
@@ -39,6 +49,9 @@ export default function BrandingPage() {
   const [heroMediaUrl, setHeroMediaUrl] = useState('');
   const [heroMediaType, setHeroMediaType] = useState('image');
   const [heroBio, setHeroBio] = useState('');
+  const [brandAccent, setBrandAccent] = useState('');
+  const [brandSurface, setBrandSurface] = useState('');
+  const [socials, setSocials] = useState<Record<string, string>>({});
   const [subscribers, setSubscribers] = useState<number | null>(null);
   const [analytics, setAnalytics] = useState<BrandAnalyticsSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +70,9 @@ export default function BrandingPage() {
         setHeroMediaUrl(o.heroMediaUrl ?? '');
         setHeroMediaType(o.heroMediaType ?? 'image');
         setHeroBio(o.heroBio ?? '');
+        setBrandAccent(o.brandAccent ?? '');
+        setBrandSurface(o.brandSurface ?? '');
+        setSocials(o.socials ?? {});
         setLoaded(true);
       })
       .catch((e: Error) => setError(e.message));
@@ -79,6 +95,12 @@ export default function BrandingPage() {
         ? media
         : `https://${media}`
       : null;
+    const hex = (v: string) => (/^#[0-9a-fA-F]{6}$/.test(v.trim()) ? v.trim() : null);
+    const cleanSocials: Record<string, string> = {};
+    for (const { key } of SOCIAL_FIELDS) {
+      const url = (socials[key] ?? '').trim();
+      if (url) cleanSocials[key] = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    }
     await apiFetch(`/v1/organizations/${orgId}`, {
       method: 'PATCH',
       json: {
@@ -87,6 +109,9 @@ export default function BrandingPage() {
         heroMediaUrl: normalizedMedia,
         heroMediaType: normalizedMedia ? heroMediaType : null,
         heroBio: heroBio.trim() || null,
+        brandAccent: hex(brandAccent),
+        brandSurface: hex(brandSurface),
+        socials: cleanSocials,
       },
     });
   }
@@ -256,6 +281,58 @@ export default function BrandingPage() {
               />
             </Field>
           ) : null}
+
+          <Field label="Accent colour" hint="Secondary / hover colour. Leave blank to auto-derive from your brand colour.">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(brandAccent) ? brandAccent : '#6C5CE7'}
+                onChange={(e) => setBrandAccent(e.target.value)}
+                className="h-9 w-12 cursor-pointer rounded border border-surface-border bg-transparent"
+                aria-label="Accent colour"
+              />
+              {brandAccent ? (
+                <button type="button" onClick={() => setBrandAccent('')} className="text-xs text-ink-muted hover:text-ink-primary">
+                  Reset
+                </button>
+              ) : (
+                <span className="text-xs text-ink-muted">Auto</span>
+              )}
+            </div>
+          </Field>
+
+          <Field label="Surface colour" hint="Page background for your Brand Home. Leave blank for the default deep surface.">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(brandSurface) ? brandSurface : '#0B0B14'}
+                onChange={(e) => setBrandSurface(e.target.value)}
+                className="h-9 w-12 cursor-pointer rounded border border-surface-border bg-transparent"
+                aria-label="Surface colour"
+              />
+              {brandSurface ? (
+                <button type="button" onClick={() => setBrandSurface('')} className="text-xs text-ink-muted hover:text-ink-primary">
+                  Reset
+                </button>
+              ) : (
+                <span className="text-xs text-ink-muted">Default</span>
+              )}
+            </div>
+          </Field>
+
+          <Field label="Socials" hint="Links shown on your Brand Home header.">
+            <div className="space-y-2">
+              {SOCIAL_FIELDS.map(({ key, label }) => (
+                <input
+                  key={key}
+                  value={socials[key] ?? ''}
+                  onChange={(e) => setSocials((s) => ({ ...s, [key]: e.target.value }))}
+                  placeholder={`${label} URL`}
+                  className="w-full rounded-lg border border-surface-border bg-surface-deep/60 px-3 py-2 text-sm text-ink-primary placeholder-ink-muted outline-none focus:border-brand-500"
+                />
+              ))}
+            </div>
+          </Field>
 
           <ActionButton
             onAction={save}

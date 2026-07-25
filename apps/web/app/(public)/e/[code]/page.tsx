@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
 import { usesStoryMode, type StoryBlock } from '@/lib/story';
+import { isFeatureEnabled } from '@/lib/flags';
 import StoryRenderer from './StoryRenderer';
 import EventArrivalAnalytics from './EventArrivalAnalytics';
 import InstallPrompt from '../../../_components/InstallPrompt';
@@ -185,7 +186,8 @@ export default async function PublicEventPage({
   // Every other event falls through to the classic layout below, untouched.
   const isPreview = event.storyPreview === true;
   const hasBlocks = (event.storyBlocks?.length ?? 0) > 0;
-  if (usesStoryMode(event) || (isPreview && hasBlocks)) {
+  const storyOn = isFeatureEnabled('story_mode', event.organization.slug);
+  if (storyOn && (usesStoryMode(event) || (isPreview && hasBlocks))) {
     return (
       <>
         <EventArrivalAnalytics slug={event.organization.slug ?? ''} />

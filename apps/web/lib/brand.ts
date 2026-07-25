@@ -22,8 +22,32 @@ export interface Brand {
   heroMediaUrl: string | null;
   heroMediaType: 'image' | 'video' | string | null;
   heroBio: string | null;
+  brandAccent: string | null;
+  brandSurface: string | null;
+  socials: Record<string, string>;
   upcoming: BrandEvent[];
   past: BrandEvent[];
+}
+
+function lighten(hex: string, amt: number): string {
+  const m = /^#?([\da-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const f = (c: number) => Math.max(0, Math.min(255, Math.round(c + (255 - c) * amt)));
+  const r = f((n >> 16) & 255);
+  const g = f((n >> 8) & 255);
+  const b = f(n & 255);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+/** Secondary/hover colour. Uses brandAccent, else a lightened brandColor (D0). */
+export function accentFor(brandColor: string | null, brandAccent: string | null): string {
+  return brandAccent || lighten(brandColor || '#6C5CE7', 0.18);
+}
+
+/** Page background for Brand Home / Story dark sections. Defaults to surface-deep. */
+export function surfaceFor(brandSurface: string | null): string {
+  return brandSurface || '#0B0B14';
 }
 
 /**

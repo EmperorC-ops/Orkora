@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getBrand, type Brand, type BrandEvent } from '@/lib/brand';
+import { getBrand, accentFor, surfaceFor, type Brand, type BrandEvent } from '@/lib/brand';
+import { isFeatureEnabled } from '@/lib/flags';
 import SubscribeForm from './SubscribeForm';
 import BrandHomeAnalytics from './BrandHomeAnalytics';
+import SocialsBar from './SocialsBar';
 
 export const revalidate = 120;
 
@@ -56,12 +58,16 @@ export default async function BrandHomePage({
 }) {
   const brand = await getBrand(params.slug);
   if (!brand) notFound();
+  // Gated rollout: Brand Home is only public when the flag is on for this brand.
+  if (!isFeatureEnabled('brand_home', params.slug)) notFound();
 
   const color = brand.brandColor || '#6C5CE7';
+  const accent = accentFor(brand.brandColor, brand.brandAccent);
+  const surface = surfaceFor(brand.brandSurface);
   const next = brand.upcoming[0] ?? null;
 
   return (
-    <main className="min-h-screen bg-surface-deep text-ink-primary">
+    <main className="min-h-screen bg-surface-deep text-ink-primary" style={{ backgroundColor: surface }}>
       <BrandHomeAnalytics slug={brand.slug} />
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-surface-border bg-surface-deep/80 backdrop-blur">
@@ -85,6 +91,9 @@ export default async function BrandHomePage({
             ) : null}
             <a href="#connect" className="transition hover:text-ink-primary">Connect</a>
           </nav>
+          <div className="ml-auto sm:ml-4">
+            <SocialsBar socials={brand.socials} />
+          </div>
         </div>
       </header>
 
@@ -154,7 +163,7 @@ export default async function BrandHomePage({
             Get the next drop from {brand.name} before anyone else.
           </p>
           <div className="mt-5">
-            <SubscribeForm slug={brand.slug} color={color} />
+            <SubscribeForm slug={brand.slug} color={accent} />
           </div>
         </section>
       </div>

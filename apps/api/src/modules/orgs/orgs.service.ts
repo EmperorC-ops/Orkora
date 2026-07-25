@@ -25,6 +25,25 @@ interface UpdateOrgInput {
   heroMediaUrl?: string | null;
   heroMediaType?: string | null;
   heroBio?: string | null;
+  brandAccent?: string | null;
+  brandSurface?: string | null;
+  socials?: Record<string, string>;
+}
+
+// Channels we render on the Brand Home SocialsBar. Anything else is dropped.
+const SOCIAL_KEYS = ['instagram', 'tiktok', 'x', 'whatsapp'] as const;
+
+function sanitizeSocials(input: Record<string, unknown> | undefined): Record<string, string> {
+  if (!input || typeof input !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const key of SOCIAL_KEYS) {
+    const value = input[key];
+    if (typeof value === 'string') {
+      const url = value.trim();
+      if (url && /^https?:\/\//i.test(url) && url.length <= 300) out[key] = url;
+    }
+  }
+  return out;
 }
 
 const ALLOWED_ROLES = ['owner', 'admin', 'organizer', 'staff', 'vendor'] as const;
@@ -130,6 +149,9 @@ export class OrgsService {
         heroMediaUrl: true,
         heroMediaType: true,
         heroBio: true,
+        brandAccent: true,
+        brandSurface: true,
+        socials: true,
         status: true,
       },
     });
@@ -186,6 +208,9 @@ export class OrgsService {
       heroMediaUrl: org.heroMediaUrl,
       heroMediaType: org.heroMediaType,
       heroBio: org.heroBio,
+      brandAccent: org.brandAccent,
+      brandSurface: org.brandSurface,
+      socials: sanitizeSocials(org.socials as Record<string, unknown> | undefined),
       upcoming,
       past,
     };
@@ -359,6 +384,9 @@ export class OrgsService {
         ...(input.heroMediaUrl !== undefined ? { heroMediaUrl: input.heroMediaUrl } : {}),
         ...(input.heroMediaType !== undefined ? { heroMediaType: input.heroMediaType } : {}),
         ...(input.heroBio !== undefined ? { heroBio: input.heroBio } : {}),
+        ...(input.brandAccent !== undefined ? { brandAccent: input.brandAccent } : {}),
+        ...(input.brandSurface !== undefined ? { brandSurface: input.brandSurface } : {}),
+        ...(input.socials !== undefined ? { socials: sanitizeSocials(input.socials) } : {}),
       },
     });
 
