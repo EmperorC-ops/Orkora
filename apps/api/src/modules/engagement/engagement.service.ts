@@ -40,16 +40,18 @@ export class EngagementService {
     if (channel.eventId !== eventId) throw new ForbiddenException('Wrong event');
     const rows = await this.prisma.message.findMany({
       where: { channelId, deletedAt: null },
-      include: { user: { select: { id: true, fullName: true, avatarUrl: true } } },
+      include: { user: { select: { fullName: true, avatarUrl: true } } },
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 200),
     });
+    // Public read: expose only the author's display name + avatar, never the
+    // internal user id, to an unauthenticated viewer.
     return rows.reverse().map((m) => ({
       id: m.id,
       body: m.body,
       createdAt: m.createdAt,
       replyToId: m.replyToId,
-      user: { id: m.user.id, fullName: m.user.fullName, avatarUrl: m.user.avatarUrl },
+      user: { fullName: m.user.fullName, avatarUrl: m.user.avatarUrl },
     }));
   }
 
@@ -114,10 +116,11 @@ export class EngagementService {
     const rows = await this.prisma.message.findMany({
       where: { channelId: channel.id, replyToId: null, deletedAt: null },
       include: {
-        user: { select: { id: true, fullName: true, avatarUrl: true } },
+        // Public read: author display name + avatar only, no internal user id.
+        user: { select: { fullName: true, avatarUrl: true } },
         replies: {
           where: { deletedAt: null },
-          include: { user: { select: { id: true, fullName: true, avatarUrl: true } } },
+          include: { user: { select: { fullName: true, avatarUrl: true } } },
           orderBy: { createdAt: 'asc' },
           take: 8,
         },

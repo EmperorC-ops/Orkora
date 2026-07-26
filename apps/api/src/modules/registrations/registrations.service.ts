@@ -38,6 +38,20 @@ function generateTicketCode(): string {
 }
 
 /**
+ * Partially masks an email for display on the public (bearer-code) ticket page,
+ * e.g. "jason@gmail.com" -> "j***@gmail.com". The ticket code is a strong
+ * credential, but a forwarded ticket link should not expose the holder's full
+ * address. The authenticated owner still sees the full email via /me/tickets.
+ */
+function maskEmail(email: string): string {
+  const at = email.indexOf('@');
+  if (at <= 0) return '***';
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return `${local.slice(0, 1)}${'*'.repeat(Math.max(2, local.length - 1))}@${domain}`;
+}
+
+/**
  * Format an event's start/end as a single human line for emails, rendered in
  * the event's own timezone (e.g. "Sat, 20 Jun 2026, 18:00 - 22:00"). Falls
  * back to a day range when the event spans multiple calendar days.
@@ -451,7 +465,11 @@ export class RegistrationsService {
       include: { tier: true, registration: { include: { event: true } } },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
-    return this.publicTicket(ticket);
+    // Public bearer endpoint: mask the holder email so a shared/forwarded ticket
+    // link cannot leak the full address. Owners get the full value from the
+    // authenticated /me/tickets list.
+    const shaped = this.publicTicket(ticket);
+    return { ...shaped, holderEmail: maskEmail(shaped.holderEmail) };
   }
 
   /**
