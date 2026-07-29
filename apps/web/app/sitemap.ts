@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { discoverFacets, citySlug } from '@/lib/discover';
 
 /**
  * Public sitemap: the landing page, every Brand Home (+ its past archive), and
@@ -51,6 +52,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch {
     // On any failure, ship at least the landing page rather than a 500.
+  }
+
+  // Discovery browse pages: only categories/cities that currently have events.
+  try {
+    const facets = await discoverFacets();
+    for (const c of facets.categories ?? []) {
+      entries.push({
+        url: `${APP}/c/${c.slug}`,
+        changeFrequency: 'daily',
+        priority: 0.5,
+      });
+    }
+    for (const c of facets.cities ?? []) {
+      entries.push({
+        url: `${APP}/city/${citySlug(c.city)}`,
+        changeFrequency: 'daily',
+        priority: 0.5,
+      });
+    }
+  } catch {
+    // Discovery pages are optional in the sitemap; skip on failure.
   }
 
   return entries;

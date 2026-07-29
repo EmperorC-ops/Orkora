@@ -213,6 +213,8 @@ model Event {
   bannerUrl       String?  @map("banner_url")
   theme           Json     @default("{}")
   status          String   @default("draft")
+  category        String?
+  city            String?
   storyBlocks     Json     @default("[]") @map("story_blocks")
   storyTemplate   String   @default("classic") @map("story_template")
   storyPublishedAt DateTime? @map("story_published_at") @db.Timestamptz

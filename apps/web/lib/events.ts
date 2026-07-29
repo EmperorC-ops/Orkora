@@ -3,6 +3,30 @@ import { apiFetch } from './auth';
 export type EventKind = 'physical' | 'virtual' | 'hybrid';
 export type EventStatus = 'draft' | 'published' | 'live' | 'ended' | 'archived';
 
+// Topic categories for discovery/SEO. Must stay in sync with the API's
+// EVENT_CATEGORIES list (apps/api/src/modules/events/dto/event.dto.ts).
+export const EVENT_CATEGORIES: { slug: string; label: string }[] = [
+  { slug: 'music', label: 'Music' },
+  { slug: 'tech', label: 'Tech' },
+  { slug: 'business', label: 'Business' },
+  { slug: 'arts-culture', label: 'Arts & Culture' },
+  { slug: 'food-drink', label: 'Food & Drink' },
+  { slug: 'faith', label: 'Faith' },
+  { slug: 'sports-fitness', label: 'Sports & Fitness' },
+  { slug: 'wellness', label: 'Wellness' },
+  { slug: 'education', label: 'Education' },
+  { slug: 'community', label: 'Community' },
+  { slug: 'fashion', label: 'Fashion' },
+  { slug: 'comedy', label: 'Comedy' },
+  { slug: 'film', label: 'Film' },
+  { slug: 'other', label: 'Other' },
+];
+
+export function categoryLabel(slug: string | null | undefined): string | null {
+  if (!slug) return null;
+  return EVENT_CATEGORIES.find((c) => c.slug === slug)?.label ?? slug;
+}
+
 export interface OrganizerEventSummary {
   id: string;
   code: string;
@@ -15,6 +39,8 @@ export interface OrganizerEventSummary {
   status: EventStatus;
   bannerUrl: string | null;
   capacity: number | null;
+  category: string | null;
+  city: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +113,8 @@ export interface CreateEventInput {
   // `null` is accepted on update to clear an existing banner; the API treats
   // an absent value as "no change" and an explicit null as "remove".
   bannerUrl?: string | null;
+  category?: string | null;
+  city?: string | null;
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>;

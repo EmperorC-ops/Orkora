@@ -62,6 +62,8 @@ export class EventsService {
         bannerUrl: true,
         theme: true,
         status: true,
+        category: true,
+        city: true,
         storyBlocks: true,
         storyTemplate: true,
         storyPublishedAt: true,
@@ -138,6 +140,8 @@ export class EventsService {
         bannerUrl: true,
         theme: true,
         status: true,
+        category: true,
+        city: true,
         storyBlocks: true,
         storyTemplate: true,
         storyPublishedAt: true,
@@ -222,6 +226,97 @@ export class EventsService {
     return this.serializeEvent(event);
   }
 
+  // -------- Public discovery (browse by category / city) --------
+
+  /**
+   * Public browse of upcoming, published events, optionally filtered by topic
+   * category or city. Powers the SEO category/city pages. Excludes drafts,
+   * archived events, and suspended orgs. This is groundwork, not a marketplace
+   * hub - the pages fill in automatically as events accrue.
+   */
+  async browsePublicEvents(opts: { category?: string; city?: string; take?: number; skip?: number }) {
+    const take = Math.min(Math.max(opts.take ?? 24, 1), 48);
+    const skip = Math.max(opts.skip ?? 0, 0);
+    const where: Prisma.EventWhereInput = {
+      status: { in: ['published', 'live', 'ended'] },
+      organization: { status: { not: 'suspended' } },
+      endAt: { gte: new Date() },
+      ...(opts.category ? { category: opts.category } : {}),
+      ...(opts.city ? { city: { equals: opts.city, mode: 'insensitive' } } : {}),
+    };
+    const [total, rows] = await Promise.all([
+      this.prisma.event.count({ where }),
+      this.prisma.event.findMany({
+        where,
+        orderBy: { startAt: 'asc' },
+        take,
+        skip,
+        select: {
+          code: true,
+          slug: true,
+          title: true,
+          kind: true,
+          startAt: true,
+          endAt: true,
+          timezone: true,
+          bannerUrl: true,
+          category: true,
+          city: true,
+          organization: { select: { name: true, slug: true, brandColor: true } },
+        },
+      }),
+    ]);
+    return {
+      total,
+      take,
+      skip,
+      events: rows.map((e) => ({
+        code: e.code,
+        slug: e.slug,
+        title: e.title,
+        kind: e.kind,
+        startAt: e.startAt.toISOString(),
+        endAt: e.endAt.toISOString(),
+        timezone: e.timezone,
+        bannerUrl: e.bannerUrl,
+        category: e.category,
+        city: e.city,
+        organization: e.organization,
+      })),
+    };
+  }
+
+  /** Distinct categories and cities that have upcoming public events, with counts. */
+  async getDiscoverFacets() {
+    const base: Prisma.EventWhereInput = {
+      status: { in: ['published', 'live', 'ended'] },
+      organization: { status: { not: 'suspended' } },
+      endAt: { gte: new Date() },
+    };
+    const [byCategory, byCity] = await Promise.all([
+      this.prisma.event.groupBy({
+        by: ['category'],
+        where: { ...base, category: { not: null } },
+        _count: { _all: true },
+      }),
+      this.prisma.event.groupBy({
+        by: ['city'],
+        where: { ...base, city: { not: null } },
+        _count: { _all: true },
+      }),
+    ]);
+    return {
+      categories: byCategory
+        .filter((c) => c.category)
+        .map((c) => ({ slug: c.category as string, count: c._count._all }))
+        .sort((a, b) => b.count - a.count),
+      cities: byCity
+        .filter((c) => c.city)
+        .map((c) => ({ city: c.city as string, count: c._count._all }))
+        .sort((a, b) => b.count - a.count),
+    };
+  }
+
   // -------- Organizer CRUD --------
 
   async createForOrg(orgId: string, dto: CreateEventDto) {
@@ -243,6 +338,8 @@ export class EventsService {
         capacity: dto.capacity,
         bannerUrl: dto.bannerUrl,
         theme: (dto.theme ?? {}) as Prisma.InputJsonValue,
+        category: dto.category ?? null,
+        city: dto.city ?? null,
         status: 'draft',
       },
     });
@@ -266,6 +363,8 @@ export class EventsService {
         status: true,
         bannerUrl: true,
         capacity: true,
+        category: true,
+        city: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -317,6 +416,10 @@ export class EventsService {
         capacity: dto.capacity ?? undefined,
         bannerUrl: dto.bannerUrl ?? undefined,
         theme: (dto.theme ?? undefined) as Prisma.InputJsonValue | undefined,
+        // Distinguish "absent" (no change) from explicit null (clear the value),
+        // so organizers can remove a category/city, not only set it.
+        category: dto.category === undefined ? undefined : dto.category,
+        city: dto.city === undefined ? undefined : dto.city,
       },
     });
     return this.serializeEvent(event);

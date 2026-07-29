@@ -57,6 +57,28 @@ export class EventsController {
     return this.events.findPublicBySlug(orgSlug, eventSlug, preview);
   }
 
+  // Public discovery groundwork: browse upcoming events by category / city, and
+  // list the categories/cities that currently have events (with counts).
+  @Get('discover/facets')
+  discoverFacets() {
+    return this.events.getDiscoverFacets();
+  }
+
+  @Get('discover/browse')
+  discoverBrowse(
+    @Query('category') category?: string,
+    @Query('city') city?: string,
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
+  ) {
+    return this.events.browsePublicEvents({
+      category,
+      city,
+      take: take ? Number(take) : undefined,
+      skip: skip ? Number(skip) : undefined,
+    });
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))

@@ -3,6 +3,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -15,6 +16,25 @@ import {
 
 export type EventKind = 'physical' | 'virtual' | 'hybrid';
 export type EventStatus = 'draft' | 'published' | 'live' | 'ended' | 'archived';
+
+// Topic categories for discovery/SEO. Slugs, stable, used in public browse URLs.
+export const EVENT_CATEGORIES = [
+  'music',
+  'tech',
+  'business',
+  'arts-culture',
+  'food-drink',
+  'faith',
+  'sports-fitness',
+  'wellness',
+  'education',
+  'community',
+  'fashion',
+  'comedy',
+  'film',
+  'other',
+] as const;
+export type EventCategory = (typeof EVENT_CATEGORIES)[number];
 
 export class CreateEventDto {
   @IsString()
@@ -51,6 +71,15 @@ export class CreateEventDto {
   @IsOptional()
   @IsObject()
   theme?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsIn(EVENT_CATEGORIES as unknown as string[])
+  category?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 80)
+  city?: string | null;
 }
 
 export class UpdateEventDto {
@@ -92,6 +121,15 @@ export class UpdateEventDto {
   @IsOptional()
   @IsObject()
   theme?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsIn(EVENT_CATEGORIES as unknown as string[])
+  category?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 80)
+  city?: string | null;
 }
 
 // === Story Mode ===

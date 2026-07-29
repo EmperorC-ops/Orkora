@@ -211,6 +211,9 @@ export class OrgsService {
       brandAccent: org.brandAccent,
       brandSurface: org.brandSurface,
       socials: sanitizeSocials(org.socials as Record<string, unknown> | undefined),
+      subscriberCount: await this.prisma.brandSubscriber.count({
+        where: { organizationId: org.id },
+      }),
       upcoming,
       past,
     };

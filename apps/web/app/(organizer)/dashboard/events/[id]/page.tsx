@@ -30,6 +30,7 @@ import {
   sameCalendarDay,
   wallTimeToUtcISO,
   utcISOToWallTime,
+  EVENT_CATEGORIES,
   type EventDetail,
   type EventTier,
   type EventStatus,
@@ -289,6 +290,21 @@ export default function EventDetailPage() {
           )}
         </div>
       </div>
+
+      {orgId && (
+        <DiscoveryDetails
+          orgId={orgId}
+          eventId={id}
+          category={event.category}
+          city={event.city}
+          disabled={event.status === 'archived'}
+          onSaved={async () => {
+            await refresh();
+            toast.success('Discovery details saved');
+          }}
+          onError={(m) => toast.error('Could not save', m)}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Stat label="Sessions" value={event.sessions.length} />
@@ -1216,6 +1232,94 @@ function SessionRow({
         </button>
       </div>
     </li>
+  );
+}
+
+/* ----------------- Discovery details ----------------- */
+
+function DiscoveryDetails({
+  orgId,
+  eventId,
+  category,
+  city,
+  disabled,
+  onSaved,
+  onError,
+}: {
+  orgId: string;
+  eventId: string;
+  category: string | null;
+  city: string | null;
+  disabled?: boolean;
+  onSaved: () => Promise<void> | void;
+  onError: (msg: string) => void;
+}) {
+  const [cat, setCat] = useState(category ?? '');
+  const [town, setTown] = useState(city ?? '');
+  const [busy, setBusy] = useState(false);
+
+  const dirty = (cat || '') !== (category ?? '') || town.trim() !== (city ?? '');
+
+  async function save() {
+    setBusy(true);
+    try {
+      await eventsApi(orgId).update(eventId, {
+        category: cat ? cat : null,
+        city: town.trim() ? town.trim() : null,
+      });
+      await onSaved();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Could not save discovery details.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="font-semibold text-slate-900">Discovery details</h3>
+      <p className="mt-1 text-sm text-slate-500">
+        Category and city help people find this event through search engines.
+      </p>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Category</label>
+          <select
+            value={cat}
+            onChange={(e) => setCat(e.target.value)}
+            disabled={disabled || busy}
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 disabled:opacity-60"
+          >
+            <option value="">No category</option>
+            {EVENT_CATEGORIES.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">City</label>
+          <input
+            value={town}
+            onChange={(e) => setTown(e.target.value)}
+            disabled={disabled || busy}
+            placeholder="Lagos"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 disabled:opacity-60"
+          />
+        </div>
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={save}
+          disabled={disabled || busy || !dirty}
+          className="inline-flex items-center gap-2 rounded-full bg-brand-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
+        >
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Save
+        </button>
+      </div>
+    </section>
   );
 }
 

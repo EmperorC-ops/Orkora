@@ -785,3 +785,11 @@ create index if not exists brand_analytics_org_kind_idx
 alter table organizations add column if not exists brand_accent  text;
 alter table organizations add column if not exists brand_surface text;
 alter table organizations add column if not exists socials       jsonb not null default '{}'::jsonb;
+
+-- ============================================================
+-- EVENT CATEGORY + CITY (migration 0015, folded in for fresh installs)
+-- ============================================================
+alter table events add column if not exists category text;
+alter table events add column if not exists city     text;
+create index if not exists events_category_idx on events (category) where category is not null;
+create index if not exists events_city_idx     on events (city)     where city is not null;

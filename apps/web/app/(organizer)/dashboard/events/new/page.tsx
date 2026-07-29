@@ -4,7 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { eventsApi, readActiveOrgId, wallTimeToUtcISO, type EventKind } from '@/lib/events';
+import {
+  eventsApi,
+  readActiveOrgId,
+  wallTimeToUtcISO,
+  EVENT_CATEGORIES,
+  type EventKind,
+} from '@/lib/events';
 import { ImageUpload } from '@/components/image-upload';
 
 export default function NewEventPage() {
@@ -37,6 +43,8 @@ export default function NewEventPage() {
       timezone,
       capacity: f.get('capacity') ? Number(f.get('capacity')) : undefined,
       bannerUrl: bannerUrl ?? undefined,
+      category: (String(f.get('category') ?? '') || undefined) as string | undefined,
+      city: (String(f.get('city') ?? '').trim() || undefined) as string | undefined,
     };
     try {
       const created = await eventsApi(orgId).create(body);
@@ -100,6 +108,31 @@ export default function NewEventPage() {
           defaultValue="Africa/Lagos"
           placeholder="Africa/Lagos"
         />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Category (optional)
+            </label>
+            <select
+              name="category"
+              defaultValue=""
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            >
+              <option value="">No category</option>
+              {EVENT_CATEGORIES.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">
+              Helps people find your event through search.
+            </p>
+          </div>
+          <Field label="City (optional)" name="city" placeholder="Lagos" />
+        </div>
+
         <ImageUpload
           kind="banner"
           value={bannerUrl}
