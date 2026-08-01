@@ -55,7 +55,10 @@ export async function browseEvents(opts: {
 
 export async function discoverFacets(): Promise<DiscoverFacets> {
   try {
-    const res = await fetch(`${API}/v1/events/discover/facets`, { next: { revalidate: 3600 } });
+    // 300s so a newly-tagged city resolves on its /city/[slug] page within a
+    // few minutes rather than up to an hour (the city page resolves its slug
+    // through these facets).
+    const res = await fetch(`${API}/v1/events/discover/facets`, { next: { revalidate: 300 } });
     if (!res.ok) return { categories: [], cities: [] };
     return (await res.json()) as DiscoverFacets;
   } catch {
