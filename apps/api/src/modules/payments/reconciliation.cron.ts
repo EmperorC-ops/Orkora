@@ -17,7 +17,11 @@ export class ReconciliationCron {
 
   constructor(private readonly payments: PaymentsService) {}
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  // Env-tunable via RECONCILIATION_CRON; default every 30 min (was every 10).
+  // This only settles doubly-missed paid orders sooner; it is NOT the safety net
+  // (releaseStaleHolds verifies each order with the provider before releasing).
+  // Widened so an idle API stops waking Neon and its compute can scale to zero.
+  @Cron(process.env.RECONCILIATION_CRON || CronExpression.EVERY_30_MINUTES)
   async reconcile(): Promise<void> {
     try {
       await this.payments.reconcilePendingPayments();
