@@ -440,7 +440,7 @@ function MembersTab({ orgId }: { orgId: string }) {
               <option value="admin">Admin</option>
               <option value="organizer">Organizer</option>
               <option value="staff">Staff</option>
-              <option value="vendor">Vendor</option>
+              <option value="vendor">Vendor (limited access)</option>
             </select>
           </Field>
           <button
@@ -450,6 +450,12 @@ function MembersTab({ orgId }: { orgId: string }) {
           >
             {inviting ? 'Sending...' : 'Send invite'}
           </button>
+          {inviteRole === 'vendor' && (
+            <p className="w-full text-xs text-ink-muted">
+              Vendor is reserved for upcoming collaboration features. Vendors can sign in but do not have
+              access to organiser tools yet.
+            </p>
+          )}
         </form>
       </Section>
 
@@ -485,7 +491,7 @@ function MembersTab({ orgId }: { orgId: string }) {
                         <option value="admin">Admin</option>
                         <option value="organizer">Organizer</option>
                         <option value="staff">Staff</option>
-                        <option value="vendor">Vendor</option>
+                        <option value="vendor">Vendor (limited access)</option>
                       </select>
                     </td>
                     <td className="px-5 py-4 text-[11px] text-ink-muted">
