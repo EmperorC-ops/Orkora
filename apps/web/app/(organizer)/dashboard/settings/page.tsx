@@ -826,7 +826,7 @@ function ApiKeysTab({ orgId }: { orgId: string }) {
 
 /* ---------------- Payments ---------------- */
 
-const COMMON_CURRENCIES = ['NGN', 'GHS', 'KES', 'ZAR', 'USD', 'EUR', 'GBP'];
+const COMMON_CURRENCIES = ['NGN', 'GHS', 'KES', 'ZAR', 'XOF', 'XAF', 'USD', 'EUR', 'GBP'];
 
 function PaymentsTab({ orgId }: { orgId: string }) {
   const toast = useToast();
@@ -893,19 +893,17 @@ function PaymentsTab({ orgId }: { orgId: string }) {
       >
         <form onSubmit={upsert} className="flex flex-wrap items-end gap-3">
           <Field label="Currency">
-            <input
+            <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-              maxLength={3}
-              list="common-currencies"
-              required
-              className="w-24 rounded-lg border border-surface-border bg-surface/40 px-3 py-2 text-center font-mono text-sm uppercase text-ink-primary outline-none focus:border-brand-500/60"
-            />
-            <datalist id="common-currencies">
+              className="w-28 rounded-lg border border-surface-border bg-surface/40 px-3 py-2 font-mono text-sm text-ink-primary outline-none focus:border-brand-500/60"
+            >
               {COMMON_CURRENCIES.map((c) => (
-                <option key={c} value={c} />
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
-            </datalist>
+            </select>
           </Field>
           <Field label="Provider">
             <select
