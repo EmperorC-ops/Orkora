@@ -56,7 +56,14 @@ function AcceptInner() {
           setState({ kind: 'error', message: err.message || 'Something went wrong.' });
           return;
         }
-        setState({ kind: 'error', message: 'Something went wrong.' });
+        // Not an ApiError: the request never got a response. Almost always a
+        // network or cross-origin (CORS) failure, which happens when this page
+        // is opened on the wrong host. Point the reader at the right place.
+        setState({
+          kind: 'error',
+          message:
+            'Could not reach the server. Please open this invite link from your Orkora site (orkora.events).',
+        });
       }
     })();
 
