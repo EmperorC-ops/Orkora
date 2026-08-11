@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -6,27 +7,27 @@ import {
   ShieldCheck,
   Globe2,
   Download,
-  Sparkles,
 } from 'lucide-react';
+import { PRICING_TIERS, PRICING_FOOTNOTE, type PricingTier } from '@/lib/pricing';
 
 /**
- * Public pricing page.
- *
- * Orkora is in private beta. We deliberately do not commit to a precise rate
- * card before we have enough live volume to know our true settlement cost on
- * each provider (Stripe, Paystack, Flutterwave). What we DO commit to in this
- * page is the model (free events stay free; paid events pay a small per-
- * ticket fee), the ceiling (we promise the rate will be lower than
- * Eventbrite's 3.7% + $1.79 on paid tickets at launch), and the principle
- * (free organizers pay nothing, attendees never get hit with surprise fees).
- *
- * The shape and rhythm mirror app/page.tsx so the brand feels continuous.
+ * Public pricing page. Renders the committed rate card from lib/pricing.ts
+ * (the single source of truth for tiers). The shape and rhythm mirror
+ * app/page.tsx so the brand feels continuous.
  */
+
+export const metadata: Metadata = {
+  title: 'Pricing',
+  description:
+    'Simple pricing for premium events. Free events are always free. Standard, Pro, and Enterprise plans with multi-currency checkout in USD, NGN, GHS, and KES.',
+  alternates: { canonical: '/pricing' },
+};
+
 export default function PricingPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-surface-deep text-ink-primary">
       <div className="pointer-events-none absolute -top-48 left-1/2 h-[480px] w-[920px] -translate-x-1/2 rounded-full bg-brand-500/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 left-[-10%] h-[420px] w-[420px] rounded-full bg-[#FF7675]/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 left-[-10%] h-[420px] w-[420px] rounded-full bg-brand-700/10 blur-3xl" />
 
       {/* Header */}
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
@@ -44,112 +45,40 @@ export default function PricingPage() {
 
       {/* Hero */}
       <section className="relative z-10 mx-auto max-w-5xl px-6 pb-12 pt-12 text-center lg:pt-20">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-ink-secondary backdrop-blur">
-          <Sparkles className="h-3 w-3 text-brand-300" />
-          Private beta
+        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-brand-300 backdrop-blur">
+          Your brand. Our engine.
         </span>
         <h1 className="mt-6 text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-          Free during beta. Honest after.
+          Pricing that scales with your events.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-ink-secondary">
-          Orkora is free to use while we are in private beta. After general availability, free events stay free forever and paid events pay a small per-ticket fee that is lower than Eventbrite at launch. No setup costs, no monthly minimums, no surprise charges on your attendees.
+          One platform for registration, tickets, global payments, and your brand. Free events are always free. Paid events pay as you grow, and your attendees never see a surprise fee.
         </p>
       </section>
 
       {/* Plans */}
-      <section className="relative z-10 mx-auto max-w-5xl px-6 pb-16">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          {/* Beta plan */}
-          <div className="relative overflow-hidden rounded-3xl border border-brand-500/40 bg-gradient-to-br from-brand-500/10 via-surface/40 to-surface-deep p-8 sm:p-10">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/20 blur-3xl" />
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
-              Available today
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">Beta</h2>
-            <p className="mt-2 text-sm text-ink-secondary">
-              For organizers running events while we finish our public launch.
-            </p>
-            <div className="mt-7 flex items-baseline gap-2">
-              <span className="text-5xl font-semibold tracking-tight">Free</span>
-              <span className="text-sm text-ink-secondary">while in private beta</span>
-            </div>
-            <ul className="mt-7 space-y-3 text-sm text-ink-primary">
-              <PricingFeature label="Unlimited free events" />
-              <PricingFeature label="Unlimited paid events (no Orkora fee during beta)" />
-              <PricingFeature label="Stripe, Paystack, Flutterwave checkout" />
-              <PricingFeature label="USD, NGN, GHS, KES at first-class rates" />
-              <PricingFeature label="Refunds, receipts, and tickets out of the box" />
-              <PricingFeature label="Live chat, questions, and polls during the event" />
-              <PricingFeature label="Real-time dashboard for organizers" />
-              <PricingFeature label="Data export at any time" />
-            </ul>
-            <div className="mt-9">
-              <Link
-                href="/signup"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-gradient py-3 text-sm font-semibold text-white shadow-glow transition hover:opacity-95"
-              >
-                Request beta access <ArrowRight className="h-4 w-4" />
-              </Link>
-              <p className="mt-3 text-center text-xs text-ink-muted">
-                Payment provider fees (Stripe / Paystack / Flutterwave) still apply at their published rates.
-              </p>
-            </div>
-          </div>
-
-          {/* Post-beta plan */}
-          <div className="relative overflow-hidden rounded-3xl border border-surface-border bg-surface/40 p-8 sm:p-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-secondary">
-              At general availability
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">Standard</h2>
-            <p className="mt-2 text-sm text-ink-secondary">
-              For organizers running paid events after our public launch.
-            </p>
-            <div className="mt-7">
-              <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-semibold tracking-tight">$0</span>
-                <span className="text-sm text-ink-secondary">on free events, forever</span>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-semibold tracking-tight text-ink-secondary">
-                  Lower than Eventbrite
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-ink-muted">
-                A per-ticket fee on paid tickets only. The exact rate is announced before any organizer is billed, and we publicly commit to staying below Eventbrite&apos;s 3.7% + $1.79 on paid tickets at launch.
-              </p>
-            </div>
-            <ul className="mt-7 space-y-3 text-sm text-ink-primary">
-              <PricingFeature label="Everything in Beta" />
-              <PricingFeature label="No monthly minimums" />
-              <PricingFeature label="No setup fees" />
-              <PricingFeature label="No charge on free events, ever" />
-              <PricingFeature label="No surprise attendee fees" />
-              <PricingFeature label="Volume rates for high-throughput organizers" muted />
-            </ul>
-            <div className="mt-9">
-              <Link
-                href="/contact"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 py-3 text-sm font-semibold text-ink-primary transition hover:bg-white/5"
-              >
-                Talk to us about volume pricing
-              </Link>
-            </div>
-          </div>
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-6">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          {PRICING_TIERS.map((tier) => (
+            <PlanCard key={tier.id} tier={tier} />
+          ))}
         </div>
+        <p className="mx-auto mt-6 max-w-3xl text-center text-xs text-ink-muted">
+          {PRICING_FOOTNOTE}
+        </p>
       </section>
 
       {/* Trust strip */}
-      <section className="relative z-10 mx-auto max-w-5xl px-6 pb-16">
+      <section className="relative z-10 mx-auto max-w-5xl px-6 py-16">
         <div className="rounded-3xl border border-surface-border bg-surface/40 p-8 sm:p-10">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-secondary">
-            What you get either way
+            What you get on every plan
           </p>
           <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3">
             <TrustItem
               Icon={ShieldCheck}
-              title="PCI DSS Level 1 payments"
-              body="Card data is handled by Stripe and Paystack. Orkora never touches a card number."
+              title="Provider-hosted card payments"
+              body="Card data is handled by your payment provider. Orkora never touches a card number."
             />
             <TrustItem
               Icon={Globe2}
@@ -175,24 +104,24 @@ export default function PricingPage() {
         </div>
         <div className="mt-10 space-y-3">
           <Faq
-            q="Is Orkora really free for free events, forever?"
-            a="Yes. If your event sells $0 tickets, Orkora charges you nothing. Forever. Free events are how organizers build communities, and we are not in the business of taxing community."
+            q="Are free events really free?"
+            a="Yes. If your event sells only $0 tickets, Orkora charges no per-ticket fee. Free events are how organizers build communities, and we are not in the business of taxing community."
+          />
+          <Faq
+            q="How is the per-ticket fee charged?"
+            a="It applies to paid tickets only and is taken from your organizer settlement, never added on top of the price your attendee pays. The price you set on a ticket tier is the price the attendee sees."
           />
           <Faq
             q="What about Stripe, Paystack, and Flutterwave fees?"
-            a="Those are paid directly to the payment provider at the provider's published rate. Orkora does not mark them up. Stripe is typically 2.9% + $0.30 in the US and 1.5% + $0.20 for European cards. Paystack and Flutterwave list their rates publicly per market. We surface the full breakdown on every order."
+            a="Those are paid directly to the payment provider at the provider's published rate. Orkora does not mark them up, and we show the full breakdown on every order."
           />
           <Faq
-            q="When does the beta end and how will I know?"
-            a="We will email every beta organizer at least 60 days before any per-ticket fee is introduced, with the exact rate, the effective date, and a 30-day grace period for any event you have already published. No organizer will ever be surprised by an invoice."
+            q="What is the difference between Standard and Pro?"
+            a="Standard has everything you need to run and sell a paid event. Pro adds the brand layer, your own Brand Home, Story Mode event pages, custom domains, shareable cards, and campaigns to your subscribers, plus a lower per-ticket rate as you grow."
           />
           <Faq
-            q="Will my attendees see extra fees at checkout?"
-            a="Not from Orkora. The price you set on a ticket tier is the price the attendee pays. After GA, the Orkora per-ticket fee is taken from your organizer settlement, not added on top of the attendee price. Payment-provider processing fees are also paid out of your settlement by default; you can choose to pass them on if you prefer."
-          />
-          <Faq
-            q="What happens to refunds?"
-            a="Refunds are issued through the same provider that processed the payment, and you can trigger them from the Orkora dashboard with one click. The attendee receives an email confirmation and their ticket QR is voided automatically."
+            q="When do I need Enterprise?"
+            a="When you are running at high volume or across multiple entities and want multi-currency reconciliation at scale, volume rates, enterprise authentication, and a contract tailored to you. Talk to us and we will build a plan around your numbers."
           />
           <Faq
             q="Can I leave with my data?"
@@ -205,14 +134,14 @@ export default function PricingPage() {
             href="/signup"
             className="inline-flex items-center gap-2 rounded-full bg-brand-gradient px-8 py-3 text-sm font-semibold text-white shadow-glow transition hover:opacity-95"
           >
-            Request beta access <ArrowRight className="h-4 w-4" />
+            Start free <ArrowRight className="h-4 w-4" />
           </Link>
           <p className="mt-3 text-sm text-ink-secondary">
             Or{' '}
             <Link href="/contact" className="text-brand-300 hover:text-brand-200">
-              talk to us
+              talk to sales
             </Link>{' '}
-            if you have a larger event in mind.
+            about Pro and Enterprise.
           </p>
         </div>
       </section>
@@ -253,12 +182,69 @@ export default function PricingPage() {
   );
 }
 
-function PricingFeature({ label, muted }: { label: string; muted?: boolean }) {
+function PlanCard({ tier }: { tier: PricingTier }) {
+  const highlighted = !!tier.highlighted;
   return (
-    <li className="flex items-start gap-3">
-      <CheckCircle2 className={`mt-0.5 h-4 w-4 flex-none ${muted ? 'text-ink-muted' : 'text-brand-300'}`} />
-      <span className={muted ? 'text-ink-secondary' : 'text-ink-primary'}>{label}</span>
-    </li>
+    <div
+      className={`relative flex flex-col overflow-hidden rounded-3xl p-8 sm:p-9 ${
+        highlighted
+          ? 'border border-brand-500/50 bg-gradient-to-br from-brand-500/10 via-surface/40 to-surface-deep'
+          : 'border border-surface-border bg-surface/40'
+      }`}
+    >
+      {highlighted && (
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/20 blur-3xl" />
+      )}
+      {tier.badge && (
+        <span className="absolute right-6 top-6 rounded-full bg-brand-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-200">
+          {tier.badge}
+        </span>
+      )}
+
+      <h2 className="text-2xl font-semibold tracking-tight">{tier.name}</h2>
+      <p className="mt-2 min-h-[2.5rem] text-sm text-ink-secondary">{tier.tagline}</p>
+
+      <div className="mt-6">
+        {tier.basePrice && (
+          <div className="text-4xl font-semibold tracking-tight">{tier.basePrice}</div>
+        )}
+        <div className={tier.basePrice ? 'mt-1 flex items-baseline gap-2' : 'flex items-baseline gap-2'}>
+          <span
+            className={
+              tier.basePrice
+                ? 'text-lg font-semibold text-ink-primary'
+                : 'text-4xl font-semibold tracking-tight'
+            }
+          >
+            {tier.rate}
+          </span>
+          <span className="text-sm text-ink-secondary">{tier.rateUnit}</span>
+        </div>
+      </div>
+
+      <ul className="mt-7 flex-1 space-y-3 text-sm">
+        {tier.features.map((f) => (
+          <li key={f} className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-brand-300" />
+            <span className="text-ink-primary">{f}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-8">
+        <Link
+          href={tier.cta.href}
+          className={`inline-flex w-full items-center justify-center gap-2 rounded-full py-3 text-sm font-semibold transition ${
+            highlighted
+              ? 'bg-brand-gradient text-white shadow-glow hover:opacity-95'
+              : 'border border-white/15 text-ink-primary hover:bg-white/5'
+          }`}
+        >
+          {tier.cta.label}
+          {highlighted && <ArrowRight className="h-4 w-4" />}
+        </Link>
+      </div>
+    </div>
   );
 }
 
