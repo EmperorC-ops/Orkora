@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Download, Receipt, TrendingUp } from 'lucide-react';
 import { readActiveOrgId } from '@/lib/events';
 import { billingApi, formatMinor, type BillingOverview, type Trailing12Row } from '@/lib/billing';
+import { PRICING_FOOTNOTE } from '@/lib/pricing';
 
 export default function BillingPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -165,6 +166,9 @@ export default function BillingPage() {
             <li key={n}>- {n}</li>
           ))}
         </ul>
+        <p className="mt-4 border-t border-surface-border pt-3 text-xs text-ink-muted">
+          {PRICING_FOOTNOTE}
+        </p>
       </section>
     </div>
   );

@@ -60,7 +60,6 @@ export const PRICING_TIERS: PricingTier[] = [
       'Everything in Standard',
       'Brand Home, your own event homepage',
       'Story Mode editorial event pages',
-      'Custom domains',
       'Shareable cards for every event',
       'Campaigns to your subscribers',
       'A lower per-ticket rate as you grow',
