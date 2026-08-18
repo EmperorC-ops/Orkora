@@ -117,14 +117,11 @@ export class FeedbackService {
       }
     }
 
-    let userId: string | null = null;
-    if (dto.email) {
-      const user = await this.prisma.user.findFirst({
-        where: { email: dto.email.toLowerCase() },
-        select: { id: true },
-      });
-      userId = user?.id ?? null;
-    }
+    // Do NOT bind an anonymous public submission to an existing account by an
+    // unverified email: the submitter could then spoof feedback attribution to
+    // any known attendee. Keep the raw email as a contact hint only; leave
+    // userId null unless the submission is authenticated.
+    const userId: string | null = null;
 
     const comment = dto.comment?.trim() ? dto.comment.trim() : null;
 

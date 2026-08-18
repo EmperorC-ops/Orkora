@@ -3,10 +3,19 @@ import { Observable } from 'rxjs';
 import { PrismaService } from '../../database/prisma/prisma.service';
 
 /**
- * Sets the PostgreSQL session variable app.org_id for the duration of the request,
- * so RLS policies can enforce tenant isolation at the database layer.
+ * Sets the PostgreSQL session variable app.org_id for the duration of the
+ * request, so RLS policies can enforce tenant isolation at the database layer.
  *
- * Wire this on any controller or route that reads/writes tenant scoped data.
+ * STATUS: NOT WIRED. This interceptor is not registered anywhere (no
+ * APP_INTERCEPTOR / useGlobalInterceptors), and there are no RLS policies in the
+ * schema, so it provides NO protection today. Tenant isolation is enforced
+ * entirely at the application layer (org-id filters in services + RolesGuard).
+ * Do not rely on this as a backstop. Before wiring it, two things must change:
+ *   1. Add the RLS policies (ENABLE ROW LEVEL SECURITY + CREATE POLICY) that
+ *      read current_setting('app.org_id').
+ *   2. Source the org from the guard-verified `activeOrgId` (set by RolesGuard),
+ *      NOT `req.user.orgId`, which is the user's FIRST membership and would pin
+ *      RLS to the wrong org for multi-org users.
  */
 @Injectable()
 export class TenancyInterceptor implements NestInterceptor {

@@ -112,10 +112,18 @@ export function middleware(request: NextRequest) {
     response.headers.set('Content-Security-Policy-Report-Only', csp);
     response.headers.set(
       'X-Orkora-Csp-Mode',
-      'report-only (CSP_REPORT_ONLY=1 — remove to re-enforce)',
+      'report-only (CSP_REPORT_ONLY=1, remove to re-enforce)',
     );
   } else {
     response.headers.set('Content-Security-Policy', csp);
+  }
+
+  // The invitation-accept page carries a single-use token in its URL. Keep it
+  // out of search indexes and suppress the referrer so the token cannot leak to
+  // any outbound navigation.
+  if (request.nextUrl.pathname.startsWith('/invite/accept')) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    response.headers.set('Referrer-Policy', 'no-referrer');
   }
 
   return response;

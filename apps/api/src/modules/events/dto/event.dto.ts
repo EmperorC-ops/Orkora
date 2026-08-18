@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsDateString,
   IsEnum,
@@ -171,6 +172,7 @@ export class StoryAnalyticsBatchDto {
   visitor?: string;
 
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => StoryAnalyticsEventDto)
   events!: StoryAnalyticsEventDto[];

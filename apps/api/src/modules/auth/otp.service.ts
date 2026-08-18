@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash, randomInt } from 'crypto';
+import { createHash, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -139,7 +139,7 @@ export class OtpService {
       throw new UnauthorizedException('Too many failed attempts. Request a new code.');
     }
 
-    const valid = otp.codeHash === this.hash(input.code);
+    const valid = this.hashesEqual(otp.codeHash, this.hash(input.code));
     if (!valid) {
       await this.prisma.otpCode.update({
         where: { id: otp.id },
@@ -157,6 +157,14 @@ export class OtpService {
   private hash(code: string): string {
     const pepper = this.cfg.getOrThrow<string>('REFRESH_TOKEN_PEPPER');
     return createHash('sha256').update(code + pepper).digest('hex');
+  }
+
+  /** Constant-time comparison of two hex-encoded SHA-256 hashes. */
+  private hashesEqual(a: string, b: string): boolean {
+    const ba = Buffer.from(a, 'hex');
+    const bb = Buffer.from(b, 'hex');
+    if (ba.length !== bb.length) return false;
+    return timingSafeEqual(ba, bb);
   }
 }
 

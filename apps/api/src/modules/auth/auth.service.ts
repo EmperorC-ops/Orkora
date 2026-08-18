@@ -22,6 +22,21 @@ export interface SignupRequestResult {
   destination: string;
 }
 
+/**
+ * Explicit argon2id parameters (OWASP 2023 guidance: m=19 MiB, t=2, p=1). Pinned
+ * so hashing does not drift with library defaults. Existing stored hashes still
+ * verify because argon2.verify reads the parameters from the encoded hash. A
+ * keyed pepper is deliberately NOT added here: adopting one would invalidate
+ * every existing password hash, so it needs a rehash-on-next-login migration
+ * rather than a flag flip.
+ */
+const ARGON2_OPTS: argon2.Options = {
+  type: argon2.argon2id,
+  memoryCost: 19456,
+  timeCost: 2,
+  parallelism: 1,
+};
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -48,7 +63,7 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
 
-    const passwordHash = await argon2.hash(dto.password);
+    const passwordHash = await argon2.hash(dto.password, ARGON2_OPTS);
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
@@ -92,7 +107,7 @@ export class AuthService {
     // Always pay the argon2 cost so the response time does not branch on
     // whether the email was already registered. The hash is discarded for
     // the verified-existing case below.
-    const passwordHash = await argon2.hash(dto.password);
+    const passwordHash = await argon2.hash(dto.password, ARGON2_OPTS);
 
     const existing = await this.prisma.user.findUnique({ where: { email } });
 
@@ -196,7 +211,9 @@ export class AuthService {
       );
     }
 
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    // Look up by the normalized email so a mixed-case login matches the
+    // lowercased address stored at signup, and matches the lockout ledger key.
+    const user = await this.prisma.user.findUnique({ where: { email: emailLower } });
     const valid =
       !!user && !!user.passwordHash && (await argon2.verify(user.passwordHash, dto.password));
 

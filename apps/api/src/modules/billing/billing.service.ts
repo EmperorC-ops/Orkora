@@ -134,8 +134,20 @@ export class BillingService {
     });
     const header =
       'order_id,event_title,created_at,paid_at,refund_initiated_at,status,currency,total_minor,total_human,provider,notional_fee_minor';
+    // Human amount respecting the currency's minor-unit exponent. A hardcoded
+    // /100 is wrong for zero-decimal currencies (e.g. XAF/XOF). BigInt math
+    // avoids float rounding on large sums.
+    const ZERO_DECIMAL = new Set(['XAF', 'XOF', 'JPY', 'KRW', 'VND', 'CLP', 'RWF', 'UGX', 'GNF', 'XPF']);
+    const minorToHuman = (minor: bigint, currency: string): string => {
+      if (ZERO_DECIMAL.has(currency.toUpperCase())) return minor.toString();
+      const neg = minor < 0n;
+      const abs = neg ? -minor : minor;
+      const major = abs / 100n;
+      const cents = (abs % 100n).toString().padStart(2, '0');
+      return `${neg ? '-' : ''}${major.toString()}.${cents}`;
+    };
     const rows = orders.map((o) => {
-      const totalHuman = (Number(o.totalMinor) / 100).toFixed(2);
+      const totalHuman = minorToHuman(o.totalMinor, o.currency);
       const fee = (o.totalMinor * BigInt(PLATFORM_FEE_BPS)) / BigInt(10_000);
       return [
         o.id,

@@ -2,9 +2,10 @@
  * Campaigns controller.
  *
  * All routes are scoped to /v1/organizations/:orgId so the existing
- * RolesGuard + tenancy interceptor apply. The Postmark webhook and
- * the public unsubscribe endpoint sit outside that scope (no JWT
- * required) and use HMAC verification instead.
+ * RolesGuard applies (tenant isolation is enforced at the application
+ * layer; the TenancyInterceptor/RLS backstop is not wired). The Postmark
+ * webhook and the public unsubscribe endpoint sit outside that scope (no
+ * JWT required) and use HMAC verification instead.
  *
  * Throttling: campaign mutations are rate-limited tighter than read
  * endpoints to keep abuse from a single org down. Public webhook and

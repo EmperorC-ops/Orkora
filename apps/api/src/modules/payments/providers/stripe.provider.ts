@@ -94,6 +94,16 @@ export class StripeProvider implements PaymentProvider {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.orderId;
         if (!orderId) return { type: 'ignored', reason: 'No orderId in metadata' };
+        // Card-only checkout settles synchronously, so payment_status is 'paid'
+        // on completion. If delayed payment methods are ever enabled, this event
+        // can fire while still unpaid; only treat a paid session as paid. The
+        // async_payment_succeeded case below then settles delayed methods.
+        if (session.payment_status !== 'paid') {
+          return {
+            type: 'ignored',
+            reason: `Session completed but not paid (payment_status=${session.payment_status})`,
+          };
+        }
         return {
           type: 'paid',
           orderId,
