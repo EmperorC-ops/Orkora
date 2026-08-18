@@ -19,12 +19,13 @@
  * on every event POST. We accept when the decoded password matches
  * POSTMARK_WEBHOOK_TOKEN via constant-time comparison.
  *
- * BACKWARDS COMPATIBILITY
- * -----------------------
- * If POSTMARK_WEBHOOK_TOKEN is unset, the guard logs a warning ONCE
- * per process and admits the request. This preserves the current
- * open-webhook behaviour so a token-rotation window does not knock
- * over live campaigns. Set the token before onboarding real customers.
+ * UNSET TOKEN
+ * -----------
+ * In production the guard FAILS CLOSED when POSTMARK_WEBHOOK_TOKEN is unset:
+ * an unauthenticated webhook could poison the suppression ledger, so we reject
+ * rather than admit. Outside production (dev/test) it logs a warning once and
+ * admits, so a local setup without the token still works. Set the token in the
+ * Postmark dashboard and Render before going live.
  */
 import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -33,20 +34,32 @@ import { ConfigService } from '@nestjs/config';
 export class PostmarkAuthGuard implements CanActivate {
   private readonly logger = new Logger(PostmarkAuthGuard.name);
   private readonly token: string | undefined;
+  private readonly failClosed: boolean;
   private hasWarnedOpenAccess = false;
 
   constructor(config: ConfigService) {
     const raw = config.get<string>('POSTMARK_WEBHOOK_TOKEN');
     const trimmed = raw?.trim();
     this.token = trimmed && trimmed.length > 0 ? trimmed : undefined;
+    this.failClosed = (config.get<string>('NODE_ENV') ?? 'development') === 'production';
   }
 
   canActivate(context: ExecutionContext): boolean {
     if (!this.token) {
+      if (this.failClosed) {
+        if (!this.hasWarnedOpenAccess) {
+          this.logger.error(
+            'POSTMARK_WEBHOOK_TOKEN not set in production; rejecting webhook POSTs. ' +
+              'Configure the token in Render + the Postmark dashboard.',
+          );
+          this.hasWarnedOpenAccess = true;
+        }
+        return false;
+      }
       if (!this.hasWarnedOpenAccess) {
         this.logger.warn(
-          'POSTMARK_WEBHOOK_TOKEN not set; webhook accepts unauthenticated POSTs. ' +
-            'Configure the token in Render + the Postmark dashboard before onboarding real customers.',
+          'POSTMARK_WEBHOOK_TOKEN not set (non-production); webhook accepts unauthenticated POSTs. ' +
+            'Configure the token before deploying to production.',
         );
         this.hasWarnedOpenAccess = true;
       }

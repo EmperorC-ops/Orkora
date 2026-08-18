@@ -519,6 +519,26 @@ export class OrgsService {
     });
     if (!target) throw new NotFoundException('Member not found');
 
+    // An actor cannot remove a member who outranks them (e.g. an admin removing
+    // an owner). Actors reach here only via RolesGuard (owner/admin) or as a
+    // platform superadmin, which has no membership row and is treated as top
+    // authority.
+    const ROLE_RANK: Record<string, number> = {
+      owner: 5,
+      admin: 4,
+      organizer: 3,
+      staff: 2,
+      vendor: 1,
+      attendee: 0,
+    };
+    const actor = await this.prisma.membership.findUnique({
+      where: { userId_organizationId: { userId: actorUserId, organizationId: orgId } },
+    });
+    const actorRank = actor ? ROLE_RANK[actor.role] ?? 0 : ROLE_RANK.owner;
+    if ((ROLE_RANK[target.role] ?? 0) > actorRank) {
+      throw new ForbiddenException('You cannot remove a member with a higher role than yours');
+    }
+
     if (target.role === 'owner') {
       const ownerCount = await this.prisma.membership.count({
         where: { organizationId: orgId, role: 'owner' },

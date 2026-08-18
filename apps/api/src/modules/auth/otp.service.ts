@@ -100,15 +100,16 @@ export class OtpService {
       }
     } catch (err) {
       // If the provider rejects (Postmark account in review, SMS provider
-      // down, etc.) we never want signup to silently break. Log the code
-      // so an operator can rescue the user, and rethrow so the caller can
-      // decide whether to surface a retry message.
+      // down, etc.) we never want signup to silently break. Never log the
+      // plaintext code here: error logs ship to Sentry / aggregators and the
+      // code is a live authentication secret. Under the LOG_OTP_TO_CONSOLE
+      // break-glass flag the code was already emitted above; an operator can
+      // use that path for rescue. Otherwise log destination + error only.
       this.logger.error(
-        `[OTP SEND FAILED] ${input.channel} -> ${destination}: ${(err as Error).message}. Code (rescue): ${code}`,
+        `[OTP SEND FAILED] ${input.channel} ${input.purpose} -> ${destination}: ${(err as Error).message}`,
       );
-      // In debug mode we already logged the code above. The OTP row is in
-      // the DB, so verification will still work if the user gets the code
-      // out-of-band.
+      // The OTP row is in the DB, so verification will still work if the user
+      // gets the code out-of-band (debug flag).
       if (!debugLog) throw err;
     }
 

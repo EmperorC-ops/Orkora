@@ -168,4 +168,18 @@ describe('OrgsService.removeMember', () => {
       svc.removeMember('org-1', 'actor', 'ghost'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('forbids an admin from removing an owner (M6)', async () => {
+    const prisma = makePrismaMock();
+    const audit = makeAuditMock();
+    // First findUnique resolves the target (owner), second resolves the actor (admin).
+    prisma.membership.findUnique
+      .mockResolvedValueOnce({ id: 'mem-owner', userId: 'target', role: 'owner' })
+      .mockResolvedValueOnce({ id: 'mem-admin', userId: 'actor', role: 'admin' });
+    const svc = new OrgsService(prisma as unknown as never, audit as unknown as AuditService);
+    await expect(
+      svc.removeMember('org-1', 'actor', 'target'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.membership.delete).not.toHaveBeenCalled();
+  });
 });

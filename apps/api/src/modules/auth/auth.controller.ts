@@ -309,10 +309,14 @@ export class AuthController {
       return { message: 'No refresh token' };
     }
 
-    // Cookie-path requires the double-submit CSRF check. The body-path is
-    // exempt because the caller had to put the refresh token in the body
-    // explicitly (which a CSRF cannot do without a CORS preflight).
-    if (cookieToken && !bodyToken) {
+    // Whenever the refresh cookie is present we require the double-submit CSRF
+    // header, regardless of whether a body token was also sent. Exempting the
+    // body path was bypassable: a cross-site urlencoded form POST (a CORS
+    // "simple request", no preflight) can populate the body while the browser
+    // still attaches the victim's httpOnly cookie, defeating the check. Only a
+    // pure body-token request with NO cookie (native mobile clients) skips CSRF,
+    // because it does not rely on an ambient cookie an attacker could ride.
+    if (cookieToken) {
       const cookieCsrf = cookies[CSRF_COOKIE];
       const headerCsrfRaw = req.header(CSRF_HEADER);
       const headerCsrf = Array.isArray(headerCsrfRaw) ? headerCsrfRaw[0] : headerCsrfRaw;
@@ -358,7 +362,11 @@ export class AuthController {
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async exchangeOtp(@Body() dto: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
-    await this.otp.verify(dto);
+    // Exchange issues a full session, so it must only accept a code minted for
+    // the login flow. Forcing purpose='login' prevents a code issued for another
+    // purpose (e.g. payment_confirm) from being redeemed for an authenticated
+    // session (OTP purpose confusion).
+    await this.otp.verify({ ...dto, purpose: 'login' });
     return shapeWithCookie(await this.auth.loginWithVerifiedEmail(dto.destination), res);
   }
 }

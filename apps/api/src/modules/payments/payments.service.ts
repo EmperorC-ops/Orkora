@@ -565,6 +565,20 @@ export class PaymentsService {
           data: { quantitySold: { decrement: item.quantity } },
         });
       }
+      // Release the discount slot claimed when this order was created, so a
+      // failed or expired order does not permanently consume a limited code's
+      // redemption cap. Guarded by the `status === 'pending'` check above, so it
+      // runs exactly once per order (no double-decrement). Clamped at zero.
+      if (order.discountCodeId) {
+        await tx.$executeRawUnsafe(
+          'delete from discount_redemptions where order_id = $1::uuid',
+          orderId,
+        );
+        await tx.$executeRawUnsafe(
+          'update discount_codes set times_redeemed = case when times_redeemed > 0 then times_redeemed - 1 else 0 end where id = $1::uuid',
+          order.discountCodeId,
+        );
+      }
       if (ticketCancelScope) {
         await tx.ticket.updateMany({
           where: ticketCancelScope,

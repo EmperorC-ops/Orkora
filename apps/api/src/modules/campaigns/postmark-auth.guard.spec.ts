@@ -16,9 +16,17 @@ function guard(token: string | undefined): PostmarkAuthGuard {
 }
 
 describe('PostmarkAuthGuard', () => {
-  it('admits when POSTMARK_WEBHOOK_TOKEN is unset (backwards compat)', () => {
+  it('admits when POSTMARK_WEBHOOK_TOKEN is unset in non-production', () => {
     const g = guard(undefined);
     expect(g.canActivate(ctx({}))).toBe(true);
+  });
+
+  it('rejects when POSTMARK_WEBHOOK_TOKEN is unset in production (fail closed)', () => {
+    const config = {
+      get: (k: string) => (k === 'NODE_ENV' ? 'production' : undefined),
+    } as unknown as ConfigService;
+    const g = new PostmarkAuthGuard(config);
+    expect(g.canActivate(ctx({}))).toBe(false);
   });
 
   it('admits when POSTMARK_WEBHOOK_TOKEN is set and Basic Auth matches', () => {
