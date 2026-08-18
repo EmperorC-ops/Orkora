@@ -11,7 +11,8 @@ import type { Role } from '../decorators/roles.decorator';
  *   - a caller may only act on an org they hold a membership for
  *   - the membership role must meet the required hierarchy level
  *   - platform superadmin is the ONLY cross-org bypass
- *   - org id is resolved from header -> param -> body
+ *   - org id is anchored to the route param; a header/body org that disagrees
+ *     with the param is rejected (prevents cross-tenant spoofing via header)
  */
 
 type ReqUser = {
@@ -146,15 +147,49 @@ describe('RolesGuard tenancy contract', () => {
     expect(guard.canActivate(makeCtx(req))).toBe(true);
   });
 
-  it('header org id takes precedence and is the one authorized', () => {
-    // User is a member of A only. Header says B, param says A. The guard must
-    // authorize against the header (B) and therefore deny.
+  it('anchors authorization to the route param, not a spoofed header (C1)', () => {
+    // Attacker is a member of A. They target org B in the path but send their
+    // own org A in the header. Under the old header-first resolution this was
+    // approved against A while the service acted on B (cross-tenant BOLA). The
+    // guard must now reject the mismatch.
+    const guard = makeGuard(['organizer']);
+    const req: FakeReq = {
+      user: { userId: 'u1', email: 'a@b.co', memberships: [{ orgId: ORG_A, role: 'owner' }] },
+      params: { orgId: ORG_B },
+      headers: { 'x-organization-id': ORG_A },
+    };
+    expect(() => guard.canActivate(makeCtx(req))).toThrow('Organization context mismatch');
+  });
+
+  it('rejects a header that disagrees with the route param', () => {
     const guard = makeGuard(['staff']);
     const req: FakeReq = {
       user: { userId: 'u1', email: 'a@b.co', memberships: [{ orgId: ORG_A, role: 'owner' }] },
       params: { orgId: ORG_A },
       headers: { 'x-organization-id': ORG_B },
     };
-    expect(() => guard.canActivate(makeCtx(req))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(makeCtx(req))).toThrow('Organization context mismatch');
+  });
+
+  it('rejects a body organizationId that disagrees with the route param', () => {
+    const guard = makeGuard(['staff']);
+    const req: FakeReq = {
+      user: { userId: 'u1', email: 'a@b.co', memberships: [{ orgId: ORG_A, role: 'owner' }] },
+      params: { orgId: ORG_A },
+      body: { organizationId: ORG_B },
+      headers: {},
+    };
+    expect(() => guard.canActivate(makeCtx(req))).toThrow('Organization context mismatch');
+  });
+
+  it('authorizes against the route param when a matching header is also present', () => {
+    const guard = makeGuard(['staff']);
+    const req: FakeReq = {
+      user: { userId: 'u1', email: 'a@b.co', memberships: [{ orgId: ORG_A, role: 'staff' }] },
+      params: { orgId: ORG_A },
+      headers: { 'x-organization-id': ORG_A },
+    };
+    expect(guard.canActivate(makeCtx(req))).toBe(true);
+    expect((req.user as { activeOrgId?: string }).activeOrgId).toBe(ORG_A);
   });
 });

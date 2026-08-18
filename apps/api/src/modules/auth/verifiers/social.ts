@@ -27,12 +27,18 @@ export class GoogleVerifier {
 
   async verify(idToken: string): Promise<SocialIdentity> {
     const expectedAudience = this.cfg.get<string>('GOOGLE_OAUTH_CLIENT_ID');
+    // Fail closed: without a configured client id we cannot bind the token to
+    // this application, so any Google-issued token for any app would otherwise
+    // be accepted (account takeover). Disable the provider instead.
+    if (!expectedAudience) {
+      throw new UnauthorizedException('Google login is not configured');
+    }
     const url = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`;
     const res = await fetch(url);
     if (!res.ok) throw new UnauthorizedException('Invalid Google token');
     const claims = (await res.json()) as Record<string, string>;
 
-    if (expectedAudience && claims.aud !== expectedAudience) {
+    if (claims.aud !== expectedAudience) {
       throw new UnauthorizedException('Token audience mismatch');
     }
     if (claims.iss !== 'accounts.google.com' && claims.iss !== 'https://accounts.google.com') {
@@ -71,6 +77,11 @@ export class AppleVerifier {
 
   async verify(idToken: string): Promise<SocialIdentity> {
     const expectedAudience = this.cfg.get<string>('APPLE_OAUTH_CLIENT_ID');
+    // Fail closed: an undefined audience makes jose skip audience validation,
+    // so any Apple token would be accepted. Disable the provider instead.
+    if (!expectedAudience) {
+      throw new UnauthorizedException('Apple login is not configured');
+    }
 
     let payload: JWTPayload;
     try {

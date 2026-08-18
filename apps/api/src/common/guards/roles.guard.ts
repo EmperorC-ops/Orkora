@@ -27,10 +27,13 @@ const HIERARCHY: Record<Role, number> = {
  * RolesGuard: requires the JWT to contain a membership for the requested
  * organization with at least the required role's hierarchy level.
  *
- * The org id is resolved from (in order):
- *   1. X-Organization-Id header
- *   2. Route param `:orgId` or `:organizationId`
- *   3. Request body `organizationId`
+ * Org id resolution is deliberately anchored to the ROUTE PARAM
+ * (`:orgId` / `:organizationId`) because that is the value every controller
+ * passes down to its service. The `X-Organization-Id` header and a body
+ * `organizationId` are only used when no route param is present. If a route
+ * param IS present, any supplied header/body org that disagrees with it is
+ * rejected: authorizing against a header while the service acts on the path
+ * param would let a member of org A operate on org B (cross-tenant BOLA).
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -53,14 +56,25 @@ export class RolesGuard implements CanActivate {
     const user = req.user;
     if (!user) throw new ForbiddenException('Not authenticated');
 
-    const orgId =
-      (req.headers['x-organization-id'] as string | undefined) ??
-      req.params?.orgId ??
-      req.params?.organizationId ??
-      (req.body as { organizationId?: string } | undefined)?.organizationId;
+    const paramOrg = req.params?.orgId ?? req.params?.organizationId;
+    const headerOrg = req.headers['x-organization-id'] as string | undefined;
+    const bodyOrg = (req.body as { organizationId?: string } | undefined)?.organizationId;
+
+    // Anchor to the route param the service actually uses. Header/body are
+    // fallbacks only for routes that carry no org param.
+    const orgId = paramOrg ?? headerOrg ?? bodyOrg;
 
     if (!orgId) {
       throw new ForbiddenException('Organization context is required');
+    }
+
+    // When the route names an org, a mismatching header or body org is a
+    // tenant-spoofing attempt: reject rather than authorize the wrong org.
+    if (paramOrg && headerOrg && headerOrg !== paramOrg) {
+      throw new ForbiddenException('Organization context mismatch');
+    }
+    if (paramOrg && bodyOrg && bodyOrg !== paramOrg) {
+      throw new ForbiddenException('Organization context mismatch');
     }
 
     // Platform super admins have full cross-org control: they satisfy any org

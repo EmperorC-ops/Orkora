@@ -71,14 +71,42 @@ export class PaymentsService {
     if (!order.provider || !order.providerRef) {
       throw new BadRequestException('Order has no provider reference to refund');
     }
-    const provider = this.registry.resolve(order.provider as PaymentMethodName);
-    const result = await provider.refund({
-      providerRef: order.providerRef,
-      amountMinor: BigInt(order.totalMinor),
-      currency: order.currency,
+
+    // Atomically claim the refund BEFORE calling the provider. Only a paid order
+    // with no in-flight refund can be claimed, so two concurrent requests, or a
+    // repeat click after a pending (bank-backed) refund, cannot issue a second
+    // provider refund. If the claim fails, a refund is already in progress.
+    const claim = await this.prisma.order.updateMany({
+      where: { id: order.id, status: 'paid', refundInitiatedAt: null },
+      data: { refundInitiatedAt: new Date() },
     });
+    if (claim.count === 0) {
+      throw new BadRequestException('A refund is already in progress for this order.');
+    }
+
+    const provider = this.registry.resolve(order.provider as PaymentMethodName);
+    let result: Awaited<ReturnType<typeof provider.refund>>;
+    try {
+      result = await provider.refund({
+        providerRef: order.providerRef,
+        amountMinor: BigInt(order.totalMinor),
+        currency: order.currency,
+      });
+    } catch (err) {
+      // The provider call threw: release the claim so a genuine retry is possible.
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { refundInitiatedAt: null },
+      });
+      throw err;
+    }
 
     if (result.status === 'failed') {
+      // Release the claim so the order can be retried after a declined refund.
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { refundInitiatedAt: null },
+      });
       this.logger.warn(
         { orderId: order.id, provider: provider.name },
         'Provider declined the refund',
@@ -95,12 +123,7 @@ export class PaymentsService {
       throw new BadRequestException('The payment provider declined the refund');
     }
 
-    // Stamp the in-flight marker before anything else so a missed webhook AND a
-    // missed synchronous result still leave a trail reconcileRefunds can finish.
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: { refundInitiatedAt: new Date() },
-    });
+    // The in-flight marker was set by the atomic claim above.
     this.logger.log(
       { orderId: order.id, provider: provider.name, result: result.status },
       'Refund initiated',
