@@ -13,12 +13,11 @@ name: Synthetic login check
 
 on:
   schedule:
-    # Every 2 hours (was */30). Each run bills >=1 Actions minute on a private
-    # repo; at */30 this alone burned ~1,440 min/month and, combined with the
-    # iccms keepalive, blew through the account's included minutes and got ALL
-    # Actions blocked (Aug 2026). Pre-launch, 2-hourly is ample; the
+    # Every 6 hours (was */30, then */2h). Each run bills >=1 Actions minute on
+    # a private repo; the */30 cadence helped get the account's Actions
+    # billing-blocked in Aug 2026. Pre-launch, 4 checks/day is ample; the
     # deployment_status trigger still checks every real deploy immediately.
-    - cron: '0 */2 * * *'
+    - cron: '0 */6 * * *'
   # Run right after Vercel reports a production deployment.
   deployment_status:
   workflow_dispatch:
