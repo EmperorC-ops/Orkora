@@ -219,8 +219,17 @@ export const registrationApi = {
 };
 
 export const authApi = {
+  // POST /v1/auth/signup is non-enumerating and does NOT return a session:
+  // it responds 202 with { status, destination } and emails a code. The
+  // session comes from exchangeOtp below once the user enters it. Typing this
+  // as TokenBundle was wrong and would silently hand a caller an object with
+  // no accessToken on it.
   signup: (input: { email: string; password: string; fullName: string; phone?: string }) =>
-    api<TokenBundle>('/v1/auth/signup', { method: 'POST', body: input, auth: false }),
+    api<{ status: 'verification_sent'; destination: string }>('/v1/auth/signup', {
+      method: 'POST',
+      body: input,
+      auth: false,
+    }),
   login: (input: { email: string; password: string }) =>
     api<TokenBundle>('/v1/auth/login', { method: 'POST', body: input, auth: false }),
   social: (input: { provider: 'google' | 'apple'; idToken: string }) =>
@@ -237,6 +246,22 @@ export const authApi = {
     }),
   verifyOtp: (input: { destination: string; code: string; purpose: string }) =>
     api<{ verified: boolean }>('/v1/auth/otp/verify', {
+      method: 'POST',
+      body: input,
+      auth: false,
+    }),
+  /**
+   * Verify a code and receive a session in one round trip. This is what
+   * completes both signup and passwordless login; `verifyOtp` above only
+   * checks a code and issues nothing. Only `signup` and `login` purposes are
+   * accepted by the API; `payment_confirm` and `phone_verify` are rejected.
+   */
+  exchangeOtp: (input: {
+    destination: string;
+    code: string;
+    purpose: 'signup' | 'login';
+  }) =>
+    api<TokenBundle>('/v1/auth/otp/exchange', {
       method: 'POST',
       body: input,
       auth: false,

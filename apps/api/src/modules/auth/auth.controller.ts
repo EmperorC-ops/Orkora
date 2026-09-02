@@ -6,6 +6,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -21,6 +22,18 @@ import { RefreshDto } from './dto/refresh.dto';
 import { SendOtpDto, VerifyOtpDto } from './dto/otp.dto';
 import { SocialLoginDto } from './dto/social.dto';
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
+
+/**
+ * OTP purposes that may be exchanged for a session at /auth/otp/exchange.
+ *
+ * Both are delivered only to the address being authenticated and both
+ * authorise a session for that same address, so they carry identical
+ * privilege. `payment_confirm` and `phone_verify` are deliberately absent:
+ * a code minted to confirm a charge or a phone number must never be
+ * redeemable for a login (OTP purpose confusion).
+ */
+const SESSION_GRANTING_OTP_PURPOSES = ['signup', 'login'] as const;
+type SessionGrantingPurpose = (typeof SESSION_GRANTING_OTP_PURPOSES)[number];
 
 const REFRESH_COOKIE = 'orkora_rt';
 const REFRESH_COOKIE_PATH = '/v1/auth';
@@ -362,11 +375,25 @@ export class AuthController {
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async exchangeOtp(@Body() dto: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
-    // Exchange issues a full session, so it must only accept a code minted for
-    // the login flow. Forcing purpose='login' prevents a code issued for another
-    // purpose (e.g. payment_confirm) from being redeemed for an authenticated
-    // session (OTP purpose confusion).
-    await this.otp.verify({ ...dto, purpose: 'login' });
+    // Exchange issues a full session, so it must only accept a code minted by
+    // a flow whose whole purpose is to establish one. An allowlist, not a
+    // single hardcoded purpose.
+    //
+    // History: this previously forced purpose='login'. That closed OTP purpose
+    // confusion (a payment_confirm code must never be redeemable for a
+    // session) but silently broke signup, which mints its code with
+    // purpose='signup' in AuthService.sendSignupOtpQuietly. Every signup code
+    // failed to match a row and users saw "invalid code" for a code that had
+    // just arrived in their inbox.
+    //
+    // `signup` and `login` are equivalent in privilege: both are sent only to
+    // the address being authenticated, and both authorise a session for that
+    // same address. `payment_confirm` and `phone_verify` are not, and stay
+    // rejected here.
+    if (!SESSION_GRANTING_OTP_PURPOSES.includes(dto.purpose as SessionGrantingPurpose)) {
+      throw new UnauthorizedException('This code cannot be exchanged for a session');
+    }
+    await this.otp.verify({ destination: dto.destination, code: dto.code, purpose: dto.purpose });
     return shapeWithCookie(await this.auth.loginWithVerifiedEmail(dto.destination), res);
   }
 }

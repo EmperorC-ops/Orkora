@@ -5,7 +5,13 @@ import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
-import { ApiError, authApi, persistTokens, safeInternalPath } from '@/lib/auth';
+import {
+  ApiError,
+  authApi,
+  EMAIL_VERIFICATION_REQUIRED,
+  persistTokens,
+  safeInternalPath,
+} from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin';
 import { useToast } from '@/components/toast';
 import { Brand } from '@/components/brand';
@@ -34,6 +40,28 @@ export default function LoginPage() {
       toast.success('Welcome back', 'Loading your workspace.');
       router.push((isSuperAdmin() ? '/admin' : next) as Route);
     } catch (err) {
+      // Password was right, but this account has never verified its email.
+      // The API already sent a fresh code on its way out, so send them
+      // straight to the OTP screen instead of showing a credentials error for
+      // a credential that was correct.
+      if (
+        err instanceof ApiError &&
+        err.status === 403 &&
+        err.code === EMAIL_VERIFICATION_REQUIRED
+      ) {
+        const destination =
+          typeof err.detail?.destination === 'string'
+            ? err.detail.destination
+            : String(form.get('email') ?? '').trim().toLowerCase();
+        const next = safeInternalPath(
+          new URLSearchParams(window.location.search).get('next'),
+        );
+        toast.success('Almost there', 'Enter the code we just emailed you.');
+        router.push(
+          `/otp?destination=${encodeURIComponent(destination)}&purpose=signup&next=${encodeURIComponent(next)}` as Route,
+        );
+        return;
+      }
       if (err instanceof ApiError && err.status === 401) {
         setError('Email or password is incorrect.');
       } else {

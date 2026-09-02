@@ -1,4 +1,9 @@
-import { Injectable, Logger, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -20,6 +25,28 @@ interface TokenBundle {
 export interface SignupRequestResult {
   status: 'verification_sent';
   destination: string;
+}
+
+/**
+ * Machine-readable discriminator for "the password was right but this account
+ * has never proved control of its email address".
+ *
+ * A plain 401 would be wrong twice over: it is indistinguishable from a bad
+ * password, so the client shows "wrong credentials" to someone who typed the
+ * right one, and it gives them nowhere to go. 403 with this code lets the
+ * client route straight to the OTP screen, where a fresh code is already
+ * waiting because `login` sent one on the way out.
+ */
+export const EMAIL_VERIFICATION_REQUIRED = 'email_verification_required';
+
+export class EmailVerificationRequiredException extends ForbiddenException {
+  constructor(destination: string) {
+    super({
+      code: EMAIL_VERIFICATION_REQUIRED,
+      destination,
+      message: 'Verify your email address to finish signing in. We just sent you a new code.',
+    });
+  }
 }
 
 /**
@@ -50,30 +77,6 @@ export class AuthService {
     private readonly otp: OtpService,
     private readonly notifications: NotificationsService,
   ) {}
-
-  /**
-   * Legacy password-only signup retained for any internal caller that does
-   * not run through the OTP flow. The public web/mobile clients now go through
-   * `signupRequest()` which is non-enumerating; this method still throws
-   * ConflictException to keep its existing contract for those callers. Do not
-   * add it back to a public endpoint without first reading the comment on
-   * `signupRequest()`.
-   */
-  async signup(dto: SignupDto): Promise<TokenBundle> {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) throw new ConflictException('Email already registered');
-
-    const passwordHash = await argon2.hash(dto.password, ARGON2_OPTS);
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        fullName: dto.fullName,
-        phone: dto.phone,
-        passwordHash,
-      },
-    });
-    return this.issueTokens(user.id, user.email);
-  }
 
   /**
    * Non-enumerating signup. The response shape, status code, and body are
@@ -126,16 +129,42 @@ export class AuthService {
     }
 
     if (!existing.emailVerified) {
-      // Pending unverified user: let the new credentials win and resend the
-      // OTP. This is the "I started signup, never finished" recovery path.
-      await this.prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          fullName: dto.fullName,
-          phone: dto.phone,
-          passwordHash,
-        },
-      });
+      // Pending unverified user. Two very different rows land here and the
+      // difference matters:
+      //
+      //   - a genuine abandoned signup (has a passwordHash), where letting the
+      //     new credentials win is the intended recovery path, and
+      //   - a row created by `resolveUser` in registrations.service for
+      //     somebody who bought a ticket and never signed in (no passwordHash).
+      //     That row belongs to a real person who is not the caller.
+      //
+      // Either way the account cannot be used until the OTP is completed (see
+      // the verification gate in `login`), so setting the password here is
+      // safe. Profile fields are not: an unauthenticated stranger must not be
+      // able to rewrite the display name on a ticket holder's record. Fill in
+      // blanks, never clobber, mirroring the same discipline
+      // registrations.service applies when it backfills a name.
+      const emailLocalPart = email.split('@')[0] ?? '';
+      const existingNameLooksDerived =
+        !existing.fullName?.trim() ||
+        existing.fullName.trim().toLowerCase() === emailLocalPart.toLowerCase();
+
+      const data: { fullName?: string; phone?: string; passwordHash: string } = { passwordHash };
+      if (existingNameLooksDerived && dto.fullName?.trim()) data.fullName = dto.fullName;
+      if (!existing.phone && dto.phone) data.phone = dto.phone;
+
+      if (!existing.passwordHash) {
+        // Somebody is setting a password on an account created by event
+        // registration or magic-link. Legitimate when it is the owner
+        // completing signup, and the OTP proves which. Worth seeing in the
+        // logs if it starts happening in volume against many addresses.
+        this.logger.warn(
+          { email },
+          'signup is setting a password on a passwordless account (registration or magic-link origin)',
+        );
+      }
+
+      await this.prisma.user.update({ where: { id: existing.id }, data });
       await this.sendSignupOtpQuietly(email);
       return { status: 'verification_sent', destination: email };
     }
@@ -229,8 +258,36 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Success: clear the failure ledger and update last-login.
+    // Success: clear the failure ledger. Done before the verification gate
+    // below so a user stuck in verification limbo does not accumulate lockouts
+    // on a password they are typing correctly.
     await this.prisma.loginFailure.deleteMany({ where: { emailLower } });
+
+    // Email verification gate.
+    //
+    // This is load-bearing security, not hygiene. Without it, `signupRequest`'s
+    // pending-user recovery branch is a pre-auth account takeover:
+    //
+    //   1. `resolveUser` in registrations.service creates a user row with
+    //      `emailVerified: false` and NO password for anyone who registers for
+    //      an event. That row owns their tickets.
+    //   2. An attacker POSTs /auth/signup with that email and a password of
+    //      their choosing. signupRequest sees an unverified row and treats it
+    //      as an abandoned signup, writing the attacker's password onto it.
+    //   3. With no gate here, the attacker logs straight in as the victim.
+    //
+    // The OTP never entered the picture. Requiring a verified email is what
+    // makes step 3 fail, which is what makes steps 1 and 2 harmless.
+    //
+    // Reached only after argon2 has confirmed the password, so telling the
+    // caller that this specific account needs verification leaks nothing: a
+    // caller who knows the password already knows the account exists. The
+    // non-enumeration property of /auth/signup is unaffected.
+    if (!user.emailVerified) {
+      await this.sendSignupOtpQuietly(emailLower);
+      throw new EmailVerificationRequiredException(emailLower);
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },

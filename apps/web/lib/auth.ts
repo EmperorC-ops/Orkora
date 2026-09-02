@@ -66,7 +66,7 @@ export async function apiFetch<T>(path: string, init?: FetchInit): Promise<T> {
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    throw new ApiError(res.status, detail || res.statusText);
+    throw new ApiError(res.status, detail || res.statusText, detail);
   }
   // Tolerate empty bodies. Some endpoints (test-send, publish, void POSTs)
   // return 200/201/204 with no body; calling res.json() on an empty body throws
@@ -173,11 +173,57 @@ function readCsrfCookie(): string | null {
 }
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  /**
+   * Machine-readable discriminator from the API's error body, when it sent
+   * one. The API returns `{ code: '...' }` for conditions the client has to
+   * branch on rather than merely display, e.g. `email_verification_required`
+   * on a login whose password was correct but whose email is unverified.
+   */
+  readonly code: string | null;
+  /** Extra fields carried alongside `code`, e.g. `destination`. */
+  readonly detail: Record<string, unknown> | null;
+
+  constructor(
+    public readonly status: number,
+    message: string,
+    body?: string,
+  ) {
     super(message);
     this.name = 'ApiError';
+    const parsed = parseErrorBody(body ?? message);
+    this.code = parsed.code;
+    this.detail = parsed.detail;
   }
 }
+
+/**
+ * Nest wraps a thrown exception's object payload as the response body, so a
+ * `ForbiddenException({ code, destination, message })` arrives as that object
+ * verbatim. Anything unparseable, or a plain-string body, yields no code and
+ * the caller falls back to status-based handling.
+ */
+function parseErrorBody(raw: string): {
+  code: string | null;
+  detail: Record<string, unknown> | null;
+} {
+  if (!raw) return { code: null, detail: null };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      return {
+        code: typeof obj.code === 'string' ? obj.code : null,
+        detail: obj,
+      };
+    }
+  } catch {
+    // Not JSON. Nothing to branch on.
+  }
+  return { code: null, detail: null };
+}
+
+/** The API's `code` for "password was right, email is not verified yet". */
+export const EMAIL_VERIFICATION_REQUIRED = 'email_verification_required';
 
 /**
  * Sanitize a post-auth redirect target taken from the `next` query param.
