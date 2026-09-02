@@ -26,6 +26,7 @@ export class AdminService {
       registrations,
       ticketsIssued,
       paidOrders,
+      settlementHolds,
     ] = await Promise.all([
       this.prisma.organization.count(),
       this.prisma.organization.count({ where: { status: 'suspended' } }),
@@ -39,6 +40,10 @@ export class AdminService {
         where: { status: 'paid' },
         select: { totalMinor: true, currency: true },
       }),
+      // Orders quarantined by the settlement amount check. Money is with the
+      // provider and no automated path will move it, so this number must be
+      // visible on the console landing page, not only in Sentry.
+      this.prisma.order.count({ where: { settlementHoldAt: { not: null } } }),
     ]);
 
     const revenueByCurrency: Record<string, number> = {};
@@ -55,6 +60,79 @@ export class AdminService {
       ticketsIssued,
       paidOrders: paidOrders.length,
       revenueByCurrency,
+      settlementHolds,
+    };
+  }
+
+  /**
+   * Orders quarantined by the settlement amount check: the provider reported a
+   * successful capture whose amount or currency did not match the order, so no
+   * ticket was issued and no automated path will touch it again.
+   *
+   * Cross-org by design, like everything else on this console. Newest first,
+   * because a fresh hold is the one where the buyer is still waiting.
+   */
+  async listSettlementHolds(opts: { take?: number; skip?: number } = {}) {
+    const take = Math.min(Math.max(opts.take ?? 50, 1), 200);
+    const skip = Math.max(opts.skip ?? 0, 0);
+    const where: Prisma.OrderWhereInput = { settlementHoldAt: { not: null } };
+
+    const [total, rows] = await Promise.all([
+      this.prisma.order.count({ where }),
+      this.prisma.order.findMany({
+        where,
+        orderBy: { settlementHoldAt: 'desc' },
+        take,
+        skip,
+        select: {
+          id: true,
+          status: true,
+          provider: true,
+          providerRef: true,
+          totalMinor: true,
+          currency: true,
+          createdAt: true,
+          settlementHoldAt: true,
+          settlementHoldReason: true,
+          settlementHoldDetail: true,
+          user: { select: { id: true, email: true } },
+          event: {
+            select: {
+              id: true,
+              title: true,
+              organizationId: true,
+              organization: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      take,
+      skip,
+      rows: rows.map((o) => ({
+        id: o.id,
+        status: o.status,
+        provider: o.provider,
+        providerRef: o.providerRef,
+        // Serialised: BigInt does not survive JSON, and the console needs the
+        // exact figure to compare against the provider dashboard.
+        expectedAmountMinor: o.totalMinor.toString(),
+        currency: o.currency,
+        createdAt: o.createdAt.toISOString(),
+        heldAt: o.settlementHoldAt?.toISOString() ?? null,
+        reason: o.settlementHoldReason,
+        detail: o.settlementHoldDetail,
+        buyer: { id: o.user.id, email: o.user.email },
+        event: {
+          id: o.event.id,
+          title: o.event.title,
+          organizationId: o.event.organizationId,
+          organizationName: o.event.organization.name,
+        },
+      })),
     };
   }
 

@@ -500,6 +500,15 @@ model Order {
   // This is the in-flight marker reconcileRefunds() scans for.
   refundInitiatedAt DateTime? @map("refund_initiated_at") @db.Timestamptz
 
+  // Settlement quarantine (migration 0016). Set when a provider reports a
+  // successful capture whose amount or currency does not match this order.
+  // While held the order stays `pending`, no tickets are issued, and
+  // releaseStaleHolds() skips it so the money is never abandoned. Cleared if a
+  // later settlement for the correct amount arrives.
+  settlementHoldAt     DateTime? @map("settlement_hold_at") @db.Timestamptz
+  settlementHoldReason String?   @map("settlement_hold_reason")
+  settlementHoldDetail Json?     @map("settlement_hold_detail")
+
   event        Event              @relation(fields: [eventId], references: [id])
   user         User               @relation(fields: [userId], references: [id])
   registration Registration?      @relation(fields: [registrationId], references: [id])
@@ -511,6 +520,7 @@ model Order {
 
   @@index([status, createdAt])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([settlementHoldAt(sort: Desc)])
   @@map("orders")
 }
 

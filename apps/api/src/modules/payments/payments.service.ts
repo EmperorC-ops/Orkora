@@ -7,8 +7,9 @@ import { TicketSigner } from '../registrations/ticket-signer';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
 import { PaymentPreferencesService } from './preferences.service';
+import * as Sentry from '@sentry/node';
 import { formatMoney } from './money';
-import type { PaymentMethodName } from './providers/types';
+import type { PaymentMethodName, SettledAmount } from './providers/types';
 
 @Injectable()
 export class PaymentsService {
@@ -319,8 +320,11 @@ export class PaymentsService {
         providerRef: order.providerRef,
       });
       if (result.status === 'success') {
-        await this.markOrderPaid(order.id, result.paidAt ?? new Date());
-        return { status: 'paid' };
+        const settled = await this.markOrderPaid(order.id, result.paidAt ?? new Date(), {
+          amountMinor: result.amountMinor,
+          currency: result.currency,
+        });
+        return { status: settled ? 'paid' : 'pending' };
       }
       if (result.status === 'failed') {
         await this.markOrderFailed(order.id, 'verify: provider reported failure');
@@ -385,9 +389,16 @@ export class PaymentsService {
     }
 
     switch (outcome.type) {
-      case 'paid':
-        await this.markOrderPaid(outcome.orderId, outcome.paidAt);
-        return { ok: true, outcome: 'paid' };
+      case 'paid': {
+        const settled = await this.markOrderPaid(outcome.orderId, outcome.paidAt, {
+          amountMinor: outcome.amountMinor,
+          currency: outcome.currency,
+        });
+        // Always ack so the provider stops retrying. A held order is a
+        // deliberate outcome, not a delivery failure, and retrying the same
+        // mismatched event would not change it.
+        return { ok: true, outcome: settled ? 'paid' : 'held' };
+      }
       case 'failed':
         await this.markOrderFailed(outcome.orderId, outcome.reason);
         return { ok: true, outcome: 'failed' };
@@ -399,7 +410,211 @@ export class PaymentsService {
 
   // --- internal state transitions ---
 
-  private async markOrderPaid(orderId: string, paidAt: Date): Promise<void> {
+  /**
+   * Resolve an order quarantined by the settlement amount check.
+   *
+   * A hold is deliberately terminal for the automated machinery: nothing
+   * expires it, nothing retries it, so money never moves on its own once a
+   * mismatch is detected. That safety is only worth having if a human can
+   * actually clear it, which is what this is for. Called from the platform
+   * console.
+   *
+   *   recheck  clear the hold and re-query the provider. Settles if the
+   *            amounts now agree (our total was wrong and has been corrected,
+   *            or the buyer completed a second, correct payment). Re-holds if
+   *            they still do not.
+   *   cancel   clear the hold and fail the order, releasing its seats and its
+   *            discount slot. Use when the money has been refunded at the
+   *            provider. This does NOT issue a refund; do that in the provider
+   *            dashboard first.
+   */
+  async resolveSettlementHold(input: {
+    orderId: string;
+    action: 'recheck' | 'cancel';
+    actorUserId: string;
+    requestId?: string;
+  }): Promise<{ orderId: string; action: string; status: string; stillHeld: boolean }> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: input.orderId },
+      select: {
+        id: true,
+        status: true,
+        settlementHoldAt: true,
+        settlementHoldReason: true,
+        event: { select: { organizationId: true } },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!order.settlementHoldAt) {
+      throw new BadRequestException('Order is not under a settlement hold');
+    }
+
+    const previousReason = order.settlementHoldReason;
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        settlementHoldAt: null,
+        settlementHoldReason: null,
+        settlementHoldDetail: Prisma.DbNull,
+      },
+    });
+
+    await this.audit.record({
+      organizationId: order.event.organizationId,
+      actorUserId: input.actorUserId,
+      action: `payment.settlement_hold_${input.action}`,
+      resourceType: 'order',
+      resourceId: order.id,
+      metadata: { previousReason },
+      requestId: input.requestId ?? null,
+    });
+
+    if (input.action === 'cancel') {
+      await this.markOrderFailed(order.id, 'settlement hold cancelled by admin');
+      this.logger.warn(
+        { orderId: order.id, actorUserId: input.actorUserId, previousReason },
+        'Settlement hold cancelled by admin; order failed and seats released',
+      );
+      return { orderId: order.id, action: 'cancel', status: 'failed', stillHeld: false };
+    }
+
+    // recheck: settleOrder re-queries the provider and runs the gate again.
+    const { status } = await this.settleOrder(order.id);
+    const after = await this.prisma.order.findUnique({
+      where: { id: order.id },
+      select: { settlementHoldAt: true },
+    });
+    const stillHeld = after?.settlementHoldAt != null;
+    this.logger.log(
+      { orderId: order.id, actorUserId: input.actorUserId, status, stillHeld },
+      'Settlement hold rechecked',
+    );
+    return { orderId: order.id, action: 'recheck', status, stillHeld };
+  }
+
+  /**
+   * Compare what the provider says it captured against what this order is
+   * actually for. Every settlement path funnels through here.
+   *
+   * Why this exists: signature verification proves the message came from the
+   * provider; it proves nothing about the figure inside it. Until this check
+   * existed, any successful capture settled the order regardless of amount or
+   * currency, which meant a short payment, a currency swap, or our own
+   * drift between the order total at checkout-mint time and at settlement time
+   * would all issue a full-value ticket. Flutterwave's integration guidance is
+   * explicit that status, amount, currency and tx_ref must all be matched
+   * before value is given.
+   *
+   * Asymmetric on purpose:
+   *   - short or wrong-currency  -> quarantine, no tickets. The buyer has not
+   *     paid for what they are claiming, or we cannot tell what they paid.
+   *   - over  -> settle anyway, and record the excess. The buyer is not at
+   *     fault and withholding their ticket is the wrong failure mode; finance
+   *     refunds the difference from the audit trail.
+   *
+   * Returns true when settlement may proceed.
+   */
+  private async verifySettlementAmount(
+    order: {
+      id: string;
+      totalMinor: bigint;
+      currency: string;
+      settlementHoldReason: string | null;
+    },
+    organizationId: string | null,
+    captured: SettledAmount,
+  ): Promise<boolean> {
+    const expectedCurrency = order.currency.toUpperCase();
+    const gotCurrency = captured.currency.toUpperCase();
+    const expected = order.totalMinor;
+    const got = captured.amountMinor;
+
+    const detail = {
+      expectedAmountMinor: expected.toString(),
+      capturedAmountMinor: got.toString(),
+      expectedCurrency,
+      capturedCurrency: gotCurrency,
+      deltaMinor: (got - expected).toString(),
+    };
+
+    const reason =
+      gotCurrency !== expectedCurrency
+        ? 'currency_mismatch'
+        : got < expected
+          ? 'underpaid'
+          : null;
+
+    if (reason) {
+      // Re-alerting on a hold we already raised turns one bad payment into a
+      // Sentry event and an audit row every time the buyer refreshes the
+      // confirm page or the reconciliation sweep comes round. Stamp once,
+      // alert once; the hold is already visible.
+      const alreadyHeld = order.settlementHoldReason === reason;
+
+      // Fail closed. Keep the order `pending` so no status consumer changes
+      // behaviour, but stamp the hold so releaseStaleHolds() leaves it alone
+      // rather than expiring an order whose money is sitting with the provider.
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          settlementHoldAt: new Date(),
+          settlementHoldReason: reason,
+          settlementHoldDetail: detail as Prisma.InputJsonValue,
+        },
+      });
+      if (alreadyHeld) {
+        this.logger.debug({ orderId: order.id, reason }, 'Order still held for the same reason');
+        return false;
+      }
+      this.logger.error(
+        { orderId: order.id, reason, ...detail },
+        'Settlement amount mismatch; order held',
+      );
+      Sentry.captureMessage('Payment settlement amount mismatch', {
+        level: 'error',
+        tags: { reason, orderId: order.id },
+        extra: detail,
+      });
+      await this.audit.record({
+        organizationId,
+        actorUserId: null,
+        action: `payment.settlement_${reason}`,
+        resourceType: 'order',
+        resourceId: order.id,
+        metadata: detail,
+      });
+      return false;
+    }
+
+    if (got > expected) {
+      // Settle, but leave a trail so the excess is refundable.
+      this.logger.warn({ orderId: order.id, ...detail }, 'Order overpaid; settling and flagging');
+      await this.audit.record({
+        organizationId,
+        actorUserId: null,
+        action: 'payment.settlement_overpaid',
+        resourceType: 'order',
+        resourceId: order.id,
+        metadata: detail,
+      });
+    }
+
+    return true;
+  }
+
+  /**
+   * Flip an order to `paid` and issue its tickets.
+   *
+   * `captured` is what the provider reports it actually took. It is required:
+   * a settlement signal that cannot say how much was captured is not a
+   * settlement we act on. Returns true when the order was settled (or was
+   * already settled), false when it was quarantined by the amount check.
+   */
+  private async markOrderPaid(
+    orderId: string,
+    paidAt: Date,
+    captured: SettledAmount,
+  ): Promise<boolean> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -410,20 +625,34 @@ export class PaymentsService {
     });
     if (!order) {
       this.logger.warn({ orderId }, 'Webhook for unknown order');
-      return;
+      return false;
     }
     if (order.status === 'paid') {
       this.logger.debug({ orderId }, 'Webhook for already-paid order, ignoring');
-      return;
+      return true;
     }
     if (order.status !== 'pending') {
       this.logger.warn({ orderId, status: order.status }, 'Webhook for non-pending order');
-      return;
+      return false;
     }
     if (!order.registration) {
       this.logger.error({ orderId }, 'Order has no registration; cannot issue tickets');
-      return;
+      return false;
     }
+
+    // Amount gate. Runs before any state flip, so a mismatch never issues a
+    // ticket and never sends a receipt. See verifySettlementAmount.
+    const amountOk = await this.verifySettlementAmount(
+      {
+        id: order.id,
+        totalMinor: order.totalMinor,
+        currency: order.currency,
+        settlementHoldReason: order.settlementHoldReason,
+      },
+      order.event.organizationId,
+      captured,
+    );
+    if (!amountOk) return false;
 
     // Scope the ticket flip to THIS order's tickets when the link exists
     // (tickets.order_id, added in migration 0004). Falling back to the
@@ -447,7 +676,16 @@ export class PaymentsService {
       await this.prisma.$transaction([
         this.prisma.order.update({
           where: { id: orderId },
-          data: { status: 'paid', paidAt },
+          // Clearing the hold matters when a first settlement was quarantined
+          // (say a short payment) and a later, correct one arrives: the order
+          // must not stay flagged once it has actually settled in full.
+          data: {
+            status: 'paid',
+            paidAt,
+            settlementHoldAt: null,
+            settlementHoldReason: null,
+            settlementHoldDetail: Prisma.DbNull,
+          },
         }),
         this.prisma.registration.update({
           where: { id: order.registration.id },
@@ -473,7 +711,16 @@ export class PaymentsService {
       await this.prisma.$transaction([
         this.prisma.order.update({
           where: { id: orderId },
-          data: { status: 'paid', paidAt },
+          // Clearing the hold matters when a first settlement was quarantined
+          // (say a short payment) and a later, correct one arrives: the order
+          // must not stay flagged once it has actually settled in full.
+          data: {
+            status: 'paid',
+            paidAt,
+            settlementHoldAt: null,
+            settlementHoldReason: null,
+            settlementHoldDetail: Prisma.DbNull,
+          },
         }),
         this.prisma.registration.update({
           where: { id: order.registration.id },
@@ -486,7 +733,7 @@ export class PaymentsService {
       ]);
     }
 
-    if (!shouldSendPaidEmail) return;
+    if (!shouldSendPaidEmail) return true;
 
     // Confirmation email after the state flip succeeds. Filter to THIS order's
     // tickets when the link is set; sibling tickets from other attempts must
@@ -535,6 +782,8 @@ export class PaymentsService {
         })),
       })
       .catch((err) => this.logger.warn({ err }, 'Failed to send receipt email'));
+
+    return true;
   }
 
   private async markOrderFailed(orderId: string, reason?: string): Promise<void> {
@@ -744,7 +993,12 @@ export class PaymentsService {
     const ttl = Number(this.cfg.get<number>('ORDER_HOLD_TTL_MIN') ?? 20);
     const cutoff = new Date(Date.now() - ttl * 60_000);
     const stale = await this.prisma.order.findMany({
-      where: { status: 'pending', createdAt: { lt: cutoff } },
+      // `settlementHoldAt: null` is load-bearing: a quarantined order is
+      // pending and old, so without this filter the sweep would cancel it and
+      // release its inventory while the customer's money is still with the
+      // provider. Held orders are resolved by a human or by a later correct
+      // settlement, never by expiry.
+      where: { status: 'pending', createdAt: { lt: cutoff }, settlementHoldAt: null },
       select: { id: true, provider: true, providerRef: true },
       take: 50,
     });
@@ -787,7 +1041,14 @@ export class PaymentsService {
   async reconcilePendingPayments(opts?: {
     windowMinutes?: number;
     batch?: number;
-  }): Promise<{ checked: number; recoveredPaid: number; markedFailed: number; stillPending: number }> {
+  }): Promise<{
+    checked: number;
+    recoveredPaid: number;
+    markedFailed: number;
+    stillPending: number;
+    /** Orders quarantined by the settlement amount check inside the window. */
+    held: number;
+  }> {
     const windowMinutes = opts?.windowMinutes ?? 60 * 24 * 3; // last 3 days
     const batch = opts?.batch ?? 100;
     const now = Date.now();
@@ -797,10 +1058,20 @@ export class PaymentsService {
         provider: { not: null },
         providerRef: { not: null },
         createdAt: { lt: new Date(now - 60_000), gt: new Date(now - windowMinutes * 60_000) },
+        // Quarantined orders are not drift; re-querying them settles nothing
+        // and only re-walks a known-bad payment every half hour. They are
+        // counted separately below so the sweep still surfaces them.
+        settlementHoldAt: null,
       },
       select: { id: true },
       orderBy: { createdAt: 'asc' },
       take: batch,
+    });
+
+    const held = await this.prisma.order.count({
+      where: {
+        settlementHoldAt: { gt: new Date(now - windowMinutes * 60_000) },
+      },
     });
 
     let recoveredPaid = 0;
@@ -826,7 +1097,13 @@ export class PaymentsService {
       }
     }
 
-    const summary = { checked: candidates.length, recoveredPaid, markedFailed, stillPending };
+    const summary = { checked: candidates.length, recoveredPaid, markedFailed, stillPending, held };
+    if (held > 0) {
+      this.logger.error(
+        { held, windowMinutes },
+        'Orders are held on a settlement amount mismatch and need a human',
+      );
+    }
     if (recoveredPaid > 0 || markedFailed > 0) {
       this.logger.warn(summary, 'Payment reconciliation drift detected');
     } else if (candidates.length > 0) {

@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
-import { toMajorUnit } from '../money';
+import { fromMajorUnit, toMajorUnit } from '../money';
 import type {
   CheckoutSession,
   CreateCheckoutInput,
@@ -109,6 +109,13 @@ export class FlutterwaveProvider implements PaymentProvider {
         id?: number | string;
         tx_ref?: string;
         status?: string;
+        // Flutterwave reports MAJOR units. `amount` is the transaction amount;
+        // `charged_amount` is what the customer was actually debited (it can
+        // exceed `amount` when the customer absorbs the fee). We settle
+        // against `amount`, which is the figure that corresponds to the order
+        // total we sent at init.
+        amount?: number;
+        currency?: string;
         meta?: { orderId?: string };
       };
     };
@@ -126,7 +133,24 @@ export class FlutterwaveProvider implements PaymentProvider {
     if (eventName === 'charge.completed' || eventName.includes('Transaction')) {
       if (!orderId) return { type: 'ignored', reason: 'No orderId on charge.completed' };
       if (status === 'successful') {
-        return { type: 'paid', orderId, providerEventId, paidAt: new Date() };
+        // Flutterwave's own guidance: confirm status, amount, currency and
+        // tx_ref against your record before giving value. Without both fields
+        // we cannot, so we refuse to settle from this event and let the
+        // verify-on-return / reconciliation path re-query the API instead.
+        if (event.data.amount == null || !event.data.currency) {
+          return {
+            type: 'ignored',
+            reason: 'charge.completed has no amount/currency to verify',
+          };
+        }
+        return {
+          type: 'paid',
+          orderId,
+          providerEventId,
+          paidAt: new Date(),
+          amountMinor: fromMajorUnit(event.data.amount),
+          currency: event.data.currency.toUpperCase(),
+        };
       }
       if (status === 'failed' || status === 'cancelled') {
         return { type: 'failed', orderId, providerEventId, reason: status };
@@ -159,14 +183,22 @@ export class FlutterwaveProvider implements PaymentProvider {
     }
     const body = (await res.json()) as {
       status: string;
-      data?: { status?: string; id?: number | string };
+      data?: { status?: string; id?: number | string; amount?: number; currency?: string };
     };
     const txStatus = body.data?.status;
     if (body.status === 'success' && txStatus === 'successful') {
+      if (body.data?.amount == null || !body.data.currency) {
+        this.logger.warn(
+          `Flutterwave verify for ${input.orderId} returned successful without amount/currency; not settling`,
+        );
+        return { status: 'pending' };
+      }
       return {
         status: 'success',
         paidAt: new Date(),
         providerRef: String(body.data?.id ?? input.orderId),
+        amountMinor: fromMajorUnit(body.data.amount),
+        currency: body.data.currency.toUpperCase(),
       };
     }
     if (txStatus === 'failed' || txStatus === 'cancelled') {

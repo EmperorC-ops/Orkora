@@ -58,6 +58,28 @@ export function toSmallestUnit(amountMinor: bigint | number, currency: string): 
   return Math.round(toMajor(amountMinor) * 10 ** decimals);
 }
 
+/**
+ * Inverse of `toSmallestUnit`. Converts an amount the provider reported in its
+ * smallest currency unit (Stripe `amount_total`, Paystack `data.amount`) back
+ * into our canonical `amountMinor`. Used at settlement to compare what was
+ * actually charged against `orders.total_minor`.
+ *
+ * Rounds to the nearest canonical minor unit: a zero-decimal currency has no
+ * sub-major precision to lose, and a three-decimal currency is quantised to
+ * 1/100 of a major unit, which is the resolution our ledger stores. Any real
+ * discrepancy is therefore visible to the comparison rather than absorbed.
+ */
+export function fromSmallestUnit(value: number | bigint, currency: string): bigint {
+  const decimals = currencyDecimals(currency);
+  const major = Number(value) / 10 ** decimals;
+  return BigInt(Math.round(major * AMOUNT_SCALE));
+}
+
+/** Inverse of `toMajorUnit`, for providers that report major units (Flutterwave). */
+export function fromMajorUnit(value: number | bigint): bigint {
+  return BigInt(Math.round(Number(value) * AMOUNT_SCALE));
+}
+
 /** Major-unit amount for providers that bill in major units (Flutterwave). */
 export function toMajorUnit(amountMinor: bigint | number): number {
   return toMajor(amountMinor);

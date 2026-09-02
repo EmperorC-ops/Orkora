@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { toSmallestUnit } from '../money';
+import { fromSmallestUnit, toSmallestUnit } from '../money';
 import type {
   CheckoutSession,
   CreateCheckoutInput,
@@ -104,22 +104,32 @@ export class StripeProvider implements PaymentProvider {
             reason: `Session completed but not paid (payment_status=${session.payment_status})`,
           };
         }
+        const captured = capturedFromSession(session);
+        if (!captured) {
+          return { type: 'ignored', reason: 'Session has no amount_total/currency to verify' };
+        }
         return {
           type: 'paid',
           orderId,
           providerEventId: event.id,
           paidAt: new Date((event.created ?? Date.now() / 1000) * 1000),
+          ...captured,
         };
       }
       case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.orderId;
         if (!orderId) return { type: 'ignored', reason: 'No orderId in metadata' };
+        const captured = capturedFromSession(session);
+        if (!captured) {
+          return { type: 'ignored', reason: 'Session has no amount_total/currency to verify' };
+        }
         return {
           type: 'paid',
           orderId,
           providerEventId: event.id,
           paidAt: new Date((event.created ?? Date.now() / 1000) * 1000),
+          ...captured,
         };
       }
       case 'checkout.session.async_payment_failed':
@@ -177,7 +187,22 @@ export class StripeProvider implements PaymentProvider {
     try {
       const session = await this.client.checkout.sessions.retrieve(input.providerRef);
       if (session.payment_status === 'paid') {
-        return { status: 'success', paidAt: new Date(), providerRef: input.providerRef };
+        const captured = capturedFromSession(session);
+        if (!captured) {
+          // Paid but unverifiable amount. Stay pending rather than settle
+          // blind; reconciliation retries and the mismatch stays visible.
+          this.logger.warn(
+            { providerRef: input.providerRef },
+            'Stripe session paid but has no amount_total/currency; not settling',
+          );
+          return { status: 'pending' };
+        }
+        return {
+          status: 'success',
+          paidAt: new Date(),
+          providerRef: input.providerRef,
+          ...captured,
+        };
       }
       if (session.status === 'expired') return { status: 'failed' };
       return { status: 'pending' };
@@ -258,4 +283,17 @@ function mapRefundStatus(status: Stripe.Refund['status']): RefundResult['status'
     default:
       return 'pending';
   }
+}
+
+/**
+ * Pull the captured amount off a Checkout Session in Orkora's canonical minor
+ * unit. Returns null when Stripe did not report both fields, which the callers
+ * treat as "cannot verify" and therefore as "do not settle".
+ */
+function capturedFromSession(
+  session: Stripe.Checkout.Session,
+): { amountMinor: bigint; currency: string } | null {
+  if (session.amount_total == null || !session.currency) return null;
+  const currency = session.currency.toUpperCase();
+  return { amountMinor: fromSmallestUnit(session.amount_total, currency), currency };
 }

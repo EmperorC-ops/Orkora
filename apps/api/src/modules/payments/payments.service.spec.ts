@@ -2,6 +2,19 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
+import type { SettledAmount } from './providers/types';
+
+/**
+ * markOrderPaid is private and now takes the captured amount and returns
+ * whether the order actually settled. One typed accessor keeps every spy in
+ * this file honest about that signature.
+ */
+type MarkOrderPaid = {
+  markOrderPaid: (id: string, at: Date, captured: SettledAmount) => Promise<boolean>;
+};
+function spyOnMarkPaid(svc: PaymentsService) {
+  return jest.spyOn(svc as unknown as MarkOrderPaid, 'markOrderPaid');
+}
 
 /**
  * Unit tests for the refund initiation path. Other PaymentsService methods
@@ -259,32 +272,50 @@ describe('PaymentsService.settleOrder', () => {
 
   it('marks the order paid and returns "paid" on a successful verify', async () => {
     const paidAt = new Date('2026-06-20T18:00:00.000Z');
-    const verify = jest.fn().mockResolvedValue({ status: 'success', paidAt });
+    const verify = jest
+      .fn()
+      .mockResolvedValue({ status: 'success', paidAt, amountMinor: 500000n, currency: 'NGN' });
     const { svc, provider } = makeSettleService({
       order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
       verifyTransaction: verify,
     });
-    const markPaid = jest
-      .spyOn(svc as unknown as { markOrderPaid: (id: string, at: Date) => Promise<void> }, 'markOrderPaid')
-      .mockResolvedValue(undefined);
+    const markPaid = spyOnMarkPaid(svc).mockResolvedValue(true);
 
     const out = await svc.settleOrder('o1');
 
     expect(verify).toHaveBeenCalledWith({ orderId: 'o1', providerRef: 'cs_1' });
-    expect(markPaid).toHaveBeenCalledWith('o1', paidAt);
+    // The captured amount must be forwarded, not dropped: it is what the
+    // settlement gate compares against the order total.
+    expect(markPaid).toHaveBeenCalledWith('o1', paidAt, {
+      amountMinor: 500000n,
+      currency: 'NGN',
+    });
     expect(out).toEqual({ status: 'paid' });
     void provider;
   });
 
-  it('defaults paidAt to now when the provider omits it', async () => {
-    const verify = jest.fn().mockResolvedValue({ status: 'success' });
+  it('leaves the order pending when the settlement gate holds it', async () => {
+    const verify = jest
+      .fn()
+      .mockResolvedValue({ status: 'success', amountMinor: 1n, currency: 'NGN' });
     const { svc } = makeSettleService({
       order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
       verifyTransaction: verify,
     });
-    const markPaid = jest
-      .spyOn(svc as unknown as { markOrderPaid: (id: string, at: Date) => Promise<void> }, 'markOrderPaid')
-      .mockResolvedValue(undefined);
+    spyOnMarkPaid(svc).mockResolvedValue(false);
+
+    await expect(svc.settleOrder('o1')).resolves.toEqual({ status: 'pending' });
+  });
+
+  it('defaults paidAt to now when the provider omits it', async () => {
+    const verify = jest
+      .fn()
+      .mockResolvedValue({ status: 'success', amountMinor: 500000n, currency: 'NGN' });
+    const { svc } = makeSettleService({
+      order: { id: 'o1', status: 'pending', provider: 'stripe', providerRef: 'cs_1' },
+      verifyTransaction: verify,
+    });
+    const markPaid = spyOnMarkPaid(svc).mockResolvedValue(true);
 
     const out = await svc.settleOrder('o1');
 

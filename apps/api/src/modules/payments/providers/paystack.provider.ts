@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { toSmallestUnit } from '../money';
+import { fromSmallestUnit, toSmallestUnit } from '../money';
 import type {
   CheckoutSession,
   CreateCheckoutInput,
@@ -101,6 +101,12 @@ export class PaystackProvider implements PaymentProvider {
         reference?: string;
         status?: string;
         paid_at?: string;
+        // Captured amount in the smallest currency unit, plus the currency it
+        // was actually charged in. Both are compared against the order at
+        // settlement, so a charge for the wrong amount or in a swapped
+        // currency never issues a ticket.
+        amount?: number;
+        currency?: string;
         metadata?: { orderId?: string };
       };
       id?: string | number;
@@ -117,11 +123,17 @@ export class PaystackProvider implements PaymentProvider {
     switch (event.event) {
       case 'charge.success': {
         if (!orderId) return { type: 'ignored', reason: 'No orderId in charge.success' };
+        if (event.data.amount == null || !event.data.currency) {
+          return { type: 'ignored', reason: 'charge.success has no amount/currency to verify' };
+        }
+        const currency = event.data.currency.toUpperCase();
         return {
           type: 'paid',
           orderId,
           providerEventId,
           paidAt: event.data.paid_at ? new Date(event.data.paid_at) : new Date(),
+          amountMinor: fromSmallestUnit(event.data.amount, currency),
+          currency,
         };
       }
       case 'charge.failed': {
@@ -168,21 +180,38 @@ export class PaystackProvider implements PaymentProvider {
     }
     const body = (await res.json()) as {
       status: boolean;
-      data?: { status?: string; paid_at?: string; id?: number | string };
+      data?: {
+        status?: string;
+        paid_at?: string;
+        id?: number | string;
+        amount?: number;
+        currency?: string;
+      };
     };
     const data = body.data;
     if (!body.status || !data?.status) return { status: 'pending' };
     if (data.status === 'success') {
+      if (data.amount == null || !data.currency) {
+        // Successful but unverifiable amount. Stay pending rather than settle
+        // blind; the reconciliation sweep retries.
+        this.logger.warn(
+          `Paystack verify for ${reference} returned success without amount/currency; not settling`,
+        );
+        return { status: 'pending' };
+      }
+      const currency = data.currency.toUpperCase();
       return {
         status: 'success',
         paidAt: data.paid_at ? new Date(data.paid_at) : new Date(),
         providerRef: String(data.id ?? reference),
+        amountMinor: fromSmallestUnit(data.amount, currency),
+        currency,
       };
     }
     if (['failed', 'abandoned', 'reversed'].includes(data.status)) {
       return { status: 'failed' };
     }
-    // 'ongoing' / 'pending' / 'processing' / queued — not settled yet.
+    // 'ongoing' / 'pending' / 'processing' / queued: not settled yet.
     return { status: 'pending' };
   }
 
