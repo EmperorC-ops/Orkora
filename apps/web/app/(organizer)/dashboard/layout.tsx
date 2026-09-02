@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   BarChart3,
@@ -10,11 +10,13 @@ import {
   Home,
   LogOut,
   Mail,
+  Menu,
   CreditCard,
   Settings,
   Sparkles,
   Ticket,
   Users,
+  X,
 } from 'lucide-react';
 import { apiFetch, authApi, clearTokens } from '@/lib/auth';
 import { useToast } from '@/components/toast';
@@ -57,6 +59,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<SessionUser | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  // Mobile nav drawer. The desktop sidebar is hidden below the lg breakpoint,
+  // so on phones/tablets this drawer is the only way to reach the sections.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
   // 'checking' = waiting on the JWT decode, 'none' = no memberships,
   // 'has' = at least one membership. Drives the onboarding gate.
   const [orgState, setOrgState] = useState<'checking' | 'none' | 'has'>('checking');
@@ -112,6 +118,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .catch(() => setOrgName(null));
     }
   }, []);
+
+  // Dismiss the drawer whenever the route changes, so tapping a nav link
+  // closes it, and let Escape close it while it is open.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileOpen]);
 
   async function signOut() {
     setSigningOut(true);
@@ -178,9 +199,95 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Workspace navigation"
+            className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col border-r border-surface-border bg-surface shadow-2xl"
+          >
+            <div className="flex h-16 items-center justify-between border-b border-surface-border px-5">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Brand variant="mark" width={32} className="h-8 w-8 flex-none" />
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold leading-tight text-ink-primary">
+                    {orgName ?? 'Orkora'}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wider text-ink-muted">on Orkora</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-ink-secondary transition hover:bg-brand-500/15 hover:text-ink-primary"
+                aria-label="Close navigation"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+              {nav.map(({ href, label, Icon }) => (
+                <Link
+                  key={href}
+                  href={href as Route}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-secondary hover:bg-brand-500/15 hover:text-ink-primary"
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Link>
+              ))}
+            </nav>
+            <div className="space-y-3 border-t border-surface-border p-4">
+              {user ? (
+                <div className="flex items-center gap-3 rounded-lg bg-surface-deep/40 px-3 py-2">
+                  <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-gradient text-xs font-bold text-white">
+                    {user.initials}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-semibold text-ink-primary">
+                      {user.fullName}
+                    </div>
+                    <div className="truncate text-[10px] text-ink-muted">
+                      {user.role ? `${ROLE_LABEL[user.role] ?? user.role} · ` : ''}
+                      {user.email}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={signOut}
+                disabled={signingOut}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-secondary transition hover:bg-[#FF7675]/15 hover:text-[#FF9090] disabled:opacity-60"
+              >
+                <LogOut className="h-4 w-4" />
+                {signingOut ? 'Signing out...' : 'Sign out'}
+              </button>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b border-surface-border bg-surface/60 px-6 backdrop-blur">
-          <div className="min-w-0">
+        <header className="flex h-16 items-center justify-between gap-3 border-b border-surface-border bg-surface/60 px-4 backdrop-blur sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-lg border border-surface-border bg-surface/40 text-ink-secondary transition hover:bg-brand-500/15 hover:text-ink-primary lg:hidden"
+              aria-label="Open navigation"
+              aria-expanded={mobileOpen}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold leading-tight text-ink-primary">
               {orgName ? `${orgName} Workspace` : 'Workspace'}
             </h1>
@@ -189,6 +296,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Signed in as {ROLE_LABEL[user.role] ?? user.role}
               </p>
             ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {user ? (
