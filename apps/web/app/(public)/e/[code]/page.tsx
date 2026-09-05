@@ -5,6 +5,7 @@ import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
 import { usesStoryMode, type StoryBlock } from '@/lib/story';
 import { isFeatureEnabled } from '@/lib/flags';
 import StoryRenderer from './StoryRenderer';
+import EventCountdown, { type Urgency } from './EventCountdown';
 import EventCountdown from './EventCountdown';
 import EventArrivalAnalytics from './EventArrivalAnalytics';
 import InstallPrompt from '../../../_components/InstallPrompt';
@@ -173,6 +174,58 @@ function groupSessionsByDay(sessions: PublicSession[], timeZone?: string) {
   return Object.entries(groups);
 }
 
+// Resolve a single honest urgency line from real ticket data. Priority:
+// nothing on sale yet, then sold out, then low stock. Returns null when no
+// condition genuinely holds, so the band never manufactures pressure.
+function resolveUrgency(tiers: PublicTier[], nowMs: number): Urgency {
+  if (!tiers.length) return null;
+  const parse = (s: string | null) => (s ? new Date(s).getTime() : null);
+  const remainingOf = (t: PublicTier) => Math.max(0, (t.quantityTotal ?? 0) - t.quantitySold);
+
+  const onSale = tiers.filter((t) => {
+    const starts = parse(t.saleStartsAt);
+    const ends = parse(t.saleEndsAt);
+    if (starts !== null && nowMs < starts) return false;
+    if (ends !== null && nowMs > ends) return false;
+    return true;
+  });
+
+  if (onSale.length === 0) {
+    const upcoming = tiers
+      .map((t) => parse(t.saleStartsAt))
+      .filter((v): v is number => v !== null && v > nowMs)
+      .sort((a, b) => a - b)[0];
+    if (upcoming) {
+      const label = new Intl.DateTimeFormat('en-NG', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      }).format(new Date(upcoming));
+      return { text: `Tickets open ${label}`, tone: 'info' };
+    }
+    return null;
+  }
+
+  const limited = onSale.filter((t) => t.quantityTotal !== null);
+  const hasUncapped = onSale.some((t) => t.quantityTotal === null);
+  if (!hasUncapped && limited.length > 0 && limited.every((t) => remainingOf(t) === 0)) {
+    return { text: 'Sold out', tone: 'hot' };
+  }
+
+  let lowest: number | null = null;
+  for (const t of limited) {
+    const rem = remainingOf(t);
+    if (rem <= 0) continue;
+    const threshold = Math.max(10, Math.ceil((t.quantityTotal ?? 0) * 0.1));
+    if (rem <= threshold) lowest = lowest === null ? rem : Math.min(lowest, rem);
+  }
+  if (lowest !== null) {
+    return { text: lowest <= 10 ? `${lowest} left` : 'Selling fast', tone: 'hot' };
+  }
+
+  return null;
+}
+
 export default async function PublicEventPage({
   params,
   searchParams,
@@ -243,6 +296,9 @@ export default async function PublicEventPage({
   const momentDate = sameDay
     ? `${formatDay(start, event.timezone)}, ${formatTime(start, event.timezone)}`
     : `${formatDay(start, event.timezone)} to ${formatDay(end, event.timezone)}`;
+  const urgency = resolveUrgency(event.tiers ?? [], Date.now());
+  // Virtual and hybrid events have a live room to jump into once they start.
+  const liveHref = event.kind === 'physical' ? null : `/e/${event.code}/live`;
 
   // Honest urgency for the countdown band, computed only from real tier data.
   // Low stock takes precedence over an imminent sale close; nothing renders
@@ -366,6 +422,7 @@ export default async function PublicEventPage({
         startAt={event.startAt}
         endAt={event.endAt}
         status={event.status}
+        liveHref={liveHref}
         urgency={urgency}
       />
 
