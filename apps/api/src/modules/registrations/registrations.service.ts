@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { orderActivity } from '../../common/order-activity';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   DiscountsService,
@@ -372,6 +373,8 @@ export class RegistrationsService {
           },
           include: { items: true },
         });
+        // A new pending hold exists: arm the payment maintenance sweeps.
+        orderActivity.touch();
 
         // Record the redemption and bump the counter, still inside the lock so
         // the count that the next buyer reads reflects this order.

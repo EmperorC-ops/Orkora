@@ -76,7 +76,7 @@ describe('FeedbackService.submitPublic', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('persists a valid submission with the event org id and links the user by email', async () => {
+  it('persists a valid submission with the event org id and does NOT bind an unverified email to a user', async () => {
     const prisma = makePrisma();
     (prisma as any).event.findUnique.mockResolvedValue({
       id: 'e1',
@@ -84,6 +84,10 @@ describe('FeedbackService.submitPublic', () => {
       status: 'ended',
       organization: { status: 'active' },
     });
+    // Even when a user with this email exists, a public (unauthenticated)
+    // submission must not be attributed to them: the submitter could otherwise
+    // spoof feedback onto any known attendee. The email is kept as a contact
+    // hint only.
     (prisma as any).user.findFirst.mockResolvedValue({ id: 'u9' });
     (prisma as any).eventFeedback.create.mockResolvedValue({ id: 'f1' });
     const svc = new FeedbackService(prisma);
@@ -99,7 +103,8 @@ describe('FeedbackService.submitPublic', () => {
     const arg = (prisma as any).eventFeedback.create.mock.calls[0][0].data;
     expect(arg.organizationId).toBe('o1');
     expect(arg.eventId).toBe('e1');
-    expect(arg.userId).toBe('u9');
+    expect(arg.userId).toBeNull();
+    expect((prisma as any).user.findFirst).not.toHaveBeenCalled();
     expect(arg.attendeeEmail).toBe('attendee@example.com');
     expect(arg.comment).toBe('great'); // trimmed
     expect(arg.rating).toBe(4);

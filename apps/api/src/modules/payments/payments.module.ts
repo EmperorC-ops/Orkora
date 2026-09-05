@@ -11,8 +11,7 @@ import { FlutterwaveProvider } from './providers/flutterwave.provider';
 import { PaystackProvider } from './providers/paystack.provider';
 import { PaymentsRegistry } from './providers/registry';
 import { StripeProvider } from './providers/stripe.provider';
-import { ReconciliationCron } from './reconciliation.cron';
-import { StaleHoldCron } from './stale-hold.cron';
+import { PaymentsMaintenanceCron } from './payments-maintenance.cron';
 
 @Module({
   imports: [ConfigModule, ScheduleModule.forRoot(), NotificationsModule, RegistrationsModule],
@@ -24,8 +23,7 @@ import { StaleHoldCron } from './stale-hold.cron';
     StripeProvider,
     PaystackProvider,
     FlutterwaveProvider,
-    StaleHoldCron,
-    ReconciliationCron,
+    PaymentsMaintenanceCron,
   ],
   exports: [PaymentsService, PaymentsRegistry, PaymentPreferencesService],
 })

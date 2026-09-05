@@ -97,6 +97,12 @@ services:
         value: '8388608'
       - key: ORDER_HOLD_TTL_MIN
         value: '20'
+      # Maintenance sweeps are activity-gated so an idle API never wakes Neon
+      # (see payments-maintenance.cron.ts). Daily pass is unconditional.
+      - key: PAYMENTS_SWEEP_CRON
+        value: '*/15 * * * *'
+      - key: PAYMENTS_DAILY_SWEEP_CRON
+        value: '0 4 * * *'
 
       # Object storage (Cloudflare R2 in production)
       - key: S3_ENDPOINT

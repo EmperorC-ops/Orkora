@@ -161,9 +161,14 @@ describe('AuthService.login backoff', () => {
         deleteMany: jest.fn(),
       },
       user: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({ id: 'u1', email: 'a@b.co', passwordHash: '$argon2id$ok' }),
+        // Login is gated on a verified email (see the account-takeover note in
+        // AuthService.login), so a successful login needs emailVerified: true.
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'u1',
+          email: 'a@b.co',
+          passwordHash: '$argon2id$ok',
+          emailVerified: true,
+        }),
         update: jest.fn().mockResolvedValue({}),
       },
       refreshToken: { create: jest.fn().mockResolvedValue({}) },

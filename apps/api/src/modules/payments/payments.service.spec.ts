@@ -13,7 +13,10 @@ function makePrismaMock() {
   return {
     order: {
       findFirst: jest.fn(),
-      // refundOrder stamps refundInitiatedAt; markOrderRefunded reads + flips.
+      // refundOrder claims the refund atomically via updateMany (stamps
+      // refundInitiatedAt); update releases the claim on decline/throw;
+      // markOrderRefunded reads + flips.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({}),
       findUnique: jest.fn(),
     },
@@ -119,14 +122,17 @@ describe('PaymentsService.refundOrder', () => {
       amountMinor: 12345n,
       currency: 'NGN',
     });
-    // Stamps the in-flight marker so a missed webhook + missed sync result is
-    // still recoverable by reconcileRefunds.
-    expect(prisma.order.update).toHaveBeenCalledWith(
+    // Claims the refund atomically (stamps the in-flight marker) so a missed
+    // webhook + missed sync result is still recoverable by reconcileRefunds,
+    // and a concurrent second click cannot issue a second provider refund.
+    expect(prisma.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'x' },
+        where: { id: 'x', status: 'paid', refundInitiatedAt: null },
         data: expect.objectContaining({ refundInitiatedAt: expect.any(Date) }),
       }),
     );
+    // A pending refund keeps the claim; nothing releases it.
+    expect(prisma.order.update).not.toHaveBeenCalled();
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: 'org-1',
@@ -164,7 +170,29 @@ describe('PaymentsService.refundOrder', () => {
     expect(markRefunded).toHaveBeenCalledWith('x');
   });
 
-  it('a provider-declined refund throws, audits refund_failed, and never stamps the marker', async () => {
+  it('refuses a second refund while one is already in flight (claim lost)', async () => {
+    const prisma = makePrismaMock();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'x',
+      status: 'paid',
+      provider: 'stripe',
+      providerRef: 'cs_abc',
+      totalMinor: 2000n,
+      currency: 'USD',
+    });
+    prisma.order.updateMany.mockResolvedValue({ count: 0 });
+    const refund = jest.fn();
+    const { svc, audit } = makeService(prisma, refund);
+
+    await expect(
+      svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(refund).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('a provider-declined refund throws, audits refund_failed, and releases the claim', async () => {
     const prisma = makePrismaMock();
     prisma.order.findFirst.mockResolvedValue({
       id: 'x',
@@ -181,7 +209,11 @@ describe('PaymentsService.refundOrder', () => {
       svc.refundOrder({ orgId: 'org-1', orderId: 'x', actorUserId: 'u' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    // The claim was taken before the provider call and must be handed back so
+    // the organizer can retry after a decline.
+    expect(prisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'x' }, data: { refundInitiatedAt: null } }),
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'refund_failed', resourceId: 'x' }),
     );

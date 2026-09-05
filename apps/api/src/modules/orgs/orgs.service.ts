@@ -531,10 +531,11 @@ export class OrgsService {
       vendor: 1,
       attendee: 0,
     };
+    const TOP_RANK = 5; // platform superadmin (no membership row) outranks everyone
     const actor = await this.prisma.membership.findUnique({
       where: { userId_organizationId: { userId: actorUserId, organizationId: orgId } },
     });
-    const actorRank = actor ? ROLE_RANK[actor.role] ?? 0 : ROLE_RANK.owner;
+    const actorRank: number = actor ? (ROLE_RANK[actor.role] ?? 0) : TOP_RANK;
     if ((ROLE_RANK[target.role] ?? 0) > actorRank) {
       throw new ForbiddenException('You cannot remove a member with a higher role than yours');
     }

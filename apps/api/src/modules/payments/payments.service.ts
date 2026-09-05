@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { orderActivity } from '../../common/order-activity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TicketSigner } from '../registrations/ticket-signer';
 import { AuditService } from '../audit/audit.service';
@@ -245,6 +246,8 @@ export class PaymentsService {
    * a `provider_ref`; otherwise we create a fresh session.
    */
   async createCheckoutForOrder(orderId: string): Promise<{ url: string; provider: string }> {
+    // Checkout in flight: keep the maintenance sweeps armed for this order.
+    orderActivity.touch();
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
