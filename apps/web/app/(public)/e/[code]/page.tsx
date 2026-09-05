@@ -5,6 +5,7 @@ import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
 import { usesStoryMode, type StoryBlock } from '@/lib/story';
 import { isFeatureEnabled } from '@/lib/flags';
 import StoryRenderer from './StoryRenderer';
+import EventCountdown from './EventCountdown';
 import EventArrivalAnalytics from './EventArrivalAnalytics';
 import InstallPrompt from '../../../_components/InstallPrompt';
 import FeedbackForm from '../../../_components/FeedbackForm';
@@ -243,6 +244,37 @@ export default async function PublicEventPage({
     ? `${formatDay(start, event.timezone)}, ${formatTime(start, event.timezone)}`
     : `${formatDay(start, event.timezone)} to ${formatDay(end, event.timezone)}`;
 
+  // Honest urgency for the countdown band, computed only from real tier data.
+  // Low stock takes precedence over an imminent sale close; nothing renders
+  // when there are no caps and no sale windows, so no scarcity is manufactured.
+  const urgency = ((): string | null => {
+    const nowMs = Date.now();
+    let lowest: number | null = null;
+    for (const t of heroTiers) {
+      if (t.quantityTotal != null) {
+        const rem = Math.max(0, t.quantityTotal - t.quantitySold);
+        if (rem > 0 && (lowest === null || rem < lowest)) lowest = rem;
+      }
+    }
+    if (lowest !== null && lowest <= 20) {
+      return lowest <= 10 ? `Only ${lowest} left` : 'Selling fast';
+    }
+    let soonest: number | null = null;
+    for (const t of heroTiers) {
+      if (t.saleEndsAt) {
+        const ms = new Date(t.saleEndsAt).getTime() - nowMs;
+        if (ms > 0 && (soonest === null || ms < soonest)) soonest = ms;
+      }
+    }
+    if (soonest !== null && soonest <= 48 * 3600 * 1000) {
+      const hrs = Math.ceil(soonest / 3600000);
+      if (hrs <= 1) return 'Sales close within the hour';
+      if (hrs < 24) return `Sales close in ${hrs}h`;
+      return `Sales close in ${Math.ceil(hrs / 24)}d`;
+    }
+    return null;
+  })();
+
   return (
     <main className="bg-surface-deep text-ink-primary">
       {/* PWA install banner. Sits as a sticky bottom card on phones, hides
@@ -329,6 +361,13 @@ export default async function PublicEventPage({
           </ul>
         </div>
       </header>
+
+      <EventCountdown
+        startAt={event.startAt}
+        endAt={event.endAt}
+        status={event.status}
+        urgency={urgency}
+      />
 
       <div className="mx-auto max-w-5xl space-y-12 px-6 py-16">
         {event.description && (
