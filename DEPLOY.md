@@ -146,7 +146,11 @@ it after the first successful deploy so future restarts don't try to re-run.
    `[entrypoint] schema is empty; applying schema.sql` (first deploy only)
    and `Nest application successfully started`.
 6. Visit `https://orkora-api.onrender.com/health`. You should see
-   `{"status":"ok"}`.
+   `{"status":"ok"}`. This Render-assigned URL is the interim host used until
+   the custom domain is attached in the DNS step. In production the API is
+   served at `https://api.orkora.events`, which is the canonical host all the
+   values below should use once that domain is live; the `*.onrender.com` URL
+   is only the pre-domain default.
 
 After the first successful deploy, change `BOOTSTRAP_SCHEMA` to `false` so
 restarts no longer try to apply the schema.
@@ -156,14 +160,17 @@ restarts no longer try to apply the schema.
 1. Vercel Dashboard -> **Add New** -> **Project** -> import this repo.
 2. Vercel reads `vercel.json`. Leave **Root Directory** as the repo root.
 3. **Settings** -> **Environment Variables**:
-   - `NEXT_PUBLIC_API_URL` = `https://orkora-api.onrender.com`
+   - `NEXT_PUBLIC_API_URL` = `https://api.orkora.events` in production (the
+     custom API domain). Use `https://orkora-api.onrender.com` only before that
+     domain is attached.
    - `NEXT_PUBLIC_BRAND_NAME` = `Orkora`
    - `NEXT_PUBLIC_APP_URL` = your Vercel URL (set after first deploy)
 4. Hit **Deploy**. Vercel builds the web filter via Turborepo and gives
    you a URL like `https://orkora-web.vercel.app`.
 5. Back in Render -> `orkora-api` -> Environment:
    - `APP_URL` = the Vercel URL (no trailing slash)
-   - `API_URL` = `https://orkora-api.onrender.com`
+   - `API_URL` = `https://api.orkora.events` (or `https://orkora-api.onrender.com`
+     until the custom domain is attached)
    - `CORS_ORIGINS` = the Vercel URL plus any custom domains, comma-separated
    - Redeploy the API.
 
@@ -173,11 +180,14 @@ For each provider you enabled in step 4, point the provider's webhook
 endpoint at the API. The provider URL is the same shape every time; only
 the suffix changes.
 
-| Provider     | Webhook URL on Render                                              |
-| ------------ | ------------------------------------------------------------------ |
-| Stripe       | `https://orkora-api.onrender.com/v1/payments/webhook/stripe`       |
-| Paystack     | `https://orkora-api.onrender.com/v1/payments/webhook/paystack`     |
-| Flutterwave  | `https://orkora-api.onrender.com/v1/payments/webhook/flutterwave`  |
+Use the production API domain (`api.orkora.events`); before the custom domain
+is attached, substitute the Render-assigned `orkora-api.onrender.com` host.
+
+| Provider     | Webhook URL (production API domain)                          |
+| ------------ | ----------------------------------------------------------- |
+| Stripe       | `https://api.orkora.events/v1/payments/webhook/stripe`      |
+| Paystack     | `https://api.orkora.events/v1/payments/webhook/paystack`    |
+| Flutterwave  | `https://api.orkora.events/v1/payments/webhook/flutterwave` |
 
 Stripe: Dashboard -> Developers -> Webhooks -> **Add endpoint**. Subscribe to
 these events: `checkout.session.completed`,
@@ -260,7 +270,7 @@ Mobile is not in the stores yet. For preview:
 
 ```bash
 cd apps/mobile
-EXPO_PUBLIC_API_URL=https://orkora-api.onrender.com pnpm dev
+EXPO_PUBLIC_API_URL=https://api.orkora.events pnpm dev
 ```
 
 Expo prints a QR. Open Expo Go on your phone, scan, and the app loads
@@ -398,9 +408,9 @@ Response envelope:
 
 Errors:
 
-- `401 Unauthorized` — missing / unknown / revoked key
-- `403 Forbidden` — key missing the `events.read` scope
-- `404 Not Found` — event id not in the requested org
+- `401 Unauthorized`: missing / unknown / revoked key
+- `403 Forbidden`: key missing the `events.read` scope
+- `404 Not Found`: event id not in the requested org
 
 Scopes available today:
 
