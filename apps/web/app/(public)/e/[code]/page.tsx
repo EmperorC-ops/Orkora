@@ -62,6 +62,8 @@ interface PublicEvent {
   endAt: string;
   timezone: string;
   bannerUrl: string | null;
+  city?: string | null;
+  category?: string | null;
   status: 'draft' | 'published' | 'live' | 'ended' | 'archived';
   storyBlocks?: StoryBlock[];
   storyTemplate?: string;
@@ -215,6 +217,32 @@ export default async function PublicEventPage({
   const sameDay = sameCalendarDay(start, end, event.timezone);
   const tracksById = new Map((event.tracks ?? []).map((t) => [t.id, t]));
 
+  // Experience-first hero signals, all derived from real data so nothing is
+  // overstated. "From" is the cheapest paid tier in its own currency; the CTA
+  // and price chip adapt to free vs paid; the moment line reads warmly but
+  // stays factual (what it is, where when known, and when).
+  const heroTiers = event.tiers ?? [];
+  const paidTiers = heroTiers
+    .filter((t) => t.priceMinor > 0)
+    .sort((a, b) => a.priceMinor - b.priceMinor);
+  const cheapest = paidTiers[0];
+  const allFree = heroTiers.length > 0 && paidTiers.length === 0;
+  const fromLabel = cheapest
+    ? `From ${formatPrice(cheapest.priceMinor, cheapest.currency)}`
+    : allFree
+      ? 'Free entry'
+      : null;
+  const ctaLabel = cheapest ? 'Get tickets' : 'Get your spot';
+  const kindLabel =
+    event.kind === 'physical'
+      ? 'In person'
+      : event.kind === 'virtual'
+        ? 'Online'
+        : 'In person and online';
+  const momentDate = sameDay
+    ? `${formatDay(start, event.timezone)}, ${formatTime(start, event.timezone)}`
+    : `${formatDay(start, event.timezone)} to ${formatDay(end, event.timezone)}`;
+
   return (
     <main className="bg-surface-deep text-ink-primary">
       {/* PWA install banner. Sits as a sticky bottom card on phones, hides
@@ -232,11 +260,14 @@ export default async function PublicEventPage({
           <img
             src={event.bannerUrl}
             alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-40"
+            className="absolute inset-0 h-full w-full object-cover opacity-50"
           />
         )}
-        <div className="relative mx-auto max-w-5xl px-6 py-24">
-          <p className="text-xs font-semibold uppercase tracking-widest text-brand-100">
+        {/* Legibility scrim so the copy stays readable over any artwork,
+            darkest at the bottom where the text and CTA sit. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/25" />
+        <div className="relative mx-auto max-w-5xl px-6 pb-14 pt-20 sm:pt-28">
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/80">
             {event.organization.slug ? (
               <Link
                 href={`/o/${event.organization.slug}`}
@@ -248,34 +279,54 @@ export default async function PublicEventPage({
               event.organization.name
             )}
           </p>
-          <h1 className="mt-4 text-4xl font-extrabold leading-tight sm:text-6xl">
+          <h1 className="mt-4 text-4xl font-extrabold leading-tight drop-shadow-sm sm:text-6xl">
             {event.title}
           </h1>
-          <p className="mt-6 max-w-2xl text-lg text-brand-50">
-            {sameDay
-              ? `${formatDay(start, event.timezone)} - ${formatTime(start, event.timezone)} to ${formatTime(end, event.timezone)}`
-              : `${formatDay(start, event.timezone)} - ${formatDay(end, event.timezone)}`}{' '}
-            ({event.timezone})
+
+          {/* The moment: what it is, where (when known), and when. */}
+          <p className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-base text-white/90 sm:text-lg">
+            <span>{kindLabel}</span>
+            {event.city ? (
+              <>
+                <span className="text-white/40">·</span>
+                <span>{event.city}</span>
+              </>
+            ) : null}
+            <span className="text-white/40">·</span>
+            <span>{momentDate}</span>
+            <span className="text-xs text-white/50">({event.timezone})</span>
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              {event.kind === 'physical'
-                ? 'In person'
-                : event.kind === 'virtual'
-                  ? 'Virtual'
-                  : 'Hybrid'}
-            </span>
-            <span className="rounded-full bg-white/10 px-4 py-1.5 text-sm font-mono backdrop-blur">
-              Code {event.code}
-            </span>
+
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               href={`/e/${event.code}/register`}
-              className="ml-auto rounded-full bg-white px-5 py-2 text-sm font-semibold text-brand-700 shadow hover:bg-brand-50"
+              className="rounded-full bg-white px-6 py-2.5 text-sm font-bold text-brand-700 shadow-lg transition hover:bg-brand-50"
             >
-              Register
+              {ctaLabel}
             </Link>
+            {fromLabel && (
+              <span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
+                {fromLabel}
+              </span>
+            )}
           </div>
+
+          {/* Quiet confidence row. Every item here is true for every Orkora
+              event, so it reassures without overstating anything. */}
+          <ul className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-white/85">
+            <li className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              One scan per ticket
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Seats held while you pay
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Ticket and receipt emailed instantly
+            </li>
+          </ul>
         </div>
       </header>
 
@@ -415,7 +466,7 @@ export default async function PublicEventPage({
                           : 'bg-brand-500 text-white hover:bg-brand-600'
                       }`}
                     >
-                      {soldOut ? 'Sold out' : 'Register'}
+                      {soldOut ? 'Sold out' : 'Get tickets'}
                     </Link>
                   </div>
                 );
