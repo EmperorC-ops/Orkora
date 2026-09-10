@@ -15,7 +15,7 @@ import {
   Trash2,
   Sparkles,
 } from 'lucide-react';
-import { apiFetch } from '@/lib/auth';
+import { ApiError, apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
 import { ActionButton } from '@/components/action-button';
 import type { StoryBlock } from '@/lib/story';
@@ -39,6 +39,41 @@ import {
   unpublishStory,
   type StoryAnalyticsSummary,
 } from '@/lib/story-edit';
+
+/**
+ * Turn a failed save into a sentence an organiser can act on.
+ *
+ * The API answers with RFC 7807 problem+json, and for a rejected composition it
+ * now carries an `errors` array naming the offending block index and field.
+ * Without this the UI would show the raw JSON body, which is what
+ * `ApiError.message` holds.
+ */
+function describeSaveError(err: unknown): string {
+  if (!(err instanceof ApiError)) {
+    return err instanceof Error ? err.message : 'Save failed.';
+  }
+
+  let body: {
+    detail?: unknown;
+    errors?: { blockIndex?: number | null; field?: string | null; detail?: string }[];
+  } = {};
+  try {
+    body = JSON.parse(err.message) as typeof body;
+  } catch {
+    return err.message;
+  }
+
+  const headline = typeof body.detail === 'string' ? body.detail : `Save failed (${err.status}).`;
+  if (!Array.isArray(body.errors) || body.errors.length === 0) return headline;
+
+  const parts = body.errors.slice(0, 3).map((issue) => {
+    const where =
+      typeof issue.blockIndex === 'number' ? `block ${issue.blockIndex + 1}` : 'the composition';
+    return issue.field ? `${where}, ${issue.field}: ${issue.detail}` : `${where}: ${issue.detail}`;
+  });
+  const more = body.errors.length > parts.length ? ` (+${body.errors.length - parts.length} more)` : '';
+  return `${headline} Problem in ${parts.join('; ')}${more}.`;
+}
 
 interface PreviewSession {
   id: string;
@@ -105,6 +140,14 @@ export default function StoryComposerPage() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<StoryAnalyticsSummary | null>(null);
 
+  // Autosave suspends itself after a failure and stays suspended until the
+  // composition changes. A rejected save is almost always deterministic: the
+  // same payload will be rejected again, so retrying it every 30s achieves
+  // nothing except burning the access token, which is exactly what happened
+  // when a DTO defect made every save return 400 for weeks while
+  // `.catch(() => undefined)` hid it.
+  const autosavePaused = useRef(false);
+
   // Keep the latest state accessible to the autosave interval without
   // re-registering it on every keystroke.
   const latest = useRef({ blocks, template, dirty, orgId });
@@ -148,9 +191,15 @@ export default function StoryComposerPage() {
   // Autosave every 30s while there are unsaved changes.
   useEffect(() => {
     const t = setInterval(() => {
-      if (latest.current.dirty && latest.current.blocks.some((b) => b.type === 'tickets' && !b.hidden)) {
-        void doSave().catch(() => undefined);
-      }
+      if (autosavePaused.current) return;
+      if (!latest.current.dirty) return;
+      if (!latest.current.blocks.some((b) => b.type === 'tickets' && !b.hidden)) return;
+      void doSave().catch((err: unknown) => {
+        autosavePaused.current = true;
+        setError(
+          `${describeSaveError(err)} Your changes are NOT saved. Fix the problem above, then press Save.`,
+        );
+      });
     }, 30_000);
     return () => clearInterval(t);
   }, [doSave]);
@@ -160,6 +209,7 @@ export default function StoryComposerPage() {
     setBlocks(templateSeed(t));
     setDirty(true);
     setSelectedId(null);
+    resumeAutosave();
   }
 
   function seedFromCurrent() {
@@ -168,6 +218,7 @@ export default function StoryComposerPage() {
     setBlocks(composeClassicFrom(event));
     setDirty(true);
     setSelectedId(null);
+    resumeAutosave();
   }
 
   async function copyPreviewLink() {
@@ -178,9 +229,17 @@ export default function StoryComposerPage() {
     await navigator.clipboard.writeText(url);
   }
 
+  /** A new edit is a new payload, so let autosave try again. */
+  function resumeAutosave() {
+    if (!autosavePaused.current) return;
+    autosavePaused.current = false;
+    setError(null);
+  }
+
   function mutate(next: StoryBlock[]) {
     setBlocks(next);
     setDirty(true);
+    resumeAutosave();
   }
 
   function patchData(id: string, partial: Record<string, unknown>) {
@@ -205,7 +264,14 @@ export default function StoryComposerPage() {
     const j = i + dir;
     if (i < 0 || j < 0 || j >= blocks.length) return;
     const next = [...blocks];
-    [next[i], next[j]] = [next[j], next[i]];
+    // Destructured swap reads as `StoryBlock | undefined` under
+    // noUncheckedIndexedAccess. Bounds are already checked above, so this is a
+    // formality, but an explicit guard beats a cast.
+    const a = next[i];
+    const b = next[j];
+    if (!a || !b) return;
+    next[i] = b;
+    next[j] = a;
     mutate(next);
   }
 
@@ -229,6 +295,7 @@ export default function StoryComposerPage() {
     if (from < 0 || to < 0) return;
     const next = [...blocks];
     const [moved] = next.splice(from, 1);
+    if (!moved) return;
     next.splice(to, 0, moved);
     mutate(next);
   }

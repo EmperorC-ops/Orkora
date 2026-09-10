@@ -23,6 +23,7 @@ import {
   StoryAnalyticsBatchDto,
   UpdateTicketTierDto,
 } from './dto/event.dto';
+import type { ZodError } from 'zod';
 import {
   STORY_TEMPLATES,
   StoryCompositionSchema,
@@ -439,7 +440,10 @@ export class EventsService {
 
     const parsed = StoryCompositionSchema.safeParse(dto.blocks);
     if (!parsed.success) {
-      throw new BadRequestException('Invalid story composition');
+      throw new BadRequestException({
+        message: 'Invalid story composition',
+        errors: describeStoryIssues(parsed.error),
+      });
     }
     if (!hasVisibleTicketsBlock(parsed.data)) {
       throw new BadRequestException('Every event page needs a way to buy tickets.');
@@ -465,7 +469,13 @@ export class EventsService {
   async publishStory(orgId: string, eventId: string) {
     const existing = await this.assertEventInOrg(orgId, eventId);
     const parsed = StoryCompositionSchema.safeParse(existing.storyBlocks);
-    if (!parsed.success || !hasVisibleTicketsBlock(parsed.data)) {
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'The saved story composition is malformed and cannot be published.',
+        errors: describeStoryIssues(parsed.error),
+      });
+    }
+    if (!hasVisibleTicketsBlock(parsed.data)) {
       throw new BadRequestException('Compose a story with a tickets block before publishing.');
     }
     return this.serializeEvent(
@@ -1047,4 +1057,39 @@ export class EventsService {
     }
     return event;
   }
+}
+
+/**
+ * One machine-readable reason a story composition was rejected.
+ *
+ * `blockIndex` is the position in the blocks array, so a client can highlight
+ * the offending card. `field` is the path inside that block ('variant',
+ * 'data', 'id'), empty when the whole block is wrong.
+ */
+export interface StoryCompositionIssue {
+  blockIndex: number | null;
+  field: string | null;
+  code: string;
+  detail: string;
+}
+
+/**
+ * Turn a zod failure on a story composition into something an organiser can act
+ * on.
+ *
+ * Without this the client only ever saw the string "Invalid story composition",
+ * which is accurate and useless: the composer autosaves, every save 400s, and
+ * nobody can tell which block is malformed. The commonest cause is a null where
+ * the schema wants an absent value (`variant: null`, `hidden: null`), which is
+ * invisible without the path.
+ *
+ * Capped at 20 issues so a pathological payload cannot inflate the response.
+ */
+function describeStoryIssues(error: ZodError): StoryCompositionIssue[] {
+  return error.issues.slice(0, 20).map((issue) => ({
+    blockIndex: typeof issue.path[0] === 'number' ? issue.path[0] : null,
+    field: issue.path.slice(1).join('.') || null,
+    code: issue.code,
+    detail: issue.message,
+  }));
 }

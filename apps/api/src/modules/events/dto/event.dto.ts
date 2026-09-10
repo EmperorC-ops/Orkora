@@ -141,7 +141,18 @@ export class UpdateStoryDto {
   template?: string;
 
   // Deep shape validated in the service via the Story composition zod schema.
+  //
+  // `@Type(() => Object)` is load-bearing, not decoration. The global
+  // ValidationPipe runs with transformOptions.enableImplicitConversion, and for
+  // a property whose only reflected design:type is `Array`, class-transformer
+  // applies that same `Array` type to every ITEM. Each block object is then
+  // coerced into `[]`, so the service receives `[[]]` and the zod schema
+  // rejects it as "Invalid story composition". Naming the item type stops the
+  // coercion. An empty blocks array is unaffected, which is exactly why this
+  // presented as a content bug rather than a transport one: every save with any
+  // content failed, and only an empty composition got through.
   @IsArray()
+  @Type(() => Object)
   blocks!: unknown[];
 }
 
