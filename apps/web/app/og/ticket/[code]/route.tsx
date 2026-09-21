@@ -26,7 +26,13 @@ const APP = process.env.NEXT_PUBLIC_APP_URL ?? 'https://orkora.events';
 
 interface Share {
   attendeeFirstName: string;
-  event: { title: string; code: string; startAt: string; timezone: string };
+  event: {
+    title: string;
+    code: string;
+    startAt: string;
+    timezone: string;
+    bannerUrl: string | null;
+  };
   brand: { name: string; brandColor: string | null };
 }
 
@@ -58,6 +64,7 @@ export async function GET(
         dateLine={share ? formatDate(share.event.startAt, share.event.timezone) : ''}
         footerName={share?.attendeeFirstName || undefined}
         eventUrl={share ? `${hostFromApp(APP)}/e/${share.event.code}` : hostFromApp(APP)}
+        imageUrl={share?.event.bannerUrl ?? null}
       />
     ),
     { width, height },

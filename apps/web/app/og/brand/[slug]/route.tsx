@@ -15,7 +15,21 @@ interface Brand {
   name: string;
   slug: string;
   brandColor: string | null;
+  heroMediaUrl: string | null;
   upcoming: { title: string }[];
+}
+
+// The brand hero can be an image or a video. Satori only renders images, so
+// only use it as the card background when it is clearly an image; otherwise
+// fall back to the branded gradient rather than risk an empty render.
+function imageOrNull(u: string | null | undefined): string | null {
+  if (!u) return null;
+  try {
+    const path = new URL(u).pathname.toLowerCase();
+    return /\.(jpe?g|png|webp|gif|avif)$/.test(path) ? u : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function GET(
@@ -48,6 +62,7 @@ export async function GET(
         title={brand?.name || 'An event brand on Orkora'}
         dateLine={next ? `Next up: ${next}` : ''}
         eventUrl={brand ? `${hostFromApp(APP)}/o/${brand.slug}` : hostFromApp(APP)}
+        imageUrl={imageOrNull(brand?.heroMediaUrl)}
       />
     ),
     { width, height },
