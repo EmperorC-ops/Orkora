@@ -89,6 +89,20 @@ function formatTime(iso: string, tz: string): string {
   }
 }
 
+// Share-page hosts (Dropbox, Google Drive) return an HTML preview instead of a
+// raw image and cannot be hotlinked, so a hero pointed at one renders blank.
+// When the hero media is such a link, ignore it and fall back to the event
+// banner, which is an uploaded, directly-servable image.
+const UNHOSTABLE_MEDIA_HOSTS = /(^|\.)(dropbox\.com|dropboxusercontent\.com|drive\.google\.com|docs\.google\.com)$/i;
+function usableHeroMedia(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return UNHOSTABLE_MEDIA_HOSTS.test(new URL(url).hostname) ? null : url;
+  } catch {
+    return null;
+  }
+}
+
 export function BlockView({
   block,
   event,
@@ -159,8 +173,11 @@ function HeroBlock({
 }) {
   const { data } = block;
   const headline = data.headline || event.title;
-  const mediaUrl = data.mediaUrl || event.bannerUrl;
-  const isVideo = data.mediaType === 'video';
+  const heroMedia = usableHeroMedia(data.mediaUrl);
+  const mediaUrl = heroMedia ?? event.bannerUrl ?? null;
+  // Only treat it as video when using the block's own usable media; a fallback
+  // to the event banner is always a still image.
+  const isVideo = heroMedia !== null && data.mediaType === 'video';
 
   const ctas = (
     <div className="mt-8 flex flex-wrap gap-3">
