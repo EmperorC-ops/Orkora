@@ -298,6 +298,11 @@ export default async function PublicEventPage({
   const urgency = resolveUrgency(event.tiers ?? [], Date.now());
   // Virtual and hybrid events have a live room to jump into once they start.
   const liveHref = event.kind === 'physical' ? null : `/e/${event.code}/live`;
+  // The confidence row adapts to free vs paid so it never references payment on
+  // a free event (no hold-while-you-pay, no receipt).
+  const trustPoints = cheapest
+    ? ['One scan per ticket', 'Seats held while you pay', 'Ticket and receipt emailed instantly']
+    : ['One scan per ticket', 'No payment needed', 'Ticket emailed instantly'];
 
   return (
     <main className="bg-surface-deep text-ink-primary">
@@ -316,12 +321,12 @@ export default async function PublicEventPage({
           <img
             src={event.bannerUrl}
             alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-50"
+            className="absolute inset-0 h-full w-full object-cover opacity-20"
           />
         )}
-        {/* Legibility scrim so the copy stays readable over any artwork,
-            darkest at the bottom where the text and CTA sit. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/25" />
+        {/* Faint banner behind the brand colour (matches the Story hero), with
+            a light scrim so the copy stays readable. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
         <div className="relative mx-auto max-w-5xl px-6 pb-14 pt-20 sm:pt-28">
           <p className="text-xs font-semibold uppercase tracking-widest text-white/80">
             {event.organization.slug ? (
@@ -370,18 +375,12 @@ export default async function PublicEventPage({
           {/* Quiet confidence row. Every item here is true for every Orkora
               event, so it reassures without overstating anything. */}
           <ul className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-white/85">
-            <li className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              One scan per ticket
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Seats held while you pay
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Ticket and receipt emailed instantly
-            </li>
+            {trustPoints.map((point) => (
+              <li key={point} className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                {point}
+              </li>
+            ))}
           </ul>
         </div>
       </header>
