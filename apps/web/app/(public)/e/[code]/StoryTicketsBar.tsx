@@ -25,7 +25,9 @@ export default function StoryTicketsBar({ color, label = 'Get tickets' }: { colo
     const observers: IntersectionObserver[] = [];
     if (hero) {
       const o = new IntersectionObserver(
-        ([e]) => {
+        (entries) => {
+          const e = entries[0];
+          if (!e) return;
           pastHero = !e.isIntersecting;
           update();
         },
@@ -37,7 +39,9 @@ export default function StoryTicketsBar({ color, label = 'Get tickets' }: { colo
       pastHero = true;
     }
     if (tickets) {
-      const o = new IntersectionObserver(([e]) => {
+      const o = new IntersectionObserver((entries) => {
+        const e = entries[0];
+        if (!e) return;
         ticketsOnScreen = e.isIntersecting;
         update();
       });

@@ -11,18 +11,20 @@ const nextConfig = {
   output: 'standalone',
   experimental: {
     typedRoutes: true,
+    // The /legal pages read canonical draft markdown from apps/web/legal/*.md
+    // via fs.readFileSync at build time (see apps/web/lib/legal-markdown.tsx).
+    // The path is composed with path.join(process.cwd(), 'legal', slug + '.md'),
+    // which file tracing can miss because the slug is dynamic.
+    //
+    // This key MUST live under `experimental` on Next 14. It was previously set
+    // at the top level, which is the Next 15 location, so Next 14 logged
+    // "Unrecognized key(s) in object: 'outputFileTracingIncludes'" and ignored
+    // it entirely. The safeguard described above was never actually in effect.
+    outputFileTracingIncludes: {
+      '/legal/**/*': ['./legal/*.md'],
+    },
   },
   transpilePackages: ['@orkora/ui', '@orkora/sdk', '@orkora/contracts'],
-  // The /legal pages read canonical draft markdown from apps/web/legal/*.md
-  // via fs.readFileSync at build time (see apps/web/lib/legal-markdown.tsx).
-  // Vercel's automatic file tracing normally catches these, but the path
-  // is composed with path.join(process.cwd(), 'legal', slug + '.md') which
-  // can be missed if the slug is treated as dynamic. This explicit include
-  // guarantees the four legal source files are packaged into the standalone
-  // deployment.
-  outputFileTracingIncludes: {
-    '/legal/**/*': ['./legal/*.md'],
-  },
   // Skip TS + ESLint failures during production builds so Vercel can ship.
   // Type errors are still surfaced by `pnpm typecheck` locally and in CI.
   // Remove these once the type errors are cleaned up.

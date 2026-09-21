@@ -6,3 +6,22 @@ packages:
 # packages into the deploy target instead of leaving them as workspace:
 # protocol links — which is what we want for a self-contained runtime image.
 injectWorkspacePackages: true
+
+# Node version every pnpm-run script uses. pnpm downloads it on demand, so
+# nobody has to install a version manager and no machine is left guessing.
+#
+# REQUIRES pnpm >= 10.6, which is when pnpm began reading settings from this
+# file. On older pnpm (this repo was last installed with 10.0.0) the key is
+# silently ignored and the equivalent `use-node-version=20.19.0` in .npmrc is
+# what takes effect. Keep both until the toolchain is above 10.6.
+#
+# Why this is pinned: Next 14.2.3 predates Node 22 and 24. Its bundled
+# jest-worker cannot spawn child processes under Node 24, so `next build` dies
+# with "Cannot find module .../jest-worker/processChild.js" before it compiles
+# anything. CI already pins Node 20 in .github/workflows/ci.yml, so a developer
+# on a newer Node hits a failure CI and production never see, and wastes an
+# afternoon on it.
+#
+# Keep in step with the CI workflow and .nvmrc. Raising it means checking
+# Next's supported Node range first.
+useNodeVersion: 20.19.0

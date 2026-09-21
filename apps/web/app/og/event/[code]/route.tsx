@@ -23,6 +23,7 @@ interface PublicEvent {
   code: string;
   startAt: string;
   timezone: string;
+  bannerUrl: string | null;
   organization: { name: string; brandColor: string | null };
 }
 
@@ -54,6 +55,7 @@ export async function GET(
         title={event?.title || 'An event on Orkora'}
         dateLine={event ? formatDate(event.startAt, event.timezone) : ''}
         eventUrl={event ? `${hostFromApp(APP)}/e/${event.code}` : hostFromApp(APP)}
+        imageUrl={event?.bannerUrl ?? null}
       />
     ),
     { width, height },

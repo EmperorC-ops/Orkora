@@ -31,8 +31,9 @@ export interface Brand {
 
 function lighten(hex: string, amt: number): string {
   const m = /^#?([\da-f]{6})$/i.exec(hex.trim());
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
+  const digits = m?.[1];
+  if (!digits) return hex;
+  const n = parseInt(digits, 16);
   const f = (c: number) => Math.max(0, Math.min(255, Math.round(c + (255 - c) * amt)));
   const r = f((n >> 16) & 255);
   const g = f((n >> 8) & 255);
