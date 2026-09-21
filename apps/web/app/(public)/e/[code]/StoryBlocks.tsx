@@ -181,8 +181,28 @@ function HeroBlock({
 
   if (block.variant === 'minimal') {
     return (
-      <section data-story-hero className="border-b border-surface-border" style={{ backgroundColor: color }}>
-        <div className="mx-auto max-w-4xl px-6 py-28 sm:py-36">
+      <section
+        data-story-hero
+        className="relative isolate overflow-hidden border-b border-surface-border"
+        style={{ backgroundColor: color }}
+      >
+        {/* The event banner rides faintly behind the brand colour so the
+            artwork is present without crowding the headline. Skipped for
+            video media (a still backdrop only). */}
+        {mediaUrl && !isVideo ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center opacity-20"
+            style={{ backgroundImage: `url(${mediaUrl})` }}
+          />
+        ) : null}
+        {mediaUrl && !isVideo ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10"
+          />
+        ) : null}
+        <div className="relative mx-auto max-w-4xl px-6 py-28 sm:py-36">
           <h1 className="text-5xl font-extrabold leading-[1.02] tracking-tight text-white sm:text-7xl">{headline}</h1>
           {data.dateCityLine ? <p className="mt-5 text-lg text-white/85">{data.dateCityLine}</p> : null}
           {data.subheadline ? <p className="mt-2 text-lg text-white/70">{data.subheadline}</p> : null}
