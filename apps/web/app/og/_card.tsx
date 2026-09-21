@@ -82,31 +82,18 @@ export function Card({
         padding: pad,
         color: '#ffffff',
         backgroundColor: '#0B0B14',
-        // Keep the brand radial when there is no banner; the banner supplies the
-        // backdrop when present, so the radial would only muddy it.
+        // The banner rides as a CSS background (Satori renders remote images
+        // reliably this way; an <img> sized in percentages fails). When there
+        // is no banner, keep the brand radial instead.
         backgroundImage: imageUrl
-          ? undefined
+          ? `url("${imageUrl}")`
           : `radial-gradient(120% 120% at 0% 0%, ${brandColor} 0%, rgba(11,11,20,0.2) 42%, rgba(11,11,20,0.95) 78%)`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         fontFamily: 'sans-serif',
       }}
     >
-      {/* Banner backdrop + legibility scrim (only when a banner exists). */}
-      {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt=""
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            zIndex: 0,
-          }}
-        />
-      ) : null}
+      {/* Legibility scrim over the banner (only when a banner exists). */}
       {imageUrl ? (
         <div
           style={{
