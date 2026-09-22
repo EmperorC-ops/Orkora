@@ -804,3 +804,8 @@ alter table events add column if not exists category text;
 alter table events add column if not exists city     text;
 create index if not exists events_category_idx on events (category) where category is not null;
 create index if not exists events_city_idx     on events (city)     where city is not null;
+
+-- ============================================================
+-- EVENT REGISTRATION FIELDS (migration 0017, folded in for fresh installs)
+-- ============================================================
+alter table events add column if not exists registration_fields jsonb not null default '[]'::jsonb;

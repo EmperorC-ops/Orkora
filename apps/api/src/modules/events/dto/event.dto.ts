@@ -81,6 +81,12 @@ export class CreateEventDto {
   @IsString()
   @Length(0, 80)
   city?: string | null;
+
+  // Deep shape (types, required, options) validated by the RegistrationForm
+  // zod schema in the service; kept loose here.
+  @IsOptional()
+  @IsArray()
+  registrationFields?: unknown[];
 }
 
 export class UpdateEventDto {
@@ -131,6 +137,10 @@ export class UpdateEventDto {
   @IsString()
   @Length(0, 80)
   city?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  registrationFields?: unknown[];
 }
 
 // === Story Mode ===

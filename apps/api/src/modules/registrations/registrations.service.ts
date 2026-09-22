@@ -9,6 +9,10 @@ import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { orderActivity } from '../../common/order-activity';
+import {
+  RegistrationFormSchema,
+  validateResponsesAgainstFields,
+} from '../../common/registration-fields';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   DiscountsService,
@@ -97,6 +101,25 @@ export class RegistrationsService {
    * reserves seats with row locking, issues tickets for free tiers, or opens
    * a pending order for paid tiers.
    */
+  // Parse the event's stored question definitions (defensively) and validate
+  // the submitted answers against them. Returns the cleaned answer bag to store,
+  // dropping any keys that are not defined questions.
+  private validateFormResponses(
+    storedFields: Prisma.JsonValue,
+    responses: Record<string, unknown> | undefined,
+  ): Prisma.InputJsonValue {
+    const parsed = RegistrationFormSchema.safeParse(storedFields);
+    const fields = parsed.success ? parsed.data : [];
+    const result = validateResponsesAgainstFields(fields, responses ?? {});
+    if (!result.ok) {
+      throw new BadRequestException({
+        message: 'Some answers need attention',
+        errors: result.errors,
+      });
+    }
+    return result.cleaned as unknown as Prisma.InputJsonValue;
+  }
+
   async register(eventCode: string, dto: RegisterAttendeesDto) {
     const event = await this.prisma.event.findUnique({
       where: { code: eventCode },
@@ -112,6 +135,13 @@ export class RegistrationsService {
     if (event.endAt <= new Date()) {
       throw new BadRequestException('Event has already ended');
     }
+
+    // Validate custom registration answers against the event's questions, and
+    // keep only recognised fields so a client cannot store arbitrary keys.
+    const cleanedResponses = this.validateFormResponses(
+      event.registrationFields,
+      dto.formResponses,
+    );
 
     const tier = await this.prisma.ticketTier.findUnique({ where: { id: dto.tierId } });
     if (!tier || tier.eventId !== event.id) {
@@ -269,11 +299,11 @@ export class RegistrationsService {
           eventId: event.id,
           userId: user.id,
           status: isFree ? 'confirmed' : 'pending',
-          formResponses: (dto.formResponses ?? {}) as Prisma.InputJsonValue,
+          formResponses: cleanedResponses,
         },
         update: {
           status: isFree ? 'confirmed' : 'pending',
-          formResponses: (dto.formResponses ?? {}) as Prisma.InputJsonValue,
+          formResponses: cleanedResponses,
         },
       });
 

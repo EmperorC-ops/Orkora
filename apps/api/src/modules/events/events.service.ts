@@ -29,6 +29,7 @@ import {
   StoryCompositionSchema,
   hasVisibleTicketsBlock,
 } from './story.schema';
+import { RegistrationFormSchema } from '../../common/registration-fields';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // omit confusing chars
 const SAFE_STATUS: EventStatus[] = ['draft', 'published', 'live', 'ended', 'archived'];
@@ -68,6 +69,7 @@ export class EventsService {
         storyBlocks: true,
         storyTemplate: true,
         storyPublishedAt: true,
+        registrationFields: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
@@ -146,6 +148,7 @@ export class EventsService {
         storyBlocks: true,
         storyTemplate: true,
         storyPublishedAt: true,
+        registrationFields: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
@@ -341,6 +344,7 @@ export class EventsService {
         theme: (dto.theme ?? {}) as Prisma.InputJsonValue,
         category: dto.category ?? null,
         city: dto.city ?? null,
+        registrationFields: this.validateRegistrationFields(dto.registrationFields),
         status: 'draft',
       },
     });
@@ -421,6 +425,7 @@ export class EventsService {
         // so organizers can remove a category/city, not only set it.
         category: dto.category === undefined ? undefined : dto.category,
         city: dto.city === undefined ? undefined : dto.city,
+        registrationFields: this.validateRegistrationFields(dto.registrationFields),
       },
     });
     return this.serializeEvent(event);
@@ -1042,6 +1047,23 @@ export class EventsService {
     priceMinor: number;
   } {
     return { ...tier, priceMinor: Number(tier.priceMinor) };
+  }
+
+  private validateRegistrationFields(input: unknown): Prisma.InputJsonValue | undefined {
+    // undefined means "not provided": create falls back to the column default
+    // ([]), update leaves the existing value unchanged.
+    if (input === undefined) return undefined;
+    const parsed = RegistrationFormSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Invalid registration fields',
+        errors: parsed.error.issues.map((i) => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+    }
+    return parsed.data as unknown as Prisma.InputJsonValue;
   }
 
   private serializeEvent<T extends object>(event: T): T {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { StoryComposition } from './story-blocks';
+import { RegistrationForm } from './registration-fields';
 
 /**
  * Shared Zod schemas. Both API (Nest) and clients (Next, Expo) import from here.
@@ -8,6 +9,9 @@ import { StoryComposition } from './story-blocks';
 
 // Story Mode block contracts (event page composition).
 export * from './story-blocks';
+
+// Custom registration question contracts.
+export * from './registration-fields';
 
 // ===== Enums =====
 
@@ -136,6 +140,7 @@ export const PublicEvent = z.object({
   storyTemplate: z.string().default('classic'),
   storyPublishedAt: z.string().nullable().optional(),
   storyBlocks: StoryComposition.default([]),
+  registrationFields: RegistrationForm.default([]),
   organization: z.object({
     name: z.string(),
     logoUrl: z.string().url().nullable().optional(),
@@ -161,6 +166,7 @@ export const CreateEventInput = z.object({
   capacity: z.number().int().positive().optional(),
   bannerUrl: z.string().url().optional(),
   theme: z.record(z.unknown()).optional(),
+  registrationFields: RegistrationForm.optional(),
 });
 export type CreateEventInput = z.infer<typeof CreateEventInput>;
 

@@ -1,0 +1,127 @@
+# Custom registration questions
+
+Let an organizer ask event-specific questions at registration. A party host
+asks nothing extra; a conference or training host asks for company, job title,
+dietary needs, and so on. The questions belong to the event, so needs that
+differ per tenant are handled by data the organizer controls, not by branching
+code per customer.
+
+## Where this stands today
+
+The capture-and-store half already exists:
+
+- `Registration.form_responses` is a JSONB column (`formResponses` in Prisma).
+- The register API DTO accepts an optional `formResponses` object.
+- `registrations.service` already writes it onto the registration row.
+- The web registration types already carry `formResponses`.
+
+What is missing:
+
+1. A per-event definition of the questions (label, type, required, options).
+2. Organizer UI to build that form.
+3. The public register form rendering the questions and submitting the answers.
+4. Server-side validation of answers against the definition.
+5. Surfacing answers to the organizer (registration/attendee detail, CSV).
+
+## Model: per event
+
+Questions live on the event as `events.registration_fields` (a JSONB array of
+field definitions). Each event asks exactly what it needs. No org-level template
+in this version (decided: per event only); an org default template is a later
+follow-up.
+
+Answers stay in `Registration.form_responses`, keyed by field id, one bag per
+registration (decided: per registration, not per attendee, for v1). A group
+registration therefore captures one set of answers for the order. Per-attendee
+answers are a later enhancement if conferences need them.
+
+## Field definition shape
+
+A field is:
+
+- `id` (string, stable slug, unique within the event): the key answers are
+  stored under.
+- `label` (string, shown to the attendee).
+- `type` (one of the supported types below).
+- `required` (boolean, default false).
+- `options` (string array, required for select and multiselect only).
+- `placeholder` (optional string).
+- `helpText` (optional string, a short "why we ask" line).
+- `maxLength` (optional number, for text types).
+
+Supported types in v1:
+
+- `short_text`: single line.
+- `long_text`: multi-line.
+- `select`: one choice from `options`.
+- `multiselect`: zero or more choices from `options`.
+- `number`.
+- `date`.
+- `checkbox`: a single boolean (consent, agree to terms).
+
+Caps: at most 30 fields per event; at most 50 options per select; label and
+option lengths bounded; text answers bounded by `maxLength` or a sane default.
+
+## Answer validation rules
+
+On register, `formResponses` is validated against the event's
+`registration_fields`:
+
+- Every `required` field must have a non-empty answer.
+- `select` answers must be one of `options`; `multiselect` answers must all be
+  in `options`.
+- `number` answers must be numeric; `date` answers must be a valid date;
+  `checkbox` answers must be boolean.
+- Text answers must respect `maxLength`.
+- Unknown keys (not matching any field id) are dropped, not stored, so a
+  tampered client cannot stuff arbitrary data into the row.
+
+The web pre-validates with the shared helper in `packages/contracts`; the API
+enforces the same rules server-side with its own copy in
+`apps/api/src/common/registration-fields.ts`, kept independent of the client
+contracts the way the Story Mode schema is.
+
+## Privacy note
+
+Some questions edge into personal data under NDPR (dietary, accessibility). The
+UI should keep sensitive questions optional and support a short `helpText` to
+explain why the data is asked. Nothing here forces a sensitive field to be
+required. This is guidance for the composer (Slice 2), not a code gate.
+
+## Slices
+
+- Slice 1 (this one): schema and API. Add `registration_fields` to the event,
+  the shared field contracts and the answer validator, accept and persist the
+  fields on event create/update, return them on the public and organizer reads,
+  and validate `formResponses` against them on register.
+- Slice 2: organizer composer. A "Registration form" section in the event
+  editor to add, reorder, edit, and remove questions.
+- Slice 3: public form. Render the questions under the attendee fields and
+  submit the answers into `formResponses`.
+- Slice 4: surfacing. Show answers on the registration and attendee detail, and
+  add them as columns in the CSV export.
+
+Each slice is independently deployable. Slice 1 changes no behavior an attendee
+sees (the public form does not render fields until Slice 3), so it is safe to
+ship on its own.
+
+## Slice 1 file map
+
+- `packages/contracts/src/registration-fields.ts`: `RegistrationFieldType`,
+  `RegistrationField`, `RegistrationForm` Zod schemas, and
+  `validateResponsesAgainstFields(fields, responses)`.
+- `packages/contracts/src/index.ts`: re-export the above; add
+  `registrationFields` to `CreateEventInput`, `UpdateEventInput`, `PublicEvent`.
+- `apps/api/src/common/registration-fields.ts`: the API's own field schema and
+  answer validator (the server-side source of truth), with a spec.
+- `apps/api/migrations/0017_event_registration_fields.sql`,
+  `schema.sql`, `apps/api/prisma/schema.prisma`: add the column.
+- `apps/api/src/modules/events/dto/event.dto.ts`: accept `registrationFields`.
+- `apps/api/src/modules/events/events.service.ts`: validate via Zod, persist,
+  and include in the public and organizer reads.
+- `apps/api/src/modules/registrations/registrations.service.ts`: validate
+  `formResponses` against the event's fields on register.
+- Specs for the validator and the register-time enforcement.
+
+No migration data backfill: existing events default to an empty `[]`, so they
+keep behaving exactly as they do now.
