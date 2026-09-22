@@ -231,13 +231,34 @@ export const EMAIL_VERIFICATION_REQUIRED = 'email_verification_required';
  * (https://evil.com), protocol-relative (//evil.com), or scheme-bearing
  * (javascript:) falls back to /dashboard. Prevents open-redirect phishing.
  */
-export function safeInternalPath(raw: string | null | undefined): string {
-  const fallback = '/dashboard';
+export function safeInternalPath(
+  raw: string | null | undefined,
+  fallback = '/dashboard',
+): string {
+  // Resolve the candidate exactly as the browser will, against a fixed origin,
+  // and accept it only if the origin did not change. Pattern-matching the raw
+  // string is not enough: the WHATWG URL parser strips ASCII tab, CR and LF
+  // before parsing, so `/\t/evil.com` passed the old checks and then resolved
+  // to https://evil.com. Live link: /login?next=/%09/evil.com
   if (!raw) return fallback;
-  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) {
+  if (raw.length > 2048) return fallback;
+  // C0 controls, DEL and spaces: stripped or reinterpreted by URL parsers, and
+  // never present in a legitimate internal path.
+  if (/[\u0000- \u007f]/.test(raw)) return fallback;
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return fallback;
+  const probe = 'https://orkora.invalid';
+  let parsed: URL;
+  try {
+    parsed = new URL(raw, probe);
+  } catch {
     return fallback;
   }
-  return raw;
+  if (parsed.origin !== probe) return fallback;
+  // Return the parser's canonical form, not the raw input, so nothing the
+  // validator and the browser might read differently survives.
+  const out = parsed.pathname + parsed.search + parsed.hash;
+  if (!out.startsWith('/') || out.startsWith('//')) return fallback;
+  return out;
 }
 
 export function persistTokens(t: TokenBundle): void {

@@ -10,7 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next .turbo",
-    "brand:generate": "node scripts/generate-brand-assets.mjs"
+    "brand:generate": "node scripts/generate-brand-assets.mjs",
+    "test:redirect": "node scripts/test-safe-redirect.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
