@@ -1,14 +1,24 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
+import type { Request } from 'express';
+import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
 import { SuperAdmin } from '../../common/decorators/platform.decorator';
 import { PlatformGuard } from '../../common/guards/platform.guard';
+import { PaymentsService } from '../payments/payments.service';
 import { AdminService, PLATFORM_ROLES, type PlatformRoleValue } from './admin.service';
 
 class SetPlatformRoleDto {
   @IsIn(PLATFORM_ROLES as unknown as string[])
   role!: PlatformRoleValue;
+}
+
+const HOLD_ACTIONS = ['recheck', 'cancel'] as const;
+
+class ResolveSettlementHoldDto {
+  @IsIn(HOLD_ACTIONS as unknown as string[])
+  action!: (typeof HOLD_ACTIONS)[number];
 }
 
 function toNum(v?: string): number | undefined {
@@ -27,7 +37,10 @@ function toNum(v?: string): number | undefined {
 @UseGuards(AuthGuard('jwt'), PlatformGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly payments: PaymentsService,
+  ) {}
 
   @Get('overview')
   overview() {
@@ -61,6 +74,38 @@ export class AdminController {
   @Post('users/:id/platform-role')
   setPlatformRole(@Param('id') id: string, @Body() dto: SetPlatformRoleDto) {
     return this.admin.setPlatformRole(id, dto.role);
+  }
+
+  /**
+   * Orders held by the settlement amount check. Each row is money sitting with
+   * a payment provider against a ticket that was never issued, and nothing
+   * automated will resolve it. This list is the operational counterpart to the
+   * gate in PaymentsService: without it the fix trades a silent bad settlement
+   * for a silent stuck one.
+   */
+  @Get('settlement-holds')
+  settlementHolds(@Query('take') take?: string, @Query('skip') skip?: string) {
+    return this.admin.listSettlementHolds({ take: toNum(take), skip: toNum(skip) });
+  }
+
+  /**
+   * `recheck` re-queries the provider and settles if the amounts now agree.
+   * `cancel` fails the order and releases its seats; refund at the provider
+   * first, this does not move money.
+   */
+  @Post('settlement-holds/:orderId/resolve')
+  resolveSettlementHold(
+    @Param('orderId') orderId: string,
+    @Body() dto: ResolveSettlementHoldDto,
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request & { id?: string },
+  ) {
+    return this.payments.resolveSettlementHold({
+      orderId,
+      action: dto.action,
+      actorUserId: user.userId,
+      requestId: req.id,
+    });
   }
 
   @Get('events')

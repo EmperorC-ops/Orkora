@@ -302,8 +302,19 @@ create table orders (
   -- Set when a refund is requested upstream; the order stays 'paid' until the
   -- refund is confirmed (synchronously, by webhook, or by reconciliation), at
   -- which point status flips to 'refunded'. reconcileRefunds() scans this.
-  refund_initiated_at timestamptz
+  refund_initiated_at timestamptz,
+  -- Settlement quarantine (migration 0016). Set when a provider reports a
+  -- successful capture whose amount or currency does not match this order.
+  -- The order stays 'pending', tickets are NOT issued, and releaseStaleHolds()
+  -- skips it so the hold is never silently expired while the money is with the
+  -- provider. Cleared automatically if a later, matching settlement arrives.
+  settlement_hold_at     timestamptz,
+  settlement_hold_reason text,
+  settlement_hold_detail jsonb
 );
+
+create index orders_settlement_hold_idx on orders (settlement_hold_at desc)
+  where settlement_hold_at is not null;
 
 -- Lets the refund reconciliation sweep cheaply find paid orders with a refund
 -- still in flight (partial index: only rows that have a refund pending).

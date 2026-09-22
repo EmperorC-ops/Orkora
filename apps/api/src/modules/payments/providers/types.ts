@@ -27,8 +27,27 @@ export interface CheckoutSession {
   url: string;
 }
 
+/**
+ * What the provider says was actually captured. Carried on every settlement
+ * signal so `markOrderPaid` can compare it against `orders.total_minor` and
+ * `orders.currency` before issuing tickets.
+ *
+ * `amountMinor` is in Orkora's canonical minor unit (major * 100 for every
+ * currency, see money.ts), NOT the provider's own unit. Providers convert on
+ * the way in with `fromSmallestUnit` / `fromMajorUnit`.
+ *
+ * Both fields are REQUIRED on a settlement. A provider that cannot report the
+ * captured amount must not report a settlement either: an unverifiable amount
+ * is treated as a mismatch, not as a pass. This is deliberate, so adding a
+ * fourth provider cannot silently reintroduce unchecked settlement.
+ */
+export interface SettledAmount {
+  amountMinor: bigint;
+  currency: string;
+}
+
 export type WebhookOutcome =
-  | { type: 'paid'; orderId: string; providerEventId: string; paidAt: Date }
+  | ({ type: 'paid'; orderId: string; providerEventId: string; paidAt: Date } & SettledAmount)
   | { type: 'failed'; orderId: string; providerEventId: string; reason?: string }
   | { type: 'refunded'; orderId: string; providerEventId: string }
   | { type: 'ignored'; reason: string };
@@ -38,11 +57,9 @@ export type WebhookOutcome =
  * fallback so a delayed or missed webhook never leaves a paid customer without
  * a ticket.
  */
-export interface TransactionStatus {
-  status: 'success' | 'failed' | 'pending';
-  paidAt?: Date;
-  providerRef?: string;
-}
+export type TransactionStatus =
+  | ({ status: 'success'; paidAt?: Date; providerRef?: string } & SettledAmount)
+  | { status: 'failed' | 'pending'; paidAt?: Date; providerRef?: string };
 
 /**
  * Outcome of a refund, used both for the synchronous result of `refund()` and

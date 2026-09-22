@@ -1,6 +1,8 @@
 import {
   currencyDecimals,
   formatMoney,
+  fromMajorUnit,
+  fromSmallestUnit,
   toMajor,
   toMajorUnit,
   toSmallestUnit,
@@ -92,5 +94,52 @@ describe('formatMoney (receipts/emails)', () => {
     const xaf = formatMoney(100000, 'XAF');
     expect(xaf).toContain('1,000');
     expect(xaf).not.toContain('.00');
+  });
+});
+
+/**
+ * The inverses. These carry the settlement amount check, so a rounding error
+ * here would either wave a short payment through or quarantine a correct one.
+ * Round-tripping every supported currency class is the point.
+ */
+describe('provider amount -> canonical amount', () => {
+  it('round-trips two-decimal currencies through the smallest unit', () => {
+    for (const currency of ['NGN', 'USD', 'GHS', 'KES', 'EUR']) {
+      const canonical = 123456n; // 1,234.56
+      expect(fromSmallestUnit(toSmallestUnit(canonical, currency), currency)).toBe(canonical);
+    }
+  });
+
+  it('round-trips zero-decimal currencies through the smallest unit', () => {
+    for (const currency of ['XAF', 'XOF']) {
+      const canonical = 100000n; // 1,000 whole units, no subdivision
+      expect(toSmallestUnit(canonical, currency)).toBe(1000);
+      expect(fromSmallestUnit(1000, currency)).toBe(canonical);
+    }
+  });
+
+  it('round-trips three-decimal currencies through the smallest unit', () => {
+    const canonical = 123456n; // 1,234.56
+    expect(toSmallestUnit(canonical, 'TND')).toBe(1234560);
+    expect(fromSmallestUnit(1234560, 'TND')).toBe(canonical);
+  });
+
+  it('round-trips major-unit providers (Flutterwave)', () => {
+    const canonical = 500000n; // 5,000.00
+    expect(toMajorUnit(canonical)).toBe(5000);
+    expect(fromMajorUnit(5000)).toBe(canonical);
+    expect(fromMajorUnit(4999.99)).toBe(499999n);
+  });
+
+  it('does not absorb a real shortfall into a rounding tolerance', () => {
+    // One canonical minor unit short must stay one unit short, not round up.
+    // This is the case the gate exists for: 4,999.99 against a 5,000.00 order.
+    expect(fromSmallestUnit(499999, 'NGN')).toBe(499999n);
+    expect(fromMajorUnit(4999.99)).toBe(499999n);
+    expect(fromMajorUnit(4999.99)).toBeLessThan(500000n);
+  });
+
+  it('is case-insensitive on the currency code', () => {
+    expect(fromSmallestUnit(1000, 'xaf')).toBe(fromSmallestUnit(1000, 'XAF'));
   });
 });
