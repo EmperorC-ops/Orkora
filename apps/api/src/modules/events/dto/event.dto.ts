@@ -83,9 +83,12 @@ export class CreateEventDto {
   city?: string | null;
 
   // Deep shape (types, required, options) validated by the RegistrationForm
-  // zod schema in the service; kept loose here.
+  // zod schema in the service. `@Type(() => Object)` is load-bearing: without
+  // it, the ValidationPipe's enableImplicitConversion coerces each item to []
+  // (the same trap documented on UpdateStoryDto.blocks).
   @IsOptional()
   @IsArray()
+  @Type(() => Object)
   registrationFields?: unknown[];
 }
 
@@ -140,6 +143,7 @@ export class UpdateEventDto {
 
   @IsOptional()
   @IsArray()
+  @Type(() => Object)
   registrationFields?: unknown[];
 }
 
