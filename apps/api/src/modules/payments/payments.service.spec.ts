@@ -472,8 +472,15 @@ describe('PaymentsService.createCheckoutForOrder provider resolution', () => {
 });
 
 describe('PaymentsService.reconcilePendingPayments', () => {
-  function makeSvc(candidates: Array<{ id: string }>) {
-    const prisma = { order: { findMany: jest.fn().mockResolvedValue(candidates) } };
+  function makeSvc(candidates: Array<{ id: string }>, held = 0) {
+    // `count` backs the `held` tally: orders quarantined by the settlement
+    // amount check (migration 0016), reported by the sweep but never re-walked.
+    const prisma = {
+      order: {
+        findMany: jest.fn().mockResolvedValue(candidates),
+        count: jest.fn().mockResolvedValue(held),
+      },
+    };
     const svc = new PaymentsService(
       prisma as unknown as never,
       { get: jest.fn() } as unknown as never,
@@ -500,7 +507,7 @@ describe('PaymentsService.reconcilePendingPayments', () => {
     const out = await svc.reconcilePendingPayments();
 
     expect(settle).toHaveBeenCalledTimes(3);
-    expect(out).toEqual({ checked: 3, recoveredPaid: 1, markedFailed: 1, stillPending: 1 });
+    expect(out).toEqual({ checked: 3, recoveredPaid: 1, markedFailed: 1, stillPending: 1, held: 0 });
   });
 
   it('counts a thrown verify as still pending without aborting the sweep', async () => {
@@ -518,7 +525,19 @@ describe('PaymentsService.reconcilePendingPayments', () => {
     const out = await svc.reconcilePendingPayments();
 
     expect(settle).toHaveBeenCalledTimes(2);
-    expect(out).toEqual({ checked: 2, recoveredPaid: 1, markedFailed: 0, stillPending: 1 });
+    expect(out).toEqual({ checked: 2, recoveredPaid: 1, markedFailed: 0, stillPending: 1, held: 0 });
+  });
+  it('reports held orders without re-walking them', async () => {
+    const { svc } = makeSvc([], 2);
+    const settle = jest.spyOn(
+      svc as unknown as { settleOrder: (id: string) => Promise<{ status: string }> },
+      'settleOrder',
+    );
+
+    const out = await svc.reconcilePendingPayments();
+
+    expect(settle).not.toHaveBeenCalled();
+    expect(out).toEqual({ checked: 0, recoveredPaid: 0, markedFailed: 0, stillPending: 0, held: 2 });
   });
 });
 
