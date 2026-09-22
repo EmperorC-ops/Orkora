@@ -90,6 +90,28 @@ export interface EventSpeaker {
   socialLinks: Record<string, string>;
 }
 
+export type RegistrationFieldType =
+  | 'short_text'
+  | 'long_text'
+  | 'select'
+  | 'multiselect'
+  | 'number'
+  | 'date'
+  | 'checkbox';
+
+// A custom registration question. `id` is the stable key answers are stored
+// under (see REGISTRATION_QUESTIONS.md). Mirrors the API/contracts shape.
+export interface RegistrationField {
+  id: string;
+  label: string;
+  type: RegistrationFieldType;
+  required?: boolean;
+  options?: string[];
+  placeholder?: string;
+  helpText?: string;
+  maxLength?: number;
+}
+
 export interface EventDetail extends OrganizerEventSummary {
   description: string | null;
   timezone: string;
@@ -100,6 +122,7 @@ export interface EventDetail extends OrganizerEventSummary {
   speakers: EventSpeaker[];
   tiers: EventTier[];
   storyPublishedAt?: string | null;
+  registrationFields?: RegistrationField[];
 }
 
 export interface CreateEventInput {
@@ -115,6 +138,7 @@ export interface CreateEventInput {
   bannerUrl?: string | null;
   category?: string | null;
   city?: string | null;
+  registrationFields?: RegistrationField[];
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>;

@@ -39,6 +39,7 @@ import {
 import { ImageUpload } from '@/components/image-upload';
 import { ActionButton } from '@/components/action-button';
 import ComposeStoryPrompt from './ComposeStoryPrompt';
+import RegistrationFieldsEditor from './RegistrationFieldsEditor';
 import { useToast } from '@/components/toast';
 
 const STATUS_STYLES: Record<EventStatus, string> = {
@@ -301,6 +302,20 @@ export default function EventDetailPage() {
           onSaved={async () => {
             await refresh();
             toast.success('Discovery details saved');
+          }}
+          onError={(m) => toast.error('Could not save', m)}
+        />
+      )}
+
+      {orgId && (
+        <RegistrationFieldsEditor
+          orgId={orgId}
+          eventId={id}
+          initialFields={event.registrationFields ?? []}
+          disabled={event.status === 'archived'}
+          onSaved={async () => {
+            await refresh();
+            toast.success('Registration form saved');
           }}
           onError={(m) => toast.error('Could not save', m)}
         />
@@ -1188,7 +1203,7 @@ function SessionRow({
             minute: '2-digit',
             timeZone: timezone,
           })}{' '}
-          –{' '}
+          -{' '}
           {sameDay
             ? end.toLocaleTimeString('en-GB', {
                 hour: '2-digit',
