@@ -15,6 +15,8 @@ import {
 } from '@/lib/registration';
 import { validateDiscount } from '@/lib/discounts';
 import { ActionButton } from '@/components/action-button';
+import type { RegistrationField } from '@/lib/events';
+import { RegistrationQuestions } from './RegistrationQuestions';
 
 interface PublicTier {
   id: string;
@@ -42,6 +44,7 @@ interface PublicEventLite {
   bannerUrl: string | null;
   timezone: string;
   tiers: PublicTier[];
+  registrationFields?: RegistrationField[];
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -59,6 +62,8 @@ export default function RegisterPage() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
   const [discountInput, setDiscountInput] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
@@ -75,7 +80,11 @@ export default function RegisterPage() {
       })
       .then((e) => {
         if (cancelled) return;
-        const safe: PublicEventLite = { ...e, tiers: e.tiers ?? [] };
+        const safe: PublicEventLite = {
+          ...e,
+          tiers: e.tiers ?? [],
+          registrationFields: e.registrationFields ?? [],
+        };
         setEvent(safe);
         const first = [...safe.tiers].sort((a, b) => a.position - b.position)[0];
         if (first) setTierId(first.id);
@@ -171,6 +180,17 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!tier) return;
+
+    const questionFields = event?.registrationFields ?? [];
+    const qErrors = validateAnswers(questionFields, answers);
+    if (Object.keys(qErrors).length > 0) {
+      setAnswerErrors(qErrors);
+      setSubmitError('Please check the questions below.');
+      return;
+    }
+    setAnswerErrors({});
+    const formResponses = buildFormResponses(questionFields, answers);
+
     setSubmitting(true);
     setSubmitError(null);
 
@@ -205,6 +225,7 @@ export default function RegisterPage() {
         })),
         paymentMethod,
         ...(appliedDiscount ? { discountCode: appliedDiscount.code } : {}),
+        ...(Object.keys(formResponses).length > 0 ? { formResponses } : {}),
       });
 
       if (isFree) {
@@ -423,6 +444,24 @@ export default function RegisterPage() {
               </div>
             </section>
 
+            {(event.registrationFields?.length ?? 0) > 0 && (
+              <section>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
+                  A few questions
+                </h2>
+                <p className="mt-1 text-xs text-ink-muted">
+                  The organizer asked for these details.
+                </p>
+                <RegistrationQuestions
+                  fields={event.registrationFields ?? []}
+                  answers={answers}
+                  errors={answerErrors}
+                  onChange={(id, value) => setAnswers((prev) => ({ ...prev, [id]: value }))}
+                  disabled={submitting}
+                />
+              </section>
+            )}
+
             {submitError && (
               <p className="rounded-xl border border-[#FF7675]/30 bg-[#FF7675]/10 px-4 py-3 text-sm text-[#FF9090]">
                 {submitError}
@@ -578,6 +617,60 @@ function Field({
       />
     </label>
   );
+}
+
+// Client-side check of custom answers, mirroring the server rules so the
+// attendee gets immediate feedback. The server re-validates and is the source
+// of truth.
+function validateAnswers(
+  fields: RegistrationField[],
+  answers: Record<string, unknown>,
+): Record<string, string> {
+  const errs: Record<string, string> = {};
+  for (const f of fields) {
+    const v = answers[f.id];
+    const empty =
+      v === undefined ||
+      v === null ||
+      (typeof v === 'string' && v.trim() === '') ||
+      (Array.isArray(v) && v.length === 0);
+    if (empty) {
+      if (f.required) {
+        errs[f.id] = f.type === 'checkbox' ? 'Please tick to continue.' : 'This is required.';
+      }
+      continue;
+    }
+    if (f.type === 'number' && !Number.isFinite(Number(v))) errs[f.id] = 'Enter a number.';
+    if (f.type === 'select' && !(f.options ?? []).includes(String(v))) {
+      errs[f.id] = 'Pick one of the options.';
+    }
+    if (
+      f.type === 'multiselect' &&
+      Array.isArray(v) &&
+      v.some((x) => !(f.options ?? []).includes(String(x)))
+    ) {
+      errs[f.id] = 'Pick from the options.';
+    }
+    if (f.type === 'checkbox' && f.required && v !== true) errs[f.id] = 'Please tick to continue.';
+  }
+  return errs;
+}
+
+// Keep only answered fields, so the payload carries no empty keys. The server
+// drops anything that is not a defined question anyway.
+function buildFormResponses(
+  fields: RegistrationField[],
+  answers: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const f of fields) {
+    const v = answers[f.id];
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)) {
+      continue;
+    }
+    out[f.id] = v;
+  }
+  return out;
 }
 
 function prettifyApiError(err: ApiError): string {
