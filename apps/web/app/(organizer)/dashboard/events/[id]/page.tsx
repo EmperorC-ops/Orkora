@@ -39,6 +39,7 @@ import {
 import { ImageUpload } from '@/components/image-upload';
 import { ActionButton } from '@/components/action-button';
 import ComposeStoryPrompt from './ComposeStoryPrompt';
+import EventDetailsEditor from './EventDetailsEditor';
 import RegistrationFieldsEditor from './RegistrationFieldsEditor';
 import { useToast } from '@/components/toast';
 
@@ -291,6 +292,25 @@ export default function EventDetailPage() {
           )}
         </div>
       </div>
+
+      {orgId && (
+        <EventDetailsEditor
+          orgId={orgId}
+          eventId={id}
+          title={event.title}
+          description={event.description}
+          kind={event.kind}
+          startAt={event.startAt}
+          endAt={event.endAt}
+          timezone={event.timezone}
+          disabled={event.status === 'archived'}
+          onSaved={async () => {
+            await refresh();
+            toast.success('Event details saved');
+          }}
+          onError={(m) => toast.error('Could not save', m)}
+        />
+      )}
 
       {orgId && (
         <DiscoveryDetails
