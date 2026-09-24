@@ -809,3 +809,8 @@ create index if not exists events_city_idx     on events (city)     where city i
 -- EVENT REGISTRATION FIELDS (migration 0017, folded in for fresh installs)
 -- ============================================================
 alter table events add column if not exists registration_fields jsonb not null default '[]'::jsonb;
+
+-- ============================================================
+-- EVENT REGISTRATION INTRO VISIBILITY (migration 0018, folded in for fresh installs)
+-- ============================================================
+alter table events add column if not exists registration_intro_hidden boolean not null default false;

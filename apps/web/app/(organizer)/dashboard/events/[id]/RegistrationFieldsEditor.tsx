@@ -65,6 +65,7 @@ export default function RegistrationFieldsEditor({
   orgId,
   eventId,
   initialFields,
+  initialIntroHidden,
   disabled,
   onSaved,
   onError,
@@ -72,6 +73,7 @@ export default function RegistrationFieldsEditor({
   orgId: string;
   eventId: string;
   initialFields: RegistrationField[];
+  initialIntroHidden?: boolean;
   disabled?: boolean;
   onSaved: () => Promise<void> | void;
   onError: (msg: string) => void;
@@ -79,6 +81,7 @@ export default function RegistrationFieldsEditor({
   const [drafts, setDrafts] = useState<Draft[]>(() => initialFields.map(toDraft));
   const [busy, setBusy] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
+  const [introHidden, setIntroHidden] = useState(!!initialIntroHidden);
 
   function patch(i: number, next: Partial<Draft>) {
     setDrafts((ds) => ds.map((d, idx) => (idx === i ? { ...d, ...next } : d)));
@@ -149,7 +152,10 @@ export default function RegistrationFieldsEditor({
     setProblems([]);
     setBusy(true);
     try {
-      await eventsApi(orgId).update(eventId, { registrationFields: fields });
+      await eventsApi(orgId).update(eventId, {
+        registrationFields: fields,
+        registrationIntroHidden: introHidden,
+      });
       await onSaved();
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Could not save the registration form.');
@@ -287,6 +293,17 @@ export default function RegistrationFieldsEditor({
           ))}
         </ul>
       )}
+
+      <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          checked={introHidden}
+          onChange={(e) => setIntroHidden(e.target.checked)}
+          disabled={disabled || busy}
+          className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-200"
+        />
+        Hide the intro heading above the questions on the register page
+      </label>
 
       <div className="mt-4 flex items-center justify-between">
         <button

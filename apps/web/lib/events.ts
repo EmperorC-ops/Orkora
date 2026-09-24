@@ -123,6 +123,7 @@ export interface EventDetail extends OrganizerEventSummary {
   tiers: EventTier[];
   storyPublishedAt?: string | null;
   registrationFields?: RegistrationField[];
+  registrationIntroHidden?: boolean;
 }
 
 export interface CreateEventInput {
@@ -139,6 +140,7 @@ export interface CreateEventInput {
   category?: string | null;
   city?: string | null;
   registrationFields?: RegistrationField[];
+  registrationIntroHidden?: boolean;
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>;

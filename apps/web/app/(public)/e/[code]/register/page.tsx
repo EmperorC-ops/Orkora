@@ -45,6 +45,7 @@ interface PublicEventLite {
   timezone: string;
   tiers: PublicTier[];
   registrationFields?: RegistrationField[];
+  registrationIntroHidden?: boolean;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -84,6 +85,7 @@ export default function RegisterPage() {
           ...e,
           tiers: e.tiers ?? [],
           registrationFields: e.registrationFields ?? [],
+          registrationIntroHidden: e.registrationIntroHidden ?? false,
         };
         setEvent(safe);
         const first = [...safe.tiers].sort((a, b) => a.position - b.position)[0];
@@ -446,12 +448,16 @@ export default function RegisterPage() {
 
             {(event.registrationFields?.length ?? 0) > 0 && (
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
-                  A few questions
-                </h2>
-                <p className="mt-1 text-xs text-ink-muted">
-                  The organizer asked for these details.
-                </p>
+                {!event.registrationIntroHidden && (
+                  <>
+                    <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
+                      A few questions
+                    </h2>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      The organizer asked for these details.
+                    </p>
+                  </>
+                )}
                 <RegistrationQuestions
                   fields={event.registrationFields ?? []}
                   answers={answers}

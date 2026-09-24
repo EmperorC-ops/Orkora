@@ -332,6 +332,7 @@ export default function EventDetailPage() {
           orgId={orgId}
           eventId={id}
           initialFields={event.registrationFields ?? []}
+          initialIntroHidden={event.registrationIntroHidden ?? false}
           disabled={event.status === 'archived'}
           onSaved={async () => {
             await refresh();

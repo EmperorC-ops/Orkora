@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -90,6 +91,11 @@ export class CreateEventDto {
   @IsArray()
   @Type(() => Object)
   registrationFields?: unknown[];
+
+  // Hide the boilerplate intro above the custom questions on the register form.
+  @IsOptional()
+  @IsBoolean()
+  registrationIntroHidden?: boolean;
 }
 
 export class UpdateEventDto {
@@ -145,6 +151,10 @@ export class UpdateEventDto {
   @IsArray()
   @Type(() => Object)
   registrationFields?: unknown[];
+
+  @IsOptional()
+  @IsBoolean()
+  registrationIntroHidden?: boolean;
 }
 
 // === Story Mode ===

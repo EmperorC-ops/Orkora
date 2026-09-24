@@ -70,6 +70,7 @@ export class EventsService {
         storyTemplate: true,
         storyPublishedAt: true,
         registrationFields: true,
+        registrationIntroHidden: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
@@ -149,6 +150,7 @@ export class EventsService {
         storyTemplate: true,
         storyPublishedAt: true,
         registrationFields: true,
+        registrationIntroHidden: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
@@ -345,6 +347,7 @@ export class EventsService {
         category: dto.category ?? null,
         city: dto.city ?? null,
         registrationFields: this.validateRegistrationFields(dto.registrationFields),
+        registrationIntroHidden: dto.registrationIntroHidden ?? undefined,
         status: 'draft',
       },
     });
@@ -426,6 +429,8 @@ export class EventsService {
         category: dto.category === undefined ? undefined : dto.category,
         city: dto.city === undefined ? undefined : dto.city,
         registrationFields: this.validateRegistrationFields(dto.registrationFields),
+        registrationIntroHidden:
+          dto.registrationIntroHidden === undefined ? undefined : dto.registrationIntroHidden,
       },
     });
     return this.serializeEvent(event);

@@ -219,6 +219,7 @@ model Event {
   storyTemplate   String   @default("classic") @map("story_template")
   storyPublishedAt DateTime? @map("story_published_at") @db.Timestamptz
   registrationFields Json    @default("[]") @map("registration_fields")
+  registrationIntroHidden Boolean @default(false) @map("registration_intro_hidden")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
