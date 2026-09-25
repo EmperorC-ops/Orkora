@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { remainingSeats } from '@/lib/events';
 import StoryTicketsBar from './StoryTicketsBar';
 import StoryAnalytics from './StoryAnalytics';
 import { BlockView, type StoryEvent } from './StoryBlocks';
@@ -51,7 +52,7 @@ export default function StoryRenderer({ event }: { event: StoryEvent }) {
         </Link>
       </footer>
 
-      <StoryTicketsBar color={color} />
+      <StoryTicketsBar color={color} seatsLeft={remainingSeats(event.tiers)} />
       <StoryAnalytics code={event.code} />
     </main>
   );

@@ -350,6 +350,18 @@ function tzOffsetMs(instantMs: number, timeZone: string): number {
  * zone, which is wrong whenever the organizer is not physically in the event's
  * timezone. This resolves the zone's offset at that instant and corrects for it.
  */
+// Total seats still available across tiers that cap their quantity. Returns
+// null when no tier is capped (capacity effectively unlimited or unknown), so
+// callers show nothing rather than a misleading number. Never negative.
+export function remainingSeats(
+  tiers: ReadonlyArray<{ quantityTotal: number | null; quantitySold: number }> | null | undefined,
+): number | null {
+  if (!tiers || tiers.length === 0) return null;
+  const capped = tiers.filter((t) => t.quantityTotal !== null);
+  if (capped.length === 0) return null;
+  return capped.reduce((sum, t) => sum + Math.max(0, (t.quantityTotal ?? 0) - t.quantitySold), 0);
+}
+
 export function wallTimeToUtcISO(naive: string, timeZone?: string): string {
   if (!naive) return '';
   const m = naive.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);

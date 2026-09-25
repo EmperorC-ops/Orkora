@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { dayKeyInTz, sameCalendarDay } from '@/lib/events';
+import { dayKeyInTz, remainingSeats, sameCalendarDay } from '@/lib/events';
 import { usesStoryMode, type StoryBlock } from '@/lib/story';
 import { isFeatureEnabled } from '@/lib/flags';
 import StoryRenderer from './StoryRenderer';
@@ -275,6 +275,7 @@ export default async function PublicEventPage({
   // and price chip adapt to free vs paid; the moment line reads warmly but
   // stays factual (what it is, where when known, and when).
   const heroTiers = event.tiers ?? [];
+  const seatsLeft = remainingSeats(heroTiers);
   const paidTiers = heroTiers
     .filter((t) => t.priceMinor > 0)
     .sort((a, b) => a.priceMinor - b.priceMinor);
@@ -368,6 +369,11 @@ export default async function PublicEventPage({
             {fromLabel && (
               <span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
                 {fromLabel}
+              </span>
+            )}
+            {seatsLeft !== null && seatsLeft > 0 && (
+              <span className="rounded-full bg-amber-400/25 px-4 py-2 text-sm font-semibold text-amber-50 backdrop-blur">
+                {seatsLeft} {seatsLeft === 1 ? 'ticket' : 'tickets'} left
               </span>
             )}
           </div>

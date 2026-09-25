@@ -15,7 +15,7 @@ import {
 } from '@/lib/registration';
 import { validateDiscount } from '@/lib/discounts';
 import { ActionButton } from '@/components/action-button';
-import type { RegistrationField } from '@/lib/events';
+import { remainingSeats, type RegistrationField } from '@/lib/events';
 import { RegistrationQuestions } from './RegistrationQuestions';
 
 interface PublicTier {
@@ -99,6 +99,7 @@ export default function RegisterPage() {
     };
   }, [code]);
 
+  const seatsLeft = useMemo(() => remainingSeats(event?.tiers), [event]);
   const tier = useMemo(
     () => event?.tiers?.find((t) => t.id === tierId) ?? null,
     [event, tierId],
@@ -379,6 +380,13 @@ export default function RegisterPage() {
           </section>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {seatsLeft !== null && (
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-center text-sm font-semibold text-amber-200">
+                {seatsLeft > 0
+                  ? `Only ${seatsLeft} ${seatsLeft === 1 ? 'ticket' : 'tickets'} remaining`
+                  : 'This event is sold out'}
+              </div>
+            )}
             <section>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">

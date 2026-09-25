@@ -11,7 +11,15 @@ import { Ticket } from 'lucide-react';
  * Per D2: "the Tickets block is always present, always accessible." This is the
  * always-accessible half; the block is the always-present half.
  */
-export default function StoryTicketsBar({ color, label = 'Get tickets' }: { color: string; label?: string }) {
+export default function StoryTicketsBar({
+  color,
+  label = 'Get tickets',
+  seatsLeft = null,
+}: {
+  color: string;
+  label?: string;
+  seatsLeft?: number | null;
+}) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -69,6 +77,7 @@ export default function StoryTicketsBar({ color, label = 'Get tickets' }: { colo
     >
       <Ticket className="h-4 w-4" />
       {label}
+      {typeof seatsLeft === 'number' && seatsLeft > 0 ? ` · ${seatsLeft} left` : ''}
     </button>
   );
 }
