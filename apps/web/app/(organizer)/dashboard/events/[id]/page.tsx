@@ -41,6 +41,7 @@ import { ActionButton } from '@/components/action-button';
 import ComposeStoryPrompt from './ComposeStoryPrompt';
 import EventDetailsEditor from './EventDetailsEditor';
 import RegistrationFieldsEditor from './RegistrationFieldsEditor';
+import VipLinkEditor from './VipLinkEditor';
 import { useToast } from '@/components/toast';
 
 const STATUS_STYLES: Record<EventStatus, string> = {
@@ -339,6 +340,18 @@ export default function EventDetailPage() {
             toast.success('Registration form saved');
           }}
           onError={(m) => toast.error('Could not save', m)}
+        />
+      )}
+
+      {orgId && (
+        <VipLinkEditor
+          orgId={orgId}
+          eventId={id}
+          code={event.code}
+          initialToken={event.vipToken ?? null}
+          disabled={event.status === 'archived'}
+          onNotice={(m) => toast.success(m)}
+          onError={(m) => toast.error('Could not update VIP link', m)}
         />
       )}
 

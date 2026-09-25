@@ -220,6 +220,7 @@ model Event {
   storyPublishedAt DateTime? @map("story_published_at") @db.Timestamptz
   registrationFields Json    @default("[]") @map("registration_fields")
   registrationIntroHidden Boolean @default(false) @map("registration_intro_hidden")
+  vipToken        String?  @unique @map("vip_token")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -347,6 +348,7 @@ model Registration {
   userId        String   @map("user_id") @db.Uuid
   status        String   @default("pending")
   formResponses Json     @default("{}") @map("form_responses")
+  isVip         Boolean  @default(false) @map("is_vip")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   event   Event    @relation(fields: [eventId], references: [id])

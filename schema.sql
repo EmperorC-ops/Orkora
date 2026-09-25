@@ -814,3 +814,10 @@ alter table events add column if not exists registration_fields jsonb not null d
 -- EVENT REGISTRATION INTRO VISIBILITY (migration 0018, folded in for fresh installs)
 -- ============================================================
 alter table events add column if not exists registration_intro_hidden boolean not null default false;
+
+-- ============================================================
+-- VIP EXPRESS LINK (migration 0019, folded in for fresh installs)
+-- ============================================================
+alter table events add column if not exists vip_token text;
+create unique index if not exists events_vip_token_key on events (vip_token);
+alter table registrations add column if not exists is_vip boolean not null default false;

@@ -124,6 +124,9 @@ export interface EventDetail extends OrganizerEventSummary {
   storyPublishedAt?: string | null;
   registrationFields?: RegistrationField[];
   registrationIntroHidden?: boolean;
+  // The event's VIP express link token, if one has been generated. Secret;
+  // only ever returned on the organizer read, never on public reads.
+  vipToken?: string | null;
 }
 
 export interface CreateEventInput {
@@ -163,6 +166,16 @@ export const eventsApi = (orgId: string) => {
       apiFetch<OrganizerEventSummary>(`${base}/${eventId}/archive`, { method: 'POST' }),
     remove: (eventId: string) =>
       apiFetch<{ ok: boolean }>(`${base}/${eventId}`, { method: 'DELETE' }),
+
+    // VIP express link. `generateVipLink` is idempotent unless `regenerate` is
+    // set, in which case a fresh token is minted and the old link stops working.
+    generateVipLink: (eventId: string, regenerate = false) =>
+      apiFetch<{ token: string; code: string }>(`${base}/${eventId}/vip-link`, {
+        method: 'POST',
+        json: { regenerate },
+      }),
+    revokeVipLink: (eventId: string) =>
+      apiFetch<{ token: null }>(`${base}/${eventId}/vip-link`, { method: 'DELETE' }),
 
     createSpeaker: (
       eventId: string,

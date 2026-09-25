@@ -20,6 +20,7 @@ import {
   OrgRegistrationListQueryDto,
   RegisterAttendeesDto,
   RegistrationListQueryDto,
+  VipRegisterDto,
 } from './dto/registration.dto';
 import { RegistrationsService } from './registrations.service';
 
@@ -37,6 +38,17 @@ export class PublicRegistrationsController {
   @HttpCode(201)
   register(@Param('code') code: string, @Body() dto: RegisterAttendeesDto) {
     return this.service.register(code, dto);
+  }
+
+  /**
+   * VIP express registration. Name + email only, gated by the event's shared
+   * VIP token. Throttled to blunt token guessing.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Post('by-code/:code/vip-register')
+  @HttpCode(201)
+  registerVip(@Param('code') code: string, @Body() dto: VipRegisterDto) {
+    return this.service.registerVip(code, dto);
   }
 }
 

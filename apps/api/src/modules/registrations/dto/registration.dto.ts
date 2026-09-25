@@ -60,6 +60,27 @@ export class RegisterAttendeesDto {
   discountCode?: string;
 }
 
+/**
+ * VIP express registration. A short form: name, email, and the link's shared
+ * token. No tier, no custom questions, no payment. The token is validated
+ * against the event's stored vipToken server-side.
+ */
+export class VipRegisterDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  token!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  fullName!: string;
+
+  @IsEmail()
+  @MaxLength(180)
+  email!: string;
+}
+
 export class RegistrationListQueryDto {
   @IsOptional()
   @IsString()
@@ -68,6 +89,11 @@ export class RegistrationListQueryDto {
   @IsOptional()
   @IsString()
   q?: string;
+
+  // 'true' restricts the list to VIP registrations.
+  @IsOptional()
+  @IsString()
+  vip?: string;
 }
 
 export class OrgRegistrationListQueryDto {

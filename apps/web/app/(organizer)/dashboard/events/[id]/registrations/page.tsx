@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Search, TicketCheck, Users } from 'lucide-react';
+import { ArrowLeft, Download, Search, TicketCheck, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
-import { readActiveOrgId } from '@/lib/events';
+import { readActiveOrgId, type RegistrationField } from '@/lib/events';
 
 interface RegistrationRow {
   id: string;
   status: string;
+  isVip?: boolean;
   createdAt: string;
   user: { id: string; fullName: string; email: string; avatarUrl?: string | null };
   tickets: Array<{
@@ -20,6 +21,12 @@ interface RegistrationRow {
     status: string;
     tier: { id: string; name: string };
   }>;
+  responses?: Record<string, unknown>;
+}
+
+interface EventRegistrations {
+  registrationFields: RegistrationField[];
+  rows: RegistrationRow[];
 }
 
 const STATUS_FILTERS = [
@@ -34,6 +41,7 @@ export default function OrganizerRegistrationsPage() {
   const eventId = params?.id ?? '';
   const [orgId, setOrgId] = useState<string | null>(null);
   const [rows, setRows] = useState<RegistrationRow[] | null>(null);
+  const [fields, setFields] = useState<RegistrationField[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
   const [q, setQ] = useState<string>('');
@@ -49,11 +57,13 @@ export default function OrganizerRegistrationsPage() {
     if (status) params.set('status', status);
     if (q) params.set('q', q);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    apiFetch<RegistrationRow[]>(
+    apiFetch<EventRegistrations>(
       `/v1/organizations/${orgId}/events/${eventId}/registrations${suffix}`,
     )
-      .then((r) => {
-        if (!cancelled) setRows(r);
+      .then((data) => {
+        if (cancelled) return;
+        setRows(data.rows);
+        setFields(data.registrationFields ?? []);
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
@@ -89,6 +99,15 @@ export default function OrganizerRegistrationsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Stat label="Registrations" value={String(totals.total)} icon={<Users className="h-4 w-4" />} />
             <Stat label="Tickets issued" value={String(totals.ticketCount)} icon={<TicketCheck className="h-4 w-4" />} />
+            {rows && rows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => exportRegistrationsCsv(rows, fields, eventId)}
+                className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface/40 px-4 py-2 text-xs font-semibold text-ink-secondary transition hover:text-ink-primary"
+              >
+                <Download className="h-4 w-4" /> Export CSV
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -184,6 +203,9 @@ export default function OrganizerRegistrationsPage() {
                 <th className="px-5 py-3 font-semibold">Tickets</th>
                 <th className="px-5 py-3 font-semibold">Status</th>
                 <th className="px-5 py-3 font-semibold">Registered</th>
+                {fields.length > 0 && (
+                  <th className="px-5 py-3 font-semibold">Responses</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border bg-surface/40">
@@ -193,7 +215,14 @@ export default function OrganizerRegistrationsPage() {
                     <div className="flex items-center gap-3">
                       <Avatar name={r.user.fullName} url={r.user.avatarUrl ?? null} />
                       <div>
-                        <div className="font-semibold text-ink-primary">{r.user.fullName}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-ink-primary">{r.user.fullName}</span>
+                          {r.isVip && (
+                            <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-300">
+                              VIP
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-ink-muted">{r.user.email}</div>
                       </div>
                     </div>
@@ -217,6 +246,19 @@ export default function OrganizerRegistrationsPage() {
                       minute: '2-digit',
                     })}
                   </td>
+                  {fields.length > 0 && (
+                    <td className="px-5 py-4 text-[11px] text-ink-secondary">
+                      {fields.map((f) => {
+                        const val = formatAnswer(r.responses?.[f.id]);
+                        return val ? (
+                          <div key={f.id} className="whitespace-nowrap">
+                            <span className="text-ink-muted">{f.label}: </span>
+                            {val}
+                          </div>
+                        ) : null;
+                      })}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -225,6 +267,61 @@ export default function OrganizerRegistrationsPage() {
       )}
     </div>
   );
+}
+
+function formatAnswer(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+}
+
+// Quote a CSV cell when it contains a comma, quote, or newline; double internal
+// quotes. A leading = + - @ is prefixed with a quote to defuse spreadsheet
+// formula injection.
+function csvCell(value: string): string {
+  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+function exportRegistrationsCsv(
+  rows: RegistrationRow[],
+  fields: RegistrationField[],
+  eventId: string,
+) {
+  const header = [
+    'Name',
+    'Email',
+    'Status',
+    'VIP',
+    'Tier',
+    'Registered',
+    ...fields.map((f) => f.label),
+  ];
+  const lines = [header.map(csvCell).join(',')];
+  for (const r of rows) {
+    const tier = r.tickets.map((t) => t.tier.name).join(' / ');
+    const answers = fields.map((f) => formatAnswer(r.responses?.[f.id]));
+    const cells = [
+      r.user.fullName,
+      r.user.email,
+      r.status,
+      r.isVip ? 'Yes' : 'No',
+      tier,
+      new Date(r.createdAt).toISOString(),
+      ...answers,
+    ];
+    lines.push(cells.map((c) => csvCell(String(c))).join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `registrations-${eventId}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function Stat({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {

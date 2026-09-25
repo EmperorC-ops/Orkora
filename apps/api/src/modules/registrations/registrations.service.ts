@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { randomBytes, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { orderActivity } from '../../common/order-activity';
 import {
@@ -20,6 +20,7 @@ import {
 } from '../discounts/discounts.service';
 import {
   RegisterAttendeesDto,
+  VipRegisterDto,
   type PaymentMethod,
   PAYMENT_METHODS,
 } from './dto/registration.dto';
@@ -488,6 +489,133 @@ export class RegistrationsService {
               checkoutUrl,
             }
           : null,
+      };
+    });
+  }
+
+  /**
+   * VIP express registration. A holder of the event's shared VIP link registers
+   * with name + email only, skips the event's custom questions, and is issued a
+   * free ticket immediately. The registration is tagged `isVip` so the
+   * dashboard can distinguish it.
+   *
+   * The token is validated against the event's stored vipToken with a
+   * constant-time compare; a wrong or absent token is a 404, indistinguishable
+   * from a non-existent event. VIP registration always uses a free tier: if the
+   * event has none, we reject rather than silently charging anyone.
+   */
+  async registerVip(eventCode: string, dto: VipRegisterDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { code: eventCode },
+      include: { organization: { select: { status: true } } },
+    });
+    if (!event || !event.vipToken) throw new NotFoundException('VIP link not found');
+    // Constant-time token check.
+    const stored = Buffer.from(event.vipToken);
+    const given = Buffer.from(dto.token);
+    if (stored.length !== given.length || !timingSafeEqual(stored, given)) {
+      throw new NotFoundException('VIP link not found');
+    }
+    if (event.organization.status === 'suspended') {
+      throw new BadRequestException('Registration is closed for this event');
+    }
+    if (event.status !== 'published') {
+      throw new BadRequestException('Event is not open for registration');
+    }
+    if (event.endAt <= new Date()) {
+      throw new BadRequestException('Event has already ended');
+    }
+
+    // VIP express always issues a free ticket. Pick the first free, on-sale
+    // tier by display order.
+    const now = new Date();
+    const freeTiers = await this.prisma.ticketTier.findMany({
+      where: { eventId: event.id, priceMinor: 0n },
+      orderBy: { position: 'asc' },
+    });
+    const tier = freeTiers.find(
+      (t) =>
+        (!t.saleStartsAt || t.saleStartsAt <= now) && (!t.saleEndsAt || t.saleEndsAt >= now),
+    );
+    if (!tier) {
+      throw new BadRequestException(
+        'This event has no free ticket type available for VIP registration',
+      );
+    }
+
+    const user = await this.upsertUserByEmail(dto.email, dto.fullName);
+
+    return this.prisma.$transaction(async (tx) => {
+      // Race-safe inventory check on the chosen free tier.
+      const locked = await tx.$queryRawUnsafe<
+        Array<{ quantity_total: number | null; quantity_sold: number }>
+      >(
+        'select quantity_total, quantity_sold from ticket_tiers where id = $1::uuid for update',
+        tier.id,
+      );
+      const row = locked[0];
+      if (!row) throw new NotFoundException('Ticket tier not found');
+      const remaining =
+        row.quantity_total === null ? Infinity : row.quantity_total - row.quantity_sold;
+      if (remaining < 1) {
+        throw new ConflictException('Not enough tickets remaining in this tier');
+      }
+
+      const registration = await tx.registration.upsert({
+        where: { eventId_userId: { eventId: event.id, userId: user.id } },
+        create: {
+          eventId: event.id,
+          userId: user.id,
+          status: 'confirmed',
+          isVip: true,
+        },
+        // If this person already registered (VIP or otherwise), flag them VIP
+        // and confirm. We do not touch their existing custom answers.
+        update: { status: 'confirmed', isVip: true },
+      });
+
+      await tx.ticketTier.update({
+        where: { id: tier.id },
+        data: { quantitySold: { increment: 1 } },
+      });
+
+      const ticket = await tx.ticket.create({
+        data: {
+          registrationId: registration.id,
+          tierId: tier.id,
+          orderId: null,
+          code: generateTicketCode(),
+          holderName: dto.fullName.trim(),
+          holderEmail: dto.email.trim().toLowerCase(),
+          status: 'issued',
+        },
+      });
+
+      const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
+      await this.notifications
+        .sendTicketConfirmationEmail(user.email, {
+          eventTitle: event.title,
+          eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
+          tickets: [
+            {
+              code: ticket.code,
+              holderName: ticket.holderName,
+              tierName: tier.name,
+              ticketUrl: `${appUrl}/t/${ticket.code}`,
+            },
+          ],
+        })
+        .catch((err) => err);
+
+      return {
+        registrationId: registration.id,
+        status: registration.status,
+        userId: user.id,
+        eventId: event.id,
+        eventCode: event.code,
+        isVip: true,
+        tickets: [this.shapeTicket(ticket, tier.name, event.id)],
+        order: null,
       };
     });
   }
@@ -1180,14 +1308,19 @@ export class RegistrationsService {
   /**
    * Per-event registrations list. Powers the per-event registrations page.
    */
-  async listForOrgEvent(orgId: string, eventId: string, query: { status?: string; q?: string }) {
+  async listForOrgEvent(
+    orgId: string,
+    eventId: string,
+    query: { status?: string; q?: string; vip?: string },
+  ) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, organizationId: orgId },
-      select: { id: true },
+      select: { id: true, registrationFields: true },
     });
     if (!event) throw new NotFoundException('Event not found');
 
     const where: Prisma.RegistrationWhereInput = { eventId };
+    if (query.vip === 'true') where.isVip = true;
     if (query.status) where.status = query.status;
     if (query.q) {
       where.OR = [
@@ -1208,9 +1341,10 @@ export class RegistrationsService {
       take: 200,
     });
 
-    return rows.map((r) => ({
+    const mapped = rows.map((r) => ({
       id: r.id,
       status: r.status,
+      isVip: r.isVip,
       createdAt: r.createdAt,
       user: {
         id: r.user.id,
@@ -1230,7 +1364,13 @@ export class RegistrationsService {
         status: t.status,
         tier: { id: t.tierId, name: t.tier.name },
       })),
+      // Answers to the event's custom questions, keyed by field id.
+      responses: (r.formResponses ?? {}) as Record<string, unknown>,
     }));
+
+    // Return the field definitions alongside the rows so the dashboard can
+    // label answers and build export columns.
+    return { registrationFields: event.registrationFields, rows: mapped };
   }
 
   // --- helpers ---

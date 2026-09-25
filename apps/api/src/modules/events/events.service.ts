@@ -580,6 +580,95 @@ export class EventsService {
     };
   }
 
+  // -------- VIP express link --------
+
+  /**
+   * Generate (or return the existing) VIP express link token for an event.
+   *
+   * One shared secret link per event. The token is a random, unguessable
+   * URL-safe string; anyone holding the resulting link can register with name
+   * and email only, skipping the event's custom questions. Calling this again
+   * without `regenerate` returns the same token (idempotent), so the "Generate"
+   * button is safe to press twice. `regenerate: true` mints a fresh token and
+   * quietly retires the old link (old links stop working immediately).
+   */
+  async generateVipLink(orgId: string, eventId: string, regenerate = false) {
+    const event = await this.assertEventInOrg(orgId, eventId);
+    let token = event.vipToken;
+    if (!token || regenerate) {
+      // 24 random bytes -> 32-char base64url. No padding, URL-safe.
+      token = randomBytes(24).toString('base64url');
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { vipToken: token },
+      });
+    }
+    return { token, code: event.code };
+  }
+
+  /**
+   * Remove an event's VIP link, so any shared link stops working.
+   */
+  async revokeVipLink(orgId: string, eventId: string) {
+    await this.assertEventInOrg(orgId, eventId);
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { vipToken: null },
+    });
+    return { token: null };
+  }
+
+  /**
+   * Public: validate a VIP link (code + token) and return the minimal event
+   * context the express page needs to render. Never echoes the token, custom
+   * questions, or anything a normal public read would not already expose. A
+   * missing or mismatched token is a 404, so a wrong link is indistinguishable
+   * from a non-existent one.
+   */
+  async findVipContext(code: string, token: string | undefined) {
+    if (!token) throw new NotFoundException('VIP link not found');
+    const event = await this.prisma.event.findUnique({
+      where: { code },
+      select: {
+        vipToken: true,
+        title: true,
+        code: true,
+        startAt: true,
+        endAt: true,
+        timezone: true,
+        bannerUrl: true,
+        status: true,
+        organization: {
+          select: { name: true, slug: true, brandColor: true, logoUrl: true, status: true },
+        },
+      },
+    });
+    if (!event || !event.vipToken) throw new NotFoundException('VIP link not found');
+    // Constant-time compare so a wrong token cannot be probed byte by byte.
+    const a = Buffer.from(event.vipToken);
+    const b = Buffer.from(token);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new NotFoundException('VIP link not found');
+    }
+    if (event.status !== 'published' || event.organization.status === 'suspended') {
+      throw new BadRequestException('This event is not open for registration');
+    }
+    return {
+      title: event.title,
+      code: event.code,
+      startAt: event.startAt.toISOString(),
+      endAt: event.endAt.toISOString(),
+      timezone: event.timezone,
+      bannerUrl: event.bannerUrl,
+      organization: {
+        name: event.organization.name,
+        slug: event.organization.slug,
+        brandColor: event.organization.brandColor,
+        logoUrl: event.organization.logoUrl,
+      },
+    };
+  }
+
   private signPreviewToken(eventId: string, expMs: number): string {
     const payload = `${eventId}.${expMs}`;
     const sig = createHmac('sha256', STORY_PREVIEW_SECRET).update(payload).digest('base64url');

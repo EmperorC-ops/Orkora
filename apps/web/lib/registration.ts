@@ -70,10 +70,43 @@ export interface PublicTicket {
   qrToken: string;
 }
 
+export interface VipContext {
+  title: string;
+  code: string;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  bannerUrl: string | null;
+  organization: {
+    name: string;
+    slug: string | null;
+    brandColor: string | null;
+    logoUrl: string | null;
+  };
+}
+
+export interface VipRegisterInput {
+  token: string;
+  fullName: string;
+  email: string;
+}
+
 export const registrationApi = {
   register: (eventCode: string, input: RegisterAttendeesInput) =>
     apiFetch<RegistrationResult>(
       `/v1/events/by-code/${encodeURIComponent(eventCode)}/register`,
+      { method: 'POST', json: input, auth: false },
+    ),
+  // Validate a VIP link and fetch the minimal event context the express page
+  // renders. A wrong or missing token resolves to a 404 (ApiError).
+  vipContext: (eventCode: string, token: string) =>
+    apiFetch<VipContext>(
+      `/v1/events/by-code/${encodeURIComponent(eventCode)}/vip?t=${encodeURIComponent(token)}`,
+      { method: 'GET', auth: false },
+    ),
+  registerVip: (eventCode: string, input: VipRegisterInput) =>
+    apiFetch<RegistrationResult & { isVip: boolean }>(
+      `/v1/events/by-code/${encodeURIComponent(eventCode)}/vip-register`,
       { method: 'POST', json: input, auth: false },
     ),
   getTicket: (code: string) =>

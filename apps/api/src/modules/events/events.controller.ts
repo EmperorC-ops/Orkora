@@ -97,6 +97,17 @@ export class EventsController {
   recordStoryAnalytics(@Param('code') code: string, @Body() dto: StoryAnalyticsBatchDto) {
     return this.events.recordStoryAnalytics(code, dto);
   }
+
+  /**
+   * Public: validate a VIP express link and return the minimal context the
+   * express page renders. Throttled so the token cannot be brute-forced. A
+   * wrong or missing token returns 404.
+   */
+  @Get('by-code/:code/vip')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  vipContext(@Param('code') code: string, @Query('t') token?: string) {
+    return this.events.findVipContext(code, token);
+  }
 }
 
 /**
@@ -198,6 +209,25 @@ export class OrganizerEventsController {
   @Roles('owner', 'admin', 'organizer')
   storyPreviewToken(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
     return this.events.createStoryPreviewToken(orgId, eventId);
+  }
+
+  // ---- VIP express link ----
+
+  @Post(':eventId/vip-link')
+  @HttpCode(200)
+  @Roles('owner', 'admin', 'organizer')
+  generateVipLink(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Body() body: { regenerate?: boolean },
+  ) {
+    return this.events.generateVipLink(orgId, eventId, body?.regenerate === true);
+  }
+
+  @Delete(':eventId/vip-link')
+  @Roles('owner', 'admin', 'organizer')
+  revokeVipLink(@Param('orgId') orgId: string, @Param('eventId') eventId: string) {
+    return this.events.revokeVipLink(orgId, eventId);
   }
 
   @Delete(':eventId')
