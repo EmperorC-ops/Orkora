@@ -9,6 +9,8 @@ import { PaymentPreferencesController } from './preferences.controller';
 import { PaymentPreferencesService } from './preferences.service';
 import { ConnectedAccountsController } from './connected-accounts.controller';
 import { ConnectedAccountsService } from './connected-accounts.service';
+import { PaystackOnboardingController } from './paystack-onboarding.controller';
+import { PaystackOnboardingService } from './paystack-onboarding.service';
 import { FlutterwaveProvider } from './providers/flutterwave.provider';
 import { PaystackProvider } from './providers/paystack.provider';
 import { PaymentsRegistry } from './providers/registry';
@@ -22,12 +24,14 @@ import { PaymentsMaintenanceCron } from './payments-maintenance.cron';
     OrganizerPaymentsController,
     PaymentPreferencesController,
     ConnectedAccountsController,
+    PaystackOnboardingController,
   ],
   providers: [
     PaymentsService,
     PaymentsRegistry,
     PaymentPreferencesService,
     ConnectedAccountsService,
+    PaystackOnboardingService,
     StripeProvider,
     PaystackProvider,
     FlutterwaveProvider,

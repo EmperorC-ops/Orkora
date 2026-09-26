@@ -274,6 +274,106 @@ export class PaystackProvider implements PaymentProvider {
       return { status: 'pending' };
     }
   }
+
+  // ---------- Connected accounts (subaccounts) ----------
+  //
+  // Paystack settles split payments to a "subaccount" that represents the
+  // organizer's own bank account. Onboarding an organizer is: pick a settlement
+  // bank, resolve the account number to confirm the holder, then create the
+  // subaccount and keep its code. There is no redirect or OAuth step.
+  // https://paystack.com/docs/payments/multi-split-payments/
+
+  /** Settlement banks Paystack supports for a currency, for the bank picker. */
+  async listBanks(currency: string): Promise<Array<{ name: string; code: string }>> {
+    if (!this.secretKey) throw new Error('Paystack provider is not configured');
+    const res = await fetch(
+      `https://api.paystack.co/bank?currency=${encodeURIComponent(currency.toUpperCase())}&perPage=200`,
+      { headers: { Authorization: `Bearer ${this.secretKey}` } },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Paystack bank list failed (${res.status}): ${text}`);
+    }
+    const body = (await res.json()) as {
+      status: boolean;
+      data?: Array<{ name: string; code: string }>;
+    };
+    if (!body.status || !body.data) return [];
+    return body.data.map((b) => ({ name: b.name, code: b.code }));
+  }
+
+  /**
+   * Resolve a bank account to confirm the holder name before creating a
+   * subaccount. https://paystack.com/docs/api/verification/#resolve-account
+   */
+  async resolveAccount(
+    accountNumber: string,
+    bankCode: string,
+  ): Promise<{ accountName: string }> {
+    if (!this.secretKey) throw new Error('Paystack provider is not configured');
+    const res = await fetch(
+      `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(
+        accountNumber,
+      )}&bank_code=${encodeURIComponent(bankCode)}`,
+      { headers: { Authorization: `Bearer ${this.secretKey}` } },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Paystack account resolve failed (${res.status}): ${text}`);
+    }
+    const body = (await res.json()) as {
+      status: boolean;
+      message: string;
+      data?: { account_name?: string };
+    };
+    if (!body.status || !body.data?.account_name) {
+      throw new Error(`Could not verify that account: ${body.message}`);
+    }
+    return { accountName: body.data.account_name };
+  }
+
+  /**
+   * Create a Paystack subaccount for an organizer's settlement bank account.
+   * `percentageCharge` is the platform's default cut; we pass 0 so no fee is
+   * taken by default. The actual platform fee is applied per transaction when
+   * the split is wired (a later slice), so creating a subaccount here never
+   * moves money or takes a cut.
+   * https://paystack.com/docs/api/subaccount/#create
+   */
+  async createSubaccount(input: {
+    businessName: string;
+    bankCode: string;
+    accountNumber: string;
+    percentageCharge?: number;
+  }): Promise<{ subaccountCode: string }> {
+    if (!this.secretKey) throw new Error('Paystack provider is not configured');
+    const res = await fetch('https://api.paystack.co/subaccount', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        business_name: input.businessName,
+        settlement_bank: input.bankCode,
+        account_number: input.accountNumber,
+        percentage_charge: input.percentageCharge ?? 0,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Paystack subaccount create failed (${res.status}): ${text}`);
+    }
+    const body = (await res.json()) as {
+      status: boolean;
+      message: string;
+      data?: { subaccount_code?: string };
+    };
+    if (!body.status || !body.data?.subaccount_code) {
+      throw new Error(`Paystack subaccount declined: ${body.message}`);
+    }
+    return { subaccountCode: body.data.subaccount_code };
+  }
 }
 
 /**

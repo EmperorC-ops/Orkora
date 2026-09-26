@@ -124,11 +124,15 @@ until the effective date.
      is behind `PAYMENTS_CONNECTED_ACCOUNTS`, off by default, so today's paid
      flows are unchanged. A manual / admin record path exists so an operator can
      store a provider account id before the programmatic flow lands.
-   - Live provider onboarding (pending, needs keys and testing): create a Stripe
-     Connect account and account link, create Paystack and Flutterwave
-     subaccounts, and consume each provider's account.updated webhook to keep the
-     stored readiness flags accurate. This is where the real provider API calls
-     live and cannot be exercised without live credentials.
+   - Paystack onboarding (built, needs live keys to exercise): list settlement
+     banks, resolve an account number to confirm the holder, create a subaccount
+     with a 0% default charge, and store its code as the org's connected account.
+     Endpoints under `organizations/:orgId/payments/accounts/paystack`
+     (`GET banks`, `POST resolve`, `POST connect`). The subaccount takes no cut
+     on its own; the fee split is a later slice, so nothing here moves money.
+   - Remaining provider onboarding (pending): Stripe Connect account + account
+     link, Flutterwave subaccounts, and each provider's account.updated webhook
+     to keep readiness flags accurate.
 3. Split at checkout. Change each provider's checkout creation to attach the
    application fee / subaccount split, computed from the event's stamped fee
    (percentage on the sale plus the flat amount times the paid-ticket count,

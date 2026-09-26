@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
@@ -62,6 +63,7 @@ export class ConnectedAccountsService {
     actorUserId: string,
     input: { provider: string; accountRef: string; active?: boolean },
     requestId?: string,
+    metadata?: Record<string, unknown>,
   ) {
     if (!this.registry.has(input.provider as PaymentMethodName)) {
       throw new BadRequestException(`Provider ${input.provider} is not enabled on this server`);
@@ -70,6 +72,9 @@ export class ConnectedAccountsService {
     if (!ref) throw new BadRequestException('An account reference is required');
     const active = input.active !== false;
     const status = active ? 'active' : 'pending';
+    // Display-only metadata (bank, masked account, holder name). Never store a
+    // full account number here.
+    const meta = (metadata ?? {}) as Prisma.InputJsonValue;
 
     const existing = await this.prisma.paymentConnectedAccount.findUnique({
       where: { organizationId_provider: { organizationId: orgId, provider: input.provider } },
@@ -84,12 +89,14 @@ export class ConnectedAccountsService {
         status,
         chargesEnabled: active,
         payoutsEnabled: active,
+        metadata: meta,
       },
       update: {
         accountRef: ref,
         status,
         chargesEnabled: active,
         payoutsEnabled: active,
+        metadata: meta,
       },
     });
 
