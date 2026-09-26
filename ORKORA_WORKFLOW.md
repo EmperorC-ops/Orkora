@@ -62,7 +62,10 @@ your custom questions, and get their ticket instantly.
 How to create it: open the event in the dashboard, find the "VIP express link"
 panel, and press Generate VIP link. Copy the link and send it to your VIP guests
 however you like (email, WhatsApp, a printed QR, and so on). The link looks like
-`orkora.events/e/WMXKED/vip?t=...` where the trailing part is a private token.
+`orkora.events/e/WMXKED/vip/<token>`, where the last part is a private token. You
+can type a custom word for it (for example `goldclass`) and Orkora adds a short
+random code after it, so the link reads `orkora.events/e/WMXKED/vip/goldclass-7kd9qs`:
+branded and compact, but still hard for an outsider to guess.
 
 Notes on how it behaves:
 
@@ -205,7 +208,7 @@ filter, search, and export to CSV.
 
 - Public event page: `orkora.events/e/WMXKED`
 - Register (standard): `orkora.events/e/WMXKED/register`
-- VIP express link: `orkora.events/e/WMXKED/vip?t=...` (generated in the event editor)
+- VIP express link: `orkora.events/e/WMXKED/vip/<token>` (generated in the event editor; supports a custom word)
 - Brand Home (public): `orkora.events/o/<your-slug>`
 - Event editor: `/dashboard/events/<event>`
 - Registrations and CSV export (per event): `/dashboard/events/<event>/registrations`

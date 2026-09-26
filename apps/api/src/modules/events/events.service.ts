@@ -32,6 +32,35 @@ import {
 import { RegistrationFormSchema } from '../../common/registration-fields';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // omit confusing chars
+
+// Lowercase, URL-clean alphabet for VIP link suffixes. Omits l/o and 0/1 so a
+// suffix is safe to read aloud and hard to mistype.
+const VIP_SUFFIX_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+
+/** A random, URL-safe suffix for a VIP link token. */
+function vipSuffix(len: number): string {
+  const bytes = randomBytes(len);
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    out += VIP_SUFFIX_ALPHABET.charAt((bytes[i] ?? 0) % VIP_SUFFIX_ALPHABET.length);
+  }
+  return out;
+}
+
+/**
+ * Turn an organizer-typed word into a URL-clean slug: lowercase, spaces and
+ * punctuation collapsed to single hyphens, trimmed, capped. Returns '' when
+ * nothing usable is left, in which case the caller falls back to a random link.
+ */
+function slugifyVipLabel(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/g, '');
+}
 const SAFE_STATUS: EventStatus[] = ['draft', 'published', 'live', 'ended', 'archived'];
 
 // Secret for signing Story Mode preview tokens. A dedicated env is preferred;
@@ -585,25 +614,57 @@ export class EventsService {
   /**
    * Generate (or return the existing) VIP express link token for an event.
    *
-   * One shared secret link per event. The token is a random, unguessable
-   * URL-safe string; anyone holding the resulting link can register with name
-   * and email only, skipping the event's custom questions. Calling this again
-   * without `regenerate` returns the same token (idempotent), so the "Generate"
-   * button is safe to press twice. `regenerate: true` mints a fresh token and
-   * quietly retires the old link (old links stop working immediately).
+   * One shared secret link per event. The token is the secret that guards the
+   * link, and it becomes the last path segment of a compact URL
+   * (`/e/<code>/vip/<token>`). Anyone holding the link can register with name
+   * and email only, skipping the event's custom questions.
+   *
+   * Shapes:
+   *   - With a `label` (a custom word the organizer typed), the token is that
+   *     word slugified plus a short random suffix, e.g. `goldclass-7kd9qs`. The
+   *     suffix keeps the link hard to guess even though the word is memorable.
+   *   - Without a label, the token is a compact random string.
+   *
+   * Idempotency: with no label and no `regenerate`, an existing token is
+   * returned unchanged. Supplying a label, or `regenerate: true`, mints a fresh
+   * token and retires the old link immediately.
    */
-  async generateVipLink(orgId: string, eventId: string, regenerate = false) {
+  async generateVipLink(
+    orgId: string,
+    eventId: string,
+    regenerate = false,
+    label?: string,
+  ) {
     const event = await this.assertEventInOrg(orgId, eventId);
-    let token = event.vipToken;
-    if (!token || regenerate) {
-      // 24 random bytes -> 32-char base64url. No padding, URL-safe.
-      token = randomBytes(24).toString('base64url');
-      await this.prisma.event.update({
-        where: { id: eventId },
-        data: { vipToken: token },
-      });
+    const slug = label ? slugifyVipLabel(label) : '';
+    const shouldCreate = !event.vipToken || regenerate || !!slug;
+    if (!shouldCreate) {
+      return { token: event.vipToken, code: event.code };
     }
-    return { token, code: event.code };
+
+    // Retry a few times so a rare suffix collision (vip_token is globally
+    // unique) does not surface as a 500.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const token = slug
+        ? `${slug}-${vipSuffix(6)}`
+        : vipSuffix(12);
+      try {
+        await this.prisma.event.update({
+          where: { id: eventId },
+          data: { vipToken: token },
+        });
+        return { token, code: event.code };
+      } catch (err) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002'
+        ) {
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new BadRequestException('Could not generate a unique VIP link. Please try again.');
   }
 
   /**

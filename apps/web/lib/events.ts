@@ -169,10 +169,10 @@ export const eventsApi = (orgId: string) => {
 
     // VIP express link. `generateVipLink` is idempotent unless `regenerate` is
     // set, in which case a fresh token is minted and the old link stops working.
-    generateVipLink: (eventId: string, regenerate = false) =>
+    generateVipLink: (eventId: string, regenerate = false, label?: string) =>
       apiFetch<{ token: string; code: string }>(`${base}/${eventId}/vip-link`, {
         method: 'POST',
-        json: { regenerate },
+        json: { regenerate, ...(label ? { label } : {}) },
       }),
     revokeVipLink: (eventId: string) =>
       apiFetch<{ token: null }>(`${base}/${eventId}/vip-link`, { method: 'DELETE' }),

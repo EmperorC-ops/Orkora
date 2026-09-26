@@ -5,12 +5,15 @@ import { Copy, Loader2, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { eventsApi } from '@/lib/events';
 
 /**
- * VIP express link control. One shared secret link per event. When generated,
- * anyone holding the link registers with name + email only and skips the event's
- * custom questions; their registration is tagged VIP in the registrations list.
+ * VIP express link control. One shared secret link per event, in a compact
+ * path form: `/e/<code>/vip/<token>`. When the organizer types a custom word,
+ * the token becomes that word plus a short random suffix (e.g.
+ * `goldclass-7kd9qs`), so the link is branded but still hard to guess.
  *
- * Generate is idempotent; Regenerate mints a fresh token and retires the old
- * link. Remove clears the link entirely.
+ * Anyone holding the link registers with name + email only and skips the
+ * event's custom questions; their registration is tagged VIP in the list.
+ * Regenerate mints a fresh token (applying the current word) and retires the
+ * old link. Remove clears the link entirely.
  */
 export default function VipLinkEditor({
   orgId,
@@ -30,18 +33,20 @@ export default function VipLinkEditor({
   onNotice: (msg: string) => void;
 }) {
   const [token, setToken] = useState<string | null>(initialToken);
+  const [word, setWord] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const url =
     token && typeof window !== 'undefined'
-      ? `${window.location.origin}/e/${code}/vip?t=${encodeURIComponent(token)}`
+      ? `${window.location.origin}/e/${code}/vip/${encodeURIComponent(token)}`
       : null;
 
   async function generate(regenerate: boolean) {
     setBusy(true);
     try {
-      const res = await eventsApi(orgId).generateVipLink(eventId, regenerate);
+      const label = word.trim() || undefined;
+      const res = await eventsApi(orgId).generateVipLink(eventId, regenerate, label);
       setToken(res.token);
       onNotice(regenerate ? 'New VIP link generated' : 'VIP link ready');
     } catch (e) {
@@ -73,6 +78,25 @@ export default function VipLinkEditor({
     setTimeout(() => setCopied(false), 1600);
   }
 
+  const wordField = !disabled && (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-slate-600">
+        Custom word (optional)
+      </label>
+      <input
+        value={word}
+        onChange={(e) => setWord(e.target.value)}
+        placeholder="e.g. goldclass"
+        maxLength={40}
+        className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+      />
+      <p className="mt-1 text-xs text-slate-400">
+        We add a short random code so the link stays hard to guess. Leave blank for a plain random
+        link.
+      </p>
+    </div>
+  );
+
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2">
@@ -103,6 +127,7 @@ export default function VipLinkEditor({
               <Copy className="h-4 w-4" /> {copied ? 'Copied' : 'Copy link'}
             </button>
           </div>
+          {wordField}
           {!disabled && (
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -112,7 +137,7 @@ export default function VipLinkEditor({
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Regenerate
+                {word.trim() ? 'Apply word / regenerate' : 'Regenerate'}
               </button>
               <button
                 type="button"
@@ -130,7 +155,8 @@ export default function VipLinkEditor({
           </p>
         </div>
       ) : (
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
+          {wordField}
           <button
             type="button"
             onClick={() => generate(false)}

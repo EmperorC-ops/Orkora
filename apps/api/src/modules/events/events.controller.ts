@@ -219,9 +219,11 @@ export class OrganizerEventsController {
   generateVipLink(
     @Param('orgId') orgId: string,
     @Param('eventId') eventId: string,
-    @Body() body: { regenerate?: boolean },
+    @Body() body: { regenerate?: boolean; label?: string },
   ) {
-    return this.events.generateVipLink(orgId, eventId, body?.regenerate === true);
+    const label =
+      typeof body?.label === 'string' ? body.label.slice(0, 60) : undefined;
+    return this.events.generateVipLink(orgId, eventId, body?.regenerate === true, label);
   }
 
   @Delete(':eventId/vip-link')
