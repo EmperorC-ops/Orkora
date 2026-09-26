@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Search, TicketCheck, Users } from 'lucide-react';
+import { Download, Search, TicketCheck, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
 
@@ -57,6 +57,30 @@ export default function OrgRegistrationsPage() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(0);
   const [debouncedQ, setDebouncedQ] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  // Export every registration that matches the current filters, not just the
+  // page on screen. We fetch a large page in one call and build the CSV from it.
+  async function exportCsv() {
+    if (!orgId) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (debouncedQ) params.set('q', debouncedQ);
+      if (eventId) params.set('eventId', eventId);
+      params.set('take', '100000');
+      params.set('skip', '0');
+      const all = await apiFetch<OrgRegistrationsList>(
+        `/v1/organizations/${orgId}/registrations?${params.toString()}`,
+      );
+      downloadRegistrationsCsv(all.rows);
+    } catch {
+      setError('Could not export registrations. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     setOrgId(readActiveOrgId());
@@ -136,6 +160,16 @@ export default function OrgRegistrationsPage() {
               value={totals.ticketCount.toLocaleString()}
               icon={<TicketCheck className="h-4 w-4" />}
             />
+            {data && data.rows.length > 0 && (
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface/40 px-4 py-2 text-xs font-semibold text-ink-secondary transition hover:text-ink-primary disabled:opacity-60"
+              >
+                <Download className="h-4 w-4" /> {exporting ? 'Exporting...' : 'Export CSV'}
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -285,6 +319,41 @@ export default function OrgRegistrationsPage() {
       )}
     </div>
   );
+}
+
+// Quote a CSV cell when it contains a comma, quote, or newline; double internal
+// quotes. A leading = + - @ is prefixed with a quote to defuse spreadsheet
+// formula injection.
+function csvCell(value: string): string {
+  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+function downloadRegistrationsCsv(rows: OrgRegistrationRow[]) {
+  const header = ['Name', 'Email', 'Event', 'Event code', 'Status', 'Tier', 'Registered'];
+  const lines = [header.map(csvCell).join(',')];
+  for (const r of rows) {
+    const tier = r.tickets.map((t) => t.tier.name).join(' / ');
+    const cells = [
+      r.user.fullName,
+      r.user.email,
+      r.event.title,
+      r.event.code,
+      r.status,
+      tier,
+      new Date(r.createdAt).toISOString(),
+    ];
+    lines.push(cells.map((c) => csvCell(String(c))).join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `registrations-all-events.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function SkeletonTable() {

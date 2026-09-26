@@ -36,6 +36,7 @@ import {
   type EventStatus,
   type EventSpeaker,
 } from '@/lib/events';
+import { ApiError } from '@/lib/auth';
 import { ImageUpload } from '@/components/image-upload';
 import { ActionButton } from '@/components/action-button';
 import ComposeStoryPrompt from './ComposeStoryPrompt';
@@ -396,8 +397,13 @@ export default function EventDetailPage() {
                 onDelete={async () => {
                   if (!orgId) return;
                   if (!confirm(`Delete tier "${tier.name}"?`)) return;
-                  await eventsApi(orgId).deleteTier(id, tier.id);
-                  await refresh();
+                  try {
+                    await eventsApi(orgId).deleteTier(id, tier.id);
+                    await refresh();
+                    toast.success('Tier deleted');
+                  } catch (err) {
+                    toast.error('Could not delete tier', tierDeleteReason(err));
+                  }
                 }}
               />
             ))}
@@ -777,6 +783,20 @@ function SpeakerForm({
       </div>
     </div>
   );
+}
+
+// Pull a human message out of a tier-delete failure. The API returns a clear
+// reason (for example, a tier that already has sold or held tickets cannot be
+// deleted); surface that rather than a raw body.
+function tierDeleteReason(err: unknown): string {
+  if (err instanceof ApiError) {
+    const detail = err.detail?.message;
+    if (typeof detail === 'string' && detail) return detail;
+    if (err.status === 400) {
+      return 'This tier has tickets on it and cannot be deleted. Cancel those registrations first.';
+    }
+  }
+  return err instanceof Error ? err.message : 'Please try again.';
 }
 
 function Stat({ label, value }: { label: string; value: number | string }) {
