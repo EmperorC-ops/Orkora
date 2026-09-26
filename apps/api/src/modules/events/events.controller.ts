@@ -382,8 +382,9 @@ export class OrganizerEventsController {
     @Param('orgId') orgId: string,
     @Param('eventId') eventId: string,
     @Param('tierId') tierId: string,
+    @Query('force') force?: string,
   ) {
-    return this.events.deleteTier(orgId, eventId, tierId);
+    return this.events.deleteTier(orgId, eventId, tierId, force === 'true');
   }
 
   @Put(':eventId/tiers/reorder')

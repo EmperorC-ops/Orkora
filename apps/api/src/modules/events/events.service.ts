@@ -1024,16 +1024,73 @@ export class EventsService {
     return this.serializeTier(tier);
   }
 
-  async deleteTier(orgId: string, eventId: string, tierId: string) {
+  async deleteTier(orgId: string, eventId: string, tierId: string, force = false) {
     await this.assertEventInOrg(orgId, eventId);
     const tier = await this.prisma.ticketTier.findFirst({
       where: { id: tierId, eventId },
     });
     if (!tier) throw new NotFoundException('Ticket tier not found');
-    if (tier.quantitySold > 0) {
-      throw new BadRequestException('Cannot delete a tier that has sold tickets');
+
+    if (!force) {
+      if (tier.quantitySold > 0) {
+        throw new BadRequestException('Cannot delete a tier that has sold tickets');
+      }
+      await this.prisma.ticketTier.delete({ where: { id: tierId } });
+      return { ok: true };
     }
-    await this.prisma.ticketTier.delete({ where: { id: tierId } });
+
+    // Force delete (organizer opted in through a confirm). Meant for clearing a
+    // tier created in error or during testing, so it still refuses to destroy
+    // anything of real value:
+    //   - any order for this tier that is paid or refunded (real money), and
+    //   - any ticket on this tier that has been checked in (a real attendance).
+    // Everything else on the tier (free tickets, pending or failed holds) is
+    // test or abandoned data and is removed with the tier.
+    const paidItem = await this.prisma.orderItem.findFirst({
+      where: { tierId, order: { status: { in: ['paid', 'refunded'] } } },
+      select: { id: true },
+    });
+    if (paidItem) {
+      throw new BadRequestException(
+        'This tier has paid orders and cannot be deleted. Refund those orders first.',
+      );
+    }
+    const checkedIn = await this.prisma.ticket.findFirst({
+      where: { tierId, checkedInAt: { not: null } },
+      select: { id: true },
+    });
+    if (checkedIn) {
+      throw new BadRequestException(
+        'This tier has checked-in attendees and cannot be deleted.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Orders that reference this tier, captured before we remove their items.
+      const items = await tx.orderItem.findMany({
+        where: { tierId },
+        select: { orderId: true },
+      });
+      const orderIds = [...new Set(items.map((i) => i.orderId))];
+
+      // Remove the rows that hold a foreign key to the tier, then the tier.
+      await tx.ticket.deleteMany({ where: { tierId } });
+      await tx.orderItem.deleteMany({ where: { tierId } });
+
+      // Any pending order left with no items is a phantom hold now; fail it so
+      // it does not linger or trip the duplicate-order guard on re-registration.
+      for (const orderId of orderIds) {
+        const remaining = await tx.orderItem.count({ where: { orderId } });
+        if (remaining === 0) {
+          await tx.order.updateMany({
+            where: { id: orderId, status: 'pending' },
+            data: { status: 'failed' },
+          });
+        }
+      }
+
+      await tx.ticketTier.delete({ where: { id: tierId } });
+    });
     return { ok: true };
   }
 

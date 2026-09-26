@@ -402,6 +402,24 @@ export default function EventDetailPage() {
                     await refresh();
                     toast.success('Tier deleted');
                   } catch (err) {
+                    // A plain delete is blocked once a tier has any tickets on
+                    // it. Offer a guarded force delete: it clears test and
+                    // unpaid tickets but the server still refuses paid or
+                    // checked-in tiers.
+                    if (err instanceof ApiError && err.status === 400) {
+                      const ok = confirm(
+                        `"${tier.name}" has registrations on it. Force delete removes the tier and clears its test or unpaid tickets. Paid orders and checked-in attendees are protected and will block this. Continue?`,
+                      );
+                      if (!ok) return;
+                      try {
+                        await eventsApi(orgId).deleteTier(id, tier.id, true);
+                        await refresh();
+                        toast.success('Tier deleted');
+                      } catch (err2) {
+                        toast.error('Could not delete tier', tierDeleteReason(err2));
+                      }
+                      return;
+                    }
                     toast.error('Could not delete tier', tierDeleteReason(err));
                   }
                 }}

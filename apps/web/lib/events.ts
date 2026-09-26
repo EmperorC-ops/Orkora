@@ -254,8 +254,11 @@ export const eventsApi = (orgId: string) => {
       apiFetch<EventTier>(`${base}/${eventId}/tiers`, { method: 'POST', json: input }),
     updateTier: (eventId: string, tierId: string, input: Partial<EventTier>) =>
       apiFetch<EventTier>(`${base}/${eventId}/tiers/${tierId}`, { method: 'PATCH', json: input }),
-    deleteTier: (eventId: string, tierId: string) =>
-      apiFetch<{ ok: boolean }>(`${base}/${eventId}/tiers/${tierId}`, { method: 'DELETE' }),
+    deleteTier: (eventId: string, tierId: string, force = false) =>
+      apiFetch<{ ok: boolean }>(
+        `${base}/${eventId}/tiers/${tierId}${force ? '?force=true' : ''}`,
+        { method: 'DELETE' },
+      ),
   };
 };
 
