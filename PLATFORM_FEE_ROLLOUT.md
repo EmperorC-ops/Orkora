@@ -1,9 +1,17 @@
-# Platform Fee Rollout Plan (3%)
+# Platform Fee Rollout Plan (3% + 0.99 USD per paid ticket)
 
 Status: planning only. Nothing in this document charges a fee. It sets out what
 is true today, the legal gate from Orkora's own terms, the one architectural
 decision everything hinges on, and the engineering and rollout sequence to
-introduce a 3% platform fee correctly.
+introduce the platform fee correctly.
+
+The fee structure is **3% of the sale plus a flat 0.99 USD per paid ticket**.
+Both components are captured per event at creation (see slice 1) so both are
+grandfathered together. The flat component is per paid ticket, not per order, so
+it scales with ticket count. It is denominated in USD; because events sell in
+many currencies, whether it is charged in USD or converted to the sale currency
+at settlement is an open decision resolved when the fee is implemented (the
+currency is stored per event so the choice is not lost).
 
 This is not legal advice. Two items below (entity registration and counsel
 sign-off) are for the team and its lawyer to close.
@@ -101,25 +109,28 @@ Recommendation: build Option A. The rest of this plan assumes it.
 Each slice is shippable behind a flag with the fee still at 0, so nothing charges
 until the effective date.
 
-1. Fee data model and grandfathering. Add `platformFeeBps` to the Event, stamped
-   at event creation from the platform's then-current rate (0 today, 300 later).
-   Add a small platform-level config for the current rate and its effective date.
-   Because the rate is captured per event at creation, grandfathering is automatic
-   and permanent.
+1. Fee data model and grandfathering. Add `platformFeeBps`, `platformFeeFlatMinor`
+   and `platformFeeFlatCurrency` to the Event, stamped at event creation from the
+   platform's then-current fee (all zero today; 300 bps + 99 USD-minor later). A
+   small platform-level config holds the planned fee and its effective date.
+   Because the fee is captured per event at creation, grandfathering is automatic
+   and permanent. (Built.)
 2. Connected accounts. Org-level connection flow per provider, storing the
    account / subaccount ids per (org, currency), plus the onboarding and KYC
    handoff each provider requires. Block a paid event from selling in a currency
    until that org has a connected account for it.
 3. Split at checkout. Change each provider's checkout creation to attach the
-   application fee / subaccount split, computed from the event's `platformFeeBps`.
-   Record the real fee on the order (`feesMinor`) instead of 0.
+   application fee / subaccount split, computed from the event's stamped fee
+   (percentage on the sale plus the flat amount times the paid-ticket count,
+   applying the stored flat-fee currency policy). Record the real fee on the
+   order (`feesMinor`) instead of 0.
 4. Refunds with fee handling. Decide and implement whether the platform fee is
    returned on a refund (define this in the Refund Policy first), and make each
    provider's refund path do the right thing.
 5. Reporting. Flip billing from notional to actual: the billing page, receipts,
    and organizer statements show the real fee, and reconciliation includes it.
 6. Turn-on. The order math starts adding the fee only when the event's
-   `platformFeeBps` is greater than 0, which only happens for events created on or
+   stamped fee is greater than zero, which only happens for events created on or
    after the effective date. No global switch.
 
 ## 5. Rollout sequence (honors the 60-day notice)
@@ -134,10 +145,11 @@ until the effective date.
    fee effective date to at least 60 days after it.
 5. Update the terms and the billing copy to state the upcoming fee and its
    effective date. Still do not charge.
-6. On the effective date, set the platform rate to 300 bps. From that moment new
-   events are created with `platformFeeBps = 300`; every event created before it
-   stays at 0 until it ends. Remove the "advisory only" and beta wording once the
-   fee is genuinely live.
+6. On the effective date, set the planned fee live (300 bps + 0.99 USD per paid
+   ticket) by setting the effective date in the fee config. From that moment new
+   events are created carrying that fee; every event created before it stays at
+   zero until it ends. Remove the "advisory only" and beta wording once the fee
+   is genuinely live.
 
 ## 6. Prerequisites checklist
 

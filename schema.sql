@@ -825,6 +825,9 @@ alter table registrations add column if not exists is_vip boolean not null defau
 -- ============================================================
 -- PLATFORM FEE (migration 0020, folded in for fresh installs)
 -- ============================================================
--- Fee rate (basis points) captured per event at creation, for grandfathering.
--- Default 0: nothing is charged until the platform fee is scheduled and live.
+-- Fee captured per event at creation, for grandfathering. Structure is
+-- 3% (bps) plus a flat 0.99 USD per paid ticket. Defaults of 0 / null mean
+-- nothing is charged until the platform fee is scheduled and live.
 alter table events add column if not exists platform_fee_bps integer not null default 0;
+alter table events add column if not exists platform_fee_flat_minor integer not null default 0;
+alter table events add column if not exists platform_fee_flat_currency char(3);

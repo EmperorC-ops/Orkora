@@ -30,7 +30,7 @@ import {
   hasVisibleTicketsBlock,
 } from './story.schema';
 import { RegistrationFormSchema } from '../../common/registration-fields';
-import { platformFeeBpsAt } from '../../common/platform-fee';
+import { platformFeeAt } from '../../common/platform-fee';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // omit confusing chars
 
@@ -359,6 +359,7 @@ export class EventsService {
     this.assertDateRange(dto.startAt, dto.endAt);
     const code = await this.generateUniqueCode();
     const slug = await this.generateUniqueSlug(orgId, dto.title);
+    const currentFee = platformFeeAt();
 
     const event = await this.prisma.event.create({
       data: {
@@ -378,9 +379,12 @@ export class EventsService {
         city: dto.city ?? null,
         registrationFields: this.validateRegistrationFields(dto.registrationFields),
         registrationIntroHidden: dto.registrationIntroHidden ?? undefined,
-        // Stamp the platform fee rate in effect right now. It is 0 until the fee
-        // is scheduled; capturing it here grandfathers the event for its life.
-        platformFeeBps: platformFeeBpsAt(),
+        // Stamp the platform fee in effect right now (3% plus a flat 0.99 USD
+        // per paid ticket once scheduled; all zero until then). Capturing it
+        // here grandfathers the event for its whole life.
+        platformFeeBps: currentFee.bps,
+        platformFeeFlatMinor: currentFee.flatMinor,
+        platformFeeFlatCurrency: currentFee.flatCurrency,
         status: 'draft',
       },
     });

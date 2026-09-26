@@ -20,11 +20,17 @@
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
-import { PLANNED_PLATFORM_FEE_BPS } from '../../common/platform-fee';
+import {
+  PLANNED_PLATFORM_FEE_BPS,
+  PLANNED_PLATFORM_FEE_FLAT_MINOR,
+  PLANNED_PLATFORM_FEE_FLAT_CURRENCY,
+} from '../../common/platform-fee';
 
-// Single source of truth for the planned rate lives in common/platform-fee.ts.
-// This is the notional figure shown to organizers; it is not charged until the
-// fee is scheduled and events are stamped with a non-zero rate at creation.
+// Single source of truth for the planned fee lives in common/platform-fee.ts.
+// The full structure is 3% plus a flat 0.99 USD per paid ticket. The notional
+// figure below shows only the percentage on gross sales; the flat per-ticket
+// component is surfaced in the notes so it is not forgotten. Neither is charged
+// until the fee is scheduled and events are stamped with a non-zero fee.
 const PLATFORM_FEE_BPS = PLANNED_PLATFORM_FEE_BPS; // 3.00% in basis points - notional, not charged yet
 
 @Injectable()
@@ -75,8 +81,13 @@ export class BillingService {
         name: org.plan,
         platformFeeBps: PLATFORM_FEE_BPS,
         platformFeePercent: PLATFORM_FEE_BPS / 100,
+        platformFeeFlatMinor: PLANNED_PLATFORM_FEE_FLAT_MINOR,
+        platformFeeFlatCurrency: PLANNED_PLATFORM_FEE_FLAT_CURRENCY,
         notes: [
-          'Platform fee is currently 0% during private beta; the 3% figure is advisory only.',
+          'Platform fee is currently 0% during private beta; the figures shown are advisory only.',
+          `Planned pricing is ${PLATFORM_FEE_BPS / 100}% plus ${PLANNED_PLATFORM_FEE_FLAT_CURRENCY} ${(
+            PLANNED_PLATFORM_FEE_FLAT_MINOR / 100
+          ).toFixed(2)} per paid ticket. The figure above reflects the percentage only.`,
           'Payment processing fees are charged separately by your payment provider, not by Orkora.',
         ],
       },
