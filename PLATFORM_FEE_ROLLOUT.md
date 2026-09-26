@@ -186,7 +186,9 @@ until the effective date.
 5. Update the terms and the billing copy to state the upcoming fee and its
    effective date. Still do not charge.
 6. On the effective date, set the planned fee live (300 bps + 0.99 USD per paid
-   ticket) by setting the effective date in the fee config. From that moment new
+   ticket, plus a per-currency flat amount for each settlement currency) via the
+   environment: PLATFORM_FEE_EFFECTIVE_AT, PLATFORM_FEE_FLAT_<CUR>, and
+   PAYMENTS_CONNECTED_ACCOUNTS=1. No code change. From that moment new
    events are created carrying that fee; every event created before it stays at
    zero until it ends. Remove the "advisory only" and beta wording once the fee
    is genuinely live.
