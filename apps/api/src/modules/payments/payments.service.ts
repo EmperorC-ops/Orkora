@@ -10,7 +10,7 @@ import { PaymentsRegistry } from './providers/registry';
 import { PaymentPreferencesService } from './preferences.service';
 import { ConnectedAccountsService } from './connected-accounts.service';
 import { connectedAccountsEnabled } from './connected-accounts.config';
-import { computePlatformFeeMinor } from '../../common/platform-fee';
+import { refundBreakdownMinor } from '../../common/platform-fee';
 import * as Sentry from '@sentry/node';
 import { formatMoney } from './money';
 import type { PaymentMethodName, SettledAmount } from './providers/types';
@@ -91,11 +91,25 @@ export class PaymentsService {
     }
 
     const provider = this.registry.resolve(order.provider as PaymentMethodName);
+
+    // Fee-aware refund. The buyer always gets back the full order total, which
+    // already includes the platform fee when the organizer passed it on. Under
+    // the refund policy the platform also returns its fee, so Orkora keeps
+    // nothing on a refunded order. For a Paystack split transaction, refunding
+    // the full amount reverses the subaccount split proportionally, which claws
+    // the platform fee back from the main account; this split-refund behavior
+    // must be confirmed in Paystack test mode before the fee goes live. Partial
+    // refunds are not supported here (we always refund the full total).
+    const refund = refundBreakdownMinor({
+      totalMinor: order.totalMinor,
+      feesMinor: order.feesMinor,
+    });
+
     let result: Awaited<ReturnType<typeof provider.refund>>;
     try {
       result = await provider.refund({
         providerRef: order.providerRef,
-        amountMinor: BigInt(order.totalMinor),
+        amountMinor: refund.buyerRefundMinor,
         currency: order.currency,
       });
     } catch (err) {
@@ -144,6 +158,9 @@ export class PaymentsService {
         provider: provider.name,
         totalMinor: Number(order.totalMinor),
         currency: order.currency,
+        // Fee accounting for reconciliation: how much fee the platform returns.
+        feesMinor: Number(order.feesMinor),
+        platformFeeReturnedMinor: Number(refund.platformFeeReturnedMinor),
         result: result.status,
       },
       requestId: input.requestId,
@@ -259,7 +276,6 @@ export class PaymentsService {
         user: true,
         event: true,
         registration: true,
-        items: true,
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -291,13 +307,11 @@ export class PaymentsService {
 
     // Split settlement: when the connected-accounts gate is on and the org has a
     // ready account for the resolved provider, route the payment to that account
-    // and keep the platform fee. Today (gate off) this branch is skipped and the
-    // charge behaves exactly as before, settling centrally with no fee.
-    //
-    // The platform fee is computed from the fee stamped on the event at creation
-    // (grandfathered), applied to this order's subtotal and paid-ticket count.
-    // The buyer's total is unchanged; the fee is taken out of the organizer's
-    // proceeds as a split. Currently only Paystack supports the split.
+    // and keep the platform fee. The fee itself was computed and stored on the
+    // order at creation (`feesMinor`), honoring the organizer's absorb / pass-on
+    // choice. Today (gate off) this branch is skipped and the charge behaves
+    // exactly as before, settling centrally with no fee. Currently only Paystack
+    // supports the split.
     let splitAccountRef: string | undefined;
     let platformFeeMinor: bigint | undefined;
     if (connectedAccountsEnabled() && providerName === 'paystack') {
@@ -306,29 +320,11 @@ export class PaymentsService {
         providerName,
       );
       if (accountRef) {
-        const ticketCount = order.items.reduce((sum, i) => sum + i.quantity, 0);
-        const { feeMinor, flatApplied } = computePlatformFeeMinor({
-          subtotalMinor: Number(order.subtotalMinor),
-          orderCurrency: order.currency,
-          ticketCount,
-          bps: order.event.platformFeeBps,
-          flatMinor: order.event.platformFeeFlatMinor,
-          flatCurrency: order.event.platformFeeFlatCurrency,
-        });
-        if (!flatApplied) {
-          this.logger.warn(
-            `Platform flat fee skipped for ${order.currency} on order ${order.id}: no configured flat amount for that currency`,
-          );
-        }
-        // The split charge cannot exceed the amount being charged.
-        const capped = Math.min(feeMinor, Number(order.totalMinor));
-        const fee = BigInt(Math.max(0, capped));
-        await this.prisma.order.update({
-          where: { id: order.id },
-          data: { feesMinor: fee },
-        });
         splitAccountRef = accountRef;
-        platformFeeMinor = fee;
+        // The split charge cannot exceed the amount being charged.
+        const capped =
+          order.feesMinor > order.totalMinor ? order.totalMinor : order.feesMinor;
+        platformFeeMinor = capped > 0n ? capped : 0n;
       }
     }
 

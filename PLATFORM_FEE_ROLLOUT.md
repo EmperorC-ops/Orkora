@@ -150,9 +150,23 @@ until the effective date.
      so no exchange rate is ever invented. The percentage always applies.
    - Stripe and Flutterwave splits (pending): mirror this with a Connect
      application fee and a Flutterwave subaccount split.
-4. Refunds with fee handling. Decide and implement whether the platform fee is
-   returned on a refund (define this in the Refund Policy first), and make each
-   provider's refund path do the right thing.
+   - Who bears the fee (built): a per-event organizer choice, absorb or pass on.
+     Absorb leaves the attendee paying the ticket price and takes the fee from the
+     organizer's proceeds. Pass-on adds the fee to what the attendee pays at
+     checkout and settles the full ticket price to the organizer. The fee is
+     computed and stored on the order at creation (honoring the choice), and the
+     register page shows the added service fee before checkout. Set in the event
+     editor under "Service fee".
+4. Refunds with fee handling (built). Policy: a full refund returns the platform
+   fee too, so Orkora keeps nothing on a refunded order, which is the only policy
+   consistent with always refunding the buyer what they paid (in pass-on mode the
+   buyer paid the fee). The buyer is always refunded the full order total; the
+   fee accounting is recorded on the refund for reconciliation, and refunded
+   orders are already excluded from fee revenue in billing. Two follow-ups before
+   go-live: confirm in Paystack test mode that a full refund reverses the
+   subaccount split (claws the fee back from the main account) rather than
+   deducting the whole refund from one account, and add the matching clause to the
+   Refund Policy legal text (counsel). Partial refunds remain out of scope.
 5. Reporting. Flip billing from notional to actual: the billing page, receipts,
    and organizer statements show the real fee, and reconciliation includes it.
 6. Turn-on. The order math starts adding the fee only when the event's

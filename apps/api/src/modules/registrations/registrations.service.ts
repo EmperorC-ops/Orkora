@@ -13,6 +13,8 @@ import {
   RegistrationFormSchema,
   validateResponsesAgainstFields,
 } from '../../common/registration-fields';
+import { computePlatformFeeMinor } from '../../common/platform-fee';
+import { connectedAccountsEnabled } from '../../common/payments-flags';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   DiscountsService,
@@ -376,8 +378,30 @@ export class RegistrationsService {
           discountCodeId = codeRow.id;
         }
 
-        // Clamp so the payable total can never fall below zero.
-        const total = subtotal - discountMinor > 0n ? subtotal - discountMinor : 0n;
+        // Clamp so the net can never fall below zero.
+        const netMinor = subtotal - discountMinor > 0n ? subtotal - discountMinor : 0n;
+
+        // Platform fee. Applied only when the connected-accounts gate is on and
+        // this event carries a stamped fee (grandfathered from its creation).
+        // Recorded on the order either way; added to what the buyer pays only
+        // when the organizer chose to pass it on rather than absorb it.
+        let platformFeeMinor = 0n;
+        if (
+          connectedAccountsEnabled() &&
+          (event.platformFeeBps > 0 || event.platformFeeFlatMinor > 0)
+        ) {
+          const { feeMinor } = computePlatformFeeMinor({
+            subtotalMinor: Number(netMinor),
+            orderCurrency: tier.currency,
+            ticketCount: qty,
+            bps: event.platformFeeBps,
+            flatMinor: event.platformFeeFlatMinor,
+            flatCurrency: event.platformFeeFlatCurrency,
+          });
+          platformFeeMinor = BigInt(Math.max(0, feeMinor));
+        }
+        const passOn = event.platformFeePassOn === true;
+        const total = passOn ? netMinor + platformFeeMinor : netMinor;
 
         order = await tx.order.create({
           data: {
@@ -385,7 +409,7 @@ export class RegistrationsService {
             userId: user.id,
             registrationId: registration.id,
             subtotalMinor: subtotal,
-            feesMinor: BigInt(0),
+            feesMinor: platformFeeMinor,
             discountMinor,
             discountCodeId,
             totalMinor: total,

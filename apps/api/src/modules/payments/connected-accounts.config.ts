@@ -1,17 +1,13 @@
 /**
  * Connected-accounts gate configuration.
  *
- * When enabled, a paid checkout requires the organization to have an active
- * connected payout account for the resolved provider, so funds settle to the
- * organizer and the platform fee can be taken as a split. This is turned on
- * alongside the platform fee going live (see PLATFORM_FEE_ROLLOUT.md).
- *
- * Off by default, so behavior is unchanged until it is deliberately enabled by
- * setting PAYMENTS_CONNECTED_ACCOUNTS=1 on the API deploy.
+ * The gate flag itself lives in common/payments-flags.ts so the registrations
+ * module can read it too; it is re-exported here so existing imports keep
+ * working. When enabled, a paid checkout requires the organization to have an
+ * active connected payout account for the resolved provider, so funds settle to
+ * the organizer and the platform fee can be taken as a split. Off by default.
  */
-export function connectedAccountsEnabled(): boolean {
-  return process.env.PAYMENTS_CONNECTED_ACCOUNTS === '1';
-}
+export { connectedAccountsEnabled } from '../../common/payments-flags';
 
 /**
  * Pure readiness check for a stored account row. An account is ready to receive

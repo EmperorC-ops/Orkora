@@ -43,6 +43,7 @@ import ComposeStoryPrompt from './ComposeStoryPrompt';
 import EventDetailsEditor from './EventDetailsEditor';
 import RegistrationFieldsEditor from './RegistrationFieldsEditor';
 import VipLinkEditor from './VipLinkEditor';
+import ServiceFeeEditor from './ServiceFeeEditor';
 import { useToast } from '@/components/toast';
 
 const STATUS_STYLES: Record<EventStatus, string> = {
@@ -354,6 +355,17 @@ export default function EventDetailPage() {
           disabled={event.status === 'archived'}
           onNotice={(m) => toast.success(m)}
           onError={(m) => toast.error('Could not update VIP link', m)}
+        />
+      )}
+
+      {orgId && (
+        <ServiceFeeEditor
+          orgId={orgId}
+          eventId={id}
+          initialPassOn={event.platformFeePassOn ?? false}
+          disabled={event.status === 'archived'}
+          onSaved={(m) => toast.success(m)}
+          onError={(m) => toast.error('Could not save', m)}
         />
       )}
 

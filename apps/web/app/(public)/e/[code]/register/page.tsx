@@ -46,6 +46,10 @@ interface PublicEventLite {
   tiers: PublicTier[];
   registrationFields?: RegistrationField[];
   registrationIntroHidden?: boolean;
+  platformFeeBps?: number;
+  platformFeeFlatMinor?: number;
+  platformFeeFlatCurrency?: string | null;
+  platformFeePassOn?: boolean;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -119,6 +123,30 @@ export default function RegisterPage() {
   const payable = appliedDiscount
     ? Math.max(0, total - appliedDiscount.discountMinor)
     : total;
+
+  // Estimated service fee added to what the attendee pays, but only when the
+  // organizer chose to pass Orkora's fee on. The authoritative amount is
+  // computed server-side and shown on the payment page; this is a clear
+  // pre-checkout estimate. Zero unless the event both passes the fee on and
+  // carries a configured fee (which it does not today).
+  const serviceFeeMinor = useMemo(() => {
+    if (!event?.platformFeePassOn || !tier || isFree) return 0;
+    const bps = event.platformFeeBps ?? 0;
+    const flatMinor = event.platformFeeFlatMinor ?? 0;
+    const flatCurrency = event.platformFeeFlatCurrency ?? null;
+    if (bps === 0 && flatMinor === 0) return 0;
+    const pct = Math.floor((payable * bps) / 10000);
+    let flat = 0;
+    if (
+      flatMinor > 0 &&
+      flatCurrency &&
+      tier.currency.toUpperCase() === flatCurrency.toUpperCase()
+    ) {
+      flat = flatMinor * attendees.length;
+    }
+    return pct + flat;
+  }, [event, tier, isFree, payable, attendees.length]);
+  const payableWithFee = payable + serviceFeeMinor;
 
   // Drop any applied discount when the selected tier or attendee count changes
   // so we never send a stale code to the register call.
@@ -504,7 +532,7 @@ export default function RegisterPage() {
                 ? 'Processing...'
                 : isFree
                   ? `Register ${attendees.length} attendee${attendees.length > 1 ? 's' : ''}`
-                  : `Continue to payment ${tier ? formatMoney(payable, tier.currency) : ''}`}{' '}
+                  : `Continue to payment ${tier ? formatMoney(payableWithFee, tier.currency) : ''}`}{' '}
               <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-center text-xs text-ink-muted">
@@ -576,12 +604,29 @@ export default function RegisterPage() {
                   </div>
                 )}
 
+                {serviceFeeMinor > 0 && (
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <span className="text-sm text-ink-secondary">
+                      Service fee (est.)
+                    </span>
+                    <span className="text-sm text-ink-primary">
+                      +{formatMoney(serviceFeeMinor, tier.currency)}
+                    </span>
+                  </div>
+                )}
+
                 <div className="mt-4 flex items-baseline justify-between border-t border-surface-border pt-4">
                   <span className="text-sm font-semibold text-ink-primary">Total</span>
                   <span className="text-lg font-semibold text-ink-primary">
-                    {tier.priceMinor === 0 ? 'Free' : formatMoney(payable, tier.currency)}
+                    {tier.priceMinor === 0 ? 'Free' : formatMoney(payableWithFee, tier.currency)}
                   </span>
                 </div>
+                {serviceFeeMinor > 0 && (
+                  <p className="mt-2 text-[11px] text-ink-muted">
+                    Includes a service fee added by the organizer. The final total is confirmed on the
+                    payment page.
+                  </p>
+                )}
               </>
             ) : (
               <p className="mt-4 text-sm text-ink-muted">Select a ticket to continue.</p>

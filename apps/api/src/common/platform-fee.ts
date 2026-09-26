@@ -107,6 +107,34 @@ export function flatFeeMinorForCurrency(currency: string, ticketCount: number): 
 }
 
 /**
+ * Refund policy for the platform fee.
+ *
+ * true (the policy) means a full refund returns the platform fee too, so Orkora
+ * keeps nothing on a refunded order. This is the only policy consistent with
+ * always refunding the buyer what they paid: in pass-on mode the buyer paid the
+ * fee, so a full refund must return it. Refunded orders are also excluded from
+ * fee revenue in billing, which matches this.
+ */
+export const PLATFORM_FEE_REFUNDABLE = true;
+
+/**
+ * The money movement of a full refund, in the order's currency (minor units):
+ *   - buyerRefundMinor: what the buyer gets back, always the full order total
+ *     (which already includes the fee when the organizer passed it on).
+ *   - platformFeeReturnedMinor: the platform fee the platform gives back, the
+ *     whole fee under the current policy.
+ */
+export function refundBreakdownMinor(input: {
+  totalMinor: bigint;
+  feesMinor: bigint;
+}): { buyerRefundMinor: bigint; platformFeeReturnedMinor: bigint } {
+  return {
+    buyerRefundMinor: input.totalMinor,
+    platformFeeReturnedMinor: PLATFORM_FEE_REFUNDABLE ? input.feesMinor : 0n,
+  };
+}
+
+/**
  * Compute the platform fee for an order in the order's own currency (minor
  * units): the percentage of the subtotal plus the flat amount per paid ticket.
  *

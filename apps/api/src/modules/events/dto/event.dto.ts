@@ -96,6 +96,12 @@ export class CreateEventDto {
   @IsOptional()
   @IsBoolean()
   registrationIntroHidden?: boolean;
+
+  // Pass the platform fee on to attendees (added to what they pay) instead of
+  // absorbing it.
+  @IsOptional()
+  @IsBoolean()
+  platformFeePassOn?: boolean;
 }
 
 export class UpdateEventDto {
@@ -155,6 +161,10 @@ export class UpdateEventDto {
   @IsOptional()
   @IsBoolean()
   registrationIntroHidden?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  platformFeePassOn?: boolean;
 }
 
 // === Story Mode ===

@@ -229,6 +229,9 @@ model Event {
   platformFeeBps           Int     @default(0) @map("platform_fee_bps")
   platformFeeFlatMinor     Int     @default(0) @map("platform_fee_flat_minor")
   platformFeeFlatCurrency  String? @map("platform_fee_flat_currency") @db.Char(3)
+  // Organizer choice: false = absorb the platform fee, true = pass it on to
+  // attendees (added to what they pay at checkout).
+  platformFeePassOn        Boolean @default(false) @map("platform_fee_pass_on")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

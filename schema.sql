@@ -850,3 +850,10 @@ create table if not exists payment_connected_accounts (
 );
 create index if not exists payment_connected_accounts_org_idx
   on payment_connected_accounts (organization_id);
+
+-- ============================================================
+-- PLATFORM FEE PASS-ON (migration 0023, folded in for fresh installs)
+-- ============================================================
+-- Per-event choice: false = organizer absorbs the fee, true = fee is added to
+-- what attendees pay at checkout. Default false.
+alter table events add column if not exists platform_fee_pass_on boolean not null default false;

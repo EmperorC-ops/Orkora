@@ -127,6 +127,8 @@ export interface EventDetail extends OrganizerEventSummary {
   // The event's VIP express link token, if one has been generated. Secret;
   // only ever returned on the organizer read, never on public reads.
   vipToken?: string | null;
+  // Whether the platform fee is passed on to attendees (true) or absorbed (false).
+  platformFeePassOn?: boolean;
 }
 
 export interface CreateEventInput {
@@ -144,6 +146,7 @@ export interface CreateEventInput {
   city?: string | null;
   registrationFields?: RegistrationField[];
   registrationIntroHidden?: boolean;
+  platformFeePassOn?: boolean;
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>;

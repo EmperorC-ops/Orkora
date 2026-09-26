@@ -101,6 +101,10 @@ export class EventsService {
         storyPublishedAt: true,
         registrationFields: true,
         registrationIntroHidden: true,
+        platformFeeBps: true,
+        platformFeeFlatMinor: true,
+        platformFeeFlatCurrency: true,
+        platformFeePassOn: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
@@ -181,6 +185,10 @@ export class EventsService {
         storyPublishedAt: true,
         registrationFields: true,
         registrationIntroHidden: true,
+        platformFeeBps: true,
+        platformFeeFlatMinor: true,
+        platformFeeFlatCurrency: true,
+        platformFeePassOn: true,
         organization: { select: { name: true, logoUrl: true, brandColor: true, slug: true, status: true } },
         tracks: { select: { id: true, name: true, color: true } },
         sessions: {
@@ -385,6 +393,7 @@ export class EventsService {
         platformFeeBps: currentFee.bps,
         platformFeeFlatMinor: currentFee.flatMinor,
         platformFeeFlatCurrency: currentFee.flatCurrency,
+        platformFeePassOn: dto.platformFeePassOn ?? undefined,
         status: 'draft',
       },
     });
@@ -468,6 +477,8 @@ export class EventsService {
         registrationFields: this.validateRegistrationFields(dto.registrationFields),
         registrationIntroHidden:
           dto.registrationIntroHidden === undefined ? undefined : dto.registrationIntroHidden,
+        platformFeePassOn:
+          dto.platformFeePassOn === undefined ? undefined : dto.platformFeePassOn,
       },
     });
     return this.serializeEvent(event);

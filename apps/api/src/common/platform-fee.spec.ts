@@ -8,6 +8,7 @@ import {
   flatFeeMinorForCurrency,
   platformFeeAt,
   platformFeeBpsAt,
+  refundBreakdownMinor,
   type PlatformFee,
 } from './platform-fee';
 
@@ -97,5 +98,28 @@ describe('computePlatformFeeMinor', () => {
   it('flatFeeMinorForCurrency is null for an unconfigured currency and set for USD', () => {
     expect(flatFeeMinorForCurrency('NGN', 3)).toBeNull();
     expect(flatFeeMinorForCurrency('USD', 3)).toBe(99 * 3);
+  });
+});
+
+describe('refundBreakdownMinor', () => {
+  it('refunds the full order total to the buyer', () => {
+    // Absorb: total is the ticket price; buyer gets it all back.
+    expect(refundBreakdownMinor({ totalMinor: 5000n, feesMinor: 150n }).buyerRefundMinor).toBe(
+      5000n,
+    );
+    // Pass-on: total already includes the fee; buyer gets that full amount back.
+    expect(refundBreakdownMinor({ totalMinor: 5249n, feesMinor: 249n }).buyerRefundMinor).toBe(
+      5249n,
+    );
+  });
+
+  it('returns the whole platform fee under the refund policy', () => {
+    expect(refundBreakdownMinor({ totalMinor: 5249n, feesMinor: 249n }).platformFeeReturnedMinor).toBe(
+      249n,
+    );
+    // No fee on the order means nothing to return.
+    expect(refundBreakdownMinor({ totalMinor: 5000n, feesMinor: 0n }).platformFeeReturnedMinor).toBe(
+      0n,
+    );
   });
 });
