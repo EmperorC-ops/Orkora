@@ -44,6 +44,7 @@ model Organization {
   walletEntries       WalletEntry[]
   apiKeys             ApiKey[]
   paymentPreferences  PaymentProviderPreference[]
+  connectedAccounts   PaymentConnectedAccount[]
   campaigns           Campaign[]
   campaignAudiences   CampaignAudience[]
   campaignSends       CampaignSend[]
@@ -713,6 +714,29 @@ model ApiKey {
 
   @@index([organizationId, createdAt(sort: Desc)])
   @@map("api_keys")
+}
+
+// An organization's connected payout account with a payment provider. Stores
+// the provider account reference and its readiness. Used, when the connected-
+// accounts gate is enabled, to require a payout destination before a paid
+// checkout can run and to attach the platform-fee split. See migration 0022.
+model PaymentConnectedAccount {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  provider       String
+  accountRef     String   @map("account_ref")
+  status         String   @default("pending")
+  chargesEnabled Boolean  @default(false) @map("charges_enabled")
+  payoutsEnabled Boolean  @default(false) @map("payouts_enabled")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+  @@map("payment_connected_accounts")
 }
 
 model PaymentProviderPreference {

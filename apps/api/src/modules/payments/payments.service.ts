@@ -8,6 +8,7 @@ import { TicketSigner } from '../registrations/ticket-signer';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
 import { PaymentPreferencesService } from './preferences.service';
+import { ConnectedAccountsService } from './connected-accounts.service';
 import * as Sentry from '@sentry/node';
 import { formatMoney } from './money';
 import type { PaymentMethodName, SettledAmount } from './providers/types';
@@ -24,6 +25,7 @@ export class PaymentsService {
     private readonly signer: TicketSigner,
     private readonly audit: AuditService,
     private readonly preferences: PaymentPreferencesService,
+    private readonly connectedAccounts: ConnectedAccountsService,
   ) {}
 
   /**
@@ -274,6 +276,14 @@ export class PaymentsService {
     if (!providerName) {
       throw new BadRequestException('No payment provider is configured for this currency');
     }
+    // When the connected-accounts gate is enabled, the org must have a ready
+    // payout account for the resolved provider before it can take money in this
+    // currency. No-op while the gate is off, so today's paid flows are
+    // unaffected.
+    await this.connectedAccounts.assertReadyForProvider(
+      order.event.organizationId,
+      providerName,
+    );
     const provider = this.registry.resolve(providerName);
 
     const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';

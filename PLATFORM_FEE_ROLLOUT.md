@@ -115,10 +115,20 @@ until the effective date.
    small platform-level config holds the planned fee and its effective date.
    Because the fee is captured per event at creation, grandfathering is automatic
    and permanent. (Built.)
-2. Connected accounts. Org-level connection flow per provider, storing the
-   account / subaccount ids per (org, currency), plus the onboarding and KYC
-   handoff each provider requires. Block a paid event from selling in a currency
-   until that org has a connected account for it.
+2. Connected accounts. Org-level connection per provider, storing the account /
+   subaccount id and its readiness, plus a gate that blocks a paid checkout in a
+   currency until the org has a ready account for the resolved provider.
+   - Backbone (built): the `payment_connected_accounts` table, a service and
+     organizer endpoints under `organizations/:orgId/payments/accounts` to view
+     status, record an account, and disconnect, and the checkout gate. The gate
+     is behind `PAYMENTS_CONNECTED_ACCOUNTS`, off by default, so today's paid
+     flows are unchanged. A manual / admin record path exists so an operator can
+     store a provider account id before the programmatic flow lands.
+   - Live provider onboarding (pending, needs keys and testing): create a Stripe
+     Connect account and account link, create Paystack and Flutterwave
+     subaccounts, and consume each provider's account.updated webhook to keep the
+     stored readiness flags accurate. This is where the real provider API calls
+     live and cannot be exercised without live credentials.
 3. Split at checkout. Change each provider's checkout creation to attach the
    application fee / subaccount split, computed from the event's stamped fee
    (percentage on the sale plus the flat amount times the paid-ticket count,

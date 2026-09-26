@@ -831,3 +831,22 @@ alter table registrations add column if not exists is_vip boolean not null defau
 alter table events add column if not exists platform_fee_bps integer not null default 0;
 alter table events add column if not exists platform_fee_flat_minor integer not null default 0;
 alter table events add column if not exists platform_fee_flat_currency char(3);
+
+-- ============================================================
+-- PAYMENT CONNECTED ACCOUNTS (migration 0022, folded in for fresh installs)
+-- ============================================================
+create table if not exists payment_connected_accounts (
+  id               uuid primary key default uuidv7(),
+  organization_id  uuid not null references organizations(id) on delete cascade,
+  provider         text not null,
+  account_ref      text not null,
+  status           text not null default 'pending',
+  charges_enabled  boolean not null default false,
+  payouts_enabled  boolean not null default false,
+  metadata         jsonb not null default '{}'::jsonb,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  unique (organization_id, provider)
+);
+create index if not exists payment_connected_accounts_org_idx
+  on payment_connected_accounts (organization_id);
