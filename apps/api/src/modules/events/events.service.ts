@@ -1004,6 +1004,18 @@ export class EventsService {
       );
     }
 
+    // A capped quantity cannot be set below what has already been sold, or the
+    // remaining-seats maths and the countdown would go negative.
+    if (
+      dto.quantityTotal !== undefined &&
+      dto.quantityTotal !== null &&
+      dto.quantityTotal < existing.quantitySold
+    ) {
+      throw new BadRequestException(
+        `Quantity cannot be lower than the ${existing.quantitySold} already sold`,
+      );
+    }
+
     const tier = await this.prisma.ticketTier.update({
       where: { id: tierId },
       data: {

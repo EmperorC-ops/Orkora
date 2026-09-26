@@ -64,6 +64,7 @@ export default function EventDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [showTierForm, setShowTierForm] = useState(false);
+  const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [showSpeakerForm, setShowSpeakerForm] = useState(false);
   // The speaker currently being edited (null = the form, when open, creates a
   // new speaker). Set by a card's Edit button; cleared on save/cancel.
@@ -390,10 +391,27 @@ export default function EventDetailPage() {
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {event.tiers.map((tier) => (
+            {event.tiers.map((tier) =>
+              editingTierId === tier.id && orgId ? (
+                <li key={tier.id} className="py-3">
+                  <EditTierForm
+                    orgId={orgId}
+                    eventId={id}
+                    tier={tier}
+                    onSaved={async () => {
+                      setEditingTierId(null);
+                      await refresh();
+                      toast.success('Tier updated');
+                    }}
+                    onCancel={() => setEditingTierId(null)}
+                    onError={(m) => toast.error('Could not update tier', m)}
+                  />
+                </li>
+              ) : (
               <TierRow
                 key={tier.id}
                 tier={tier}
+                onEdit={() => setEditingTierId(tier.id)}
                 onDelete={async () => {
                   if (!orgId) return;
                   if (!confirm(`Delete tier "${tier.name}"?`)) return;
@@ -424,7 +442,8 @@ export default function EventDetailPage() {
                   }
                 }}
               />
-            ))}
+              ),
+            )}
           </ul>
         )}
       </section>
@@ -826,7 +845,15 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function TierRow({ tier, onDelete }: { tier: EventTier; onDelete: () => void }) {
+function TierRow({
+  tier,
+  onEdit,
+  onDelete,
+}: {
+  tier: EventTier;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const sold = tier.quantitySold;
   const total = tier.quantityTotal ?? null;
   return (
@@ -846,6 +873,13 @@ function TierRow({ tier, onDelete }: { tier: EventTier; onDelete: () => void }) 
           {formatPrice(tier.priceMinor, tier.currency)}
         </span>
         <button
+          onClick={onEdit}
+          className="rounded-full p-1.5 text-slate-400 hover:bg-brand-50 hover:text-brand-700"
+          aria-label={`Edit tier ${tier.name}`}
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+        <button
           onClick={onDelete}
           className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
           aria-label={`Delete tier ${tier.name}`}
@@ -854,6 +888,116 @@ function TierRow({ tier, onDelete }: { tier: EventTier; onDelete: () => void }) 
         </button>
       </div>
     </li>
+  );
+}
+
+// Inline editor for an existing tier's core commercial fields: name, price,
+// currency, and quantity. The API accepts the rest (group settings, sale
+// window) but this keeps the common edit path simple. Leaving quantity blank
+// leaves it unchanged; the server refuses a quantity below what has sold.
+function EditTierForm({
+  orgId,
+  eventId,
+  tier,
+  onSaved,
+  onCancel,
+  onError,
+}: {
+  orgId: string;
+  eventId: string;
+  tier: EventTier;
+  onSaved: () => Promise<void> | void;
+  onCancel: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName] = useState(tier.name);
+  const [price, setPrice] = useState((tier.priceMinor / 100).toString());
+  const [currency, setCurrency] = useState(tier.currency);
+  const [quantity, setQuantity] = useState(
+    tier.quantityTotal != null ? String(tier.quantityTotal) : '',
+  );
+
+  async function save() {
+    const trimmedName = name.trim();
+    if (!trimmedName) throw new Error('Tier name is required.');
+    const priceNum = Number(price);
+    if (!Number.isFinite(priceNum) || priceNum < 0) throw new Error('Enter a valid price.');
+    const qtyTrimmed = quantity.trim();
+    let quantityTotal: number | undefined;
+    if (qtyTrimmed !== '') {
+      const q = Number(qtyTrimmed);
+      if (!Number.isInteger(q) || q < 1) throw new Error('Quantity must be a whole number, at least 1.');
+      if (q < tier.quantitySold) {
+        throw new Error(`Quantity cannot be lower than the ${tier.quantitySold} already sold.`);
+      }
+      quantityTotal = q;
+    }
+    await eventsApi(orgId).updateTier(eventId, tier.id, {
+      name: trimmedName,
+      priceMinor: Math.round(priceNum * 100),
+      currency,
+      ...(quantityTotal !== undefined ? { quantityTotal } : {}),
+    });
+    await onSaved();
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-6">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Tier name"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 sm:col-span-2"
+      />
+      <input
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
+        type="number"
+        step="0.01"
+        min="0"
+        placeholder="Price"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+      />
+      <select
+        value={currency}
+        onChange={(e) => setCurrency(e.target.value)}
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+      >
+        <option>NGN</option>
+        <option>USD</option>
+        <option>KES</option>
+        <option>GHS</option>
+        <option>ZAR</option>
+      </select>
+      <input
+        value={quantity}
+        onChange={(e) => setQuantity(e.target.value)}
+        type="number"
+        min="1"
+        placeholder="Qty (blank = no change)"
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+      />
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-700"
+        >
+          Cancel
+        </button>
+        <ActionButton
+          onAction={save}
+          idleLabel="Save"
+          pendingLabel="Saving…"
+          successLabel="Saved"
+          variant="primary"
+          onError={onError}
+        />
+      </div>
+      <p className="text-xs text-slate-400 sm:col-span-6">
+        Currency shown to new buyers is {currency}. {tier.quantitySold} already sold on this tier.
+      </p>
+    </div>
   );
 }
 
