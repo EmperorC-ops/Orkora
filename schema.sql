@@ -92,7 +92,8 @@ create table login_failures (
 -- verify-on-action + webhook + reconcile race produces exactly one email.
 create table notification_log (
   id        uuid primary key default uuidv7(),
-  order_id  uuid not null references orders(id) on delete cascade,
+  -- FK to orders is attached below, after the orders table is created.
+  order_id  uuid not null,
   kind      text not null,
   sent_at   timestamptz not null default now(),
   unique (order_id, kind)
@@ -251,7 +252,8 @@ create table tickets (
   -- creates tickets (registrations.service.register). NULL is tolerated for
   -- legacy rows; the payments service falls back to registration_id scoping
   -- when this is NULL. See migration 0004 and SECURITY_REVIEW addendum 13.
-  order_id         uuid references orders(id) on delete set null,
+  -- FK to orders is attached below, after the orders table is created.
+  order_id         uuid,
   code             text unique not null,
   holder_name      text not null,
   holder_email     citext not null,
@@ -329,6 +331,23 @@ create table order_items (
   quantity         int not null,
   unit_price_minor bigint not null
 );
+
+-- Foreign keys from notification_log and tickets to orders. Those two tables are
+-- defined earlier in this file (before orders) for readability, so their orders
+-- foreign keys are attached here, once orders exists. Guarded so a re-run cannot
+-- error.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'notification_log_order_id_fkey') then
+    alter table notification_log
+      add constraint notification_log_order_id_fkey
+      foreign key (order_id) references orders(id) on delete cascade;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'tickets_order_id_fkey') then
+    alter table tickets
+      add constraint tickets_order_id_fkey
+      foreign key (order_id) references orders(id) on delete set null;
+  end if;
+end $$;
 
 create table payments (
   id               uuid primary key default uuidv7(),
