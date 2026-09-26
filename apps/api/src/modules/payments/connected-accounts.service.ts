@@ -146,6 +146,19 @@ export class ConnectedAccountsService {
   }
 
   /**
+   * The provider account reference (Paystack subaccount code, etc.) for an org,
+   * but only when the account is ready. Null otherwise. Used at checkout to
+   * attach the split.
+   */
+  async getReadyAccountRef(orgId: string, provider: string): Promise<string | null> {
+    const row = await this.prisma.paymentConnectedAccount.findUnique({
+      where: { organizationId_provider: { organizationId: orgId, provider } },
+    });
+    if (!row || !accountIsReady(row)) return null;
+    return row.accountRef;
+  }
+
+  /**
    * Guard used at checkout for a resolved provider. No-op while the gate is
    * disabled, so today's paid flows are unaffected. When enabled, a missing or
    * not-ready account blocks the checkout with a clear message.

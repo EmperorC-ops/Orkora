@@ -83,3 +83,64 @@ export function platformFeeAt(now: Date = new Date()): PlatformFee {
 export function platformFeeBpsAt(now: Date = new Date()): number {
   return platformFeeAt(now).bps;
 }
+
+/**
+ * Flat per-ticket fee expressed in each settlement currency's minor units. The
+ * base fee is 0.99 USD. Any other currency must be listed here before the flat
+ * fee applies to it, so we never invent an exchange rate. Operators fill this in
+ * per currency when the fee is scheduled (for example an NGN kobo amount for
+ * Paystack settlements). Until then only USD orders carry the flat fee.
+ */
+export const PLATFORM_FEE_FLAT_BY_CURRENCY: Record<string, number> = {
+  USD: PLANNED_PLATFORM_FEE_FLAT_MINOR,
+};
+
+/**
+ * The flat fee (minor units) for `ticketCount` paid tickets in a currency, or
+ * null when that currency has no configured flat amount (so the caller can skip
+ * it rather than guess a conversion).
+ */
+export function flatFeeMinorForCurrency(currency: string, ticketCount: number): number | null {
+  const per = PLATFORM_FEE_FLAT_BY_CURRENCY[currency.toUpperCase()];
+  if (per === undefined) return null;
+  return per * Math.max(0, ticketCount);
+}
+
+/**
+ * Compute the platform fee for an order in the order's own currency (minor
+ * units): the percentage of the subtotal plus the flat amount per paid ticket.
+ *
+ * The percentage always applies. The flat amount applies directly when the order
+ * currency matches the fee's flat currency, and otherwise from
+ * PLATFORM_FEE_FLAT_BY_CURRENCY; if that currency has no configured flat amount,
+ * the flat part is skipped and `flatApplied` is false so the caller can log it.
+ */
+export function computePlatformFeeMinor(input: {
+  subtotalMinor: number;
+  orderCurrency: string;
+  ticketCount: number;
+  bps: number;
+  flatMinor: number;
+  flatCurrency: string | null;
+}): { feeMinor: number; flatApplied: boolean } {
+  const pct = Math.floor((Math.max(0, input.subtotalMinor) * Math.max(0, input.bps)) / 10_000);
+  let flat = 0;
+  let flatApplied = true;
+  if (input.flatMinor > 0) {
+    const sameCurrency =
+      input.flatCurrency &&
+      input.orderCurrency.toUpperCase() === input.flatCurrency.toUpperCase();
+    if (sameCurrency) {
+      flat = input.flatMinor * Math.max(0, input.ticketCount);
+    } else {
+      const configured = flatFeeMinorForCurrency(input.orderCurrency, input.ticketCount);
+      if (configured === null) {
+        flat = 0;
+        flatApplied = false;
+      } else {
+        flat = configured;
+      }
+    }
+  }
+  return { feeMinor: pct + flat, flatApplied };
+}

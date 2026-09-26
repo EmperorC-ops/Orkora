@@ -9,6 +9,8 @@ import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
 import { PaymentPreferencesService } from './preferences.service';
 import { ConnectedAccountsService } from './connected-accounts.service';
+import { connectedAccountsEnabled } from './connected-accounts.config';
+import { computePlatformFeeMinor } from '../../common/platform-fee';
 import * as Sentry from '@sentry/node';
 import { formatMoney } from './money';
 import type { PaymentMethodName, SettledAmount } from './providers/types';
@@ -257,6 +259,7 @@ export class PaymentsService {
         user: true,
         event: true,
         registration: true,
+        items: true,
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -286,6 +289,49 @@ export class PaymentsService {
     );
     const provider = this.registry.resolve(providerName);
 
+    // Split settlement: when the connected-accounts gate is on and the org has a
+    // ready account for the resolved provider, route the payment to that account
+    // and keep the platform fee. Today (gate off) this branch is skipped and the
+    // charge behaves exactly as before, settling centrally with no fee.
+    //
+    // The platform fee is computed from the fee stamped on the event at creation
+    // (grandfathered), applied to this order's subtotal and paid-ticket count.
+    // The buyer's total is unchanged; the fee is taken out of the organizer's
+    // proceeds as a split. Currently only Paystack supports the split.
+    let splitAccountRef: string | undefined;
+    let platformFeeMinor: bigint | undefined;
+    if (connectedAccountsEnabled() && providerName === 'paystack') {
+      const accountRef = await this.connectedAccounts.getReadyAccountRef(
+        order.event.organizationId,
+        providerName,
+      );
+      if (accountRef) {
+        const ticketCount = order.items.reduce((sum, i) => sum + i.quantity, 0);
+        const { feeMinor, flatApplied } = computePlatformFeeMinor({
+          subtotalMinor: Number(order.subtotalMinor),
+          orderCurrency: order.currency,
+          ticketCount,
+          bps: order.event.platformFeeBps,
+          flatMinor: order.event.platformFeeFlatMinor,
+          flatCurrency: order.event.platformFeeFlatCurrency,
+        });
+        if (!flatApplied) {
+          this.logger.warn(
+            `Platform flat fee skipped for ${order.currency} on order ${order.id}: no configured flat amount for that currency`,
+          );
+        }
+        // The split charge cannot exceed the amount being charged.
+        const capped = Math.min(feeMinor, Number(order.totalMinor));
+        const fee = BigInt(Math.max(0, capped));
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: { feesMinor: fee },
+        });
+        splitAccountRef = accountRef;
+        platformFeeMinor = fee;
+      }
+    }
+
     const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
     const successUrl = `${appUrl}/r/${order.id}/confirm?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${appUrl}/r/${order.id}/cancelled`;
@@ -298,6 +344,8 @@ export class PaymentsService {
       description: `${order.event.title} - registration`,
       successUrl,
       cancelUrl,
+      subaccountCode: splitAccountRef,
+      platformFeeMinor,
     });
 
     await this.prisma.order.update({

@@ -3,7 +3,9 @@ import {
   PLANNED_PLATFORM_FEE_FLAT_MINOR,
   PLANNED_PLATFORM_FEE_FLAT_CURRENCY,
   PLATFORM_FEE_EFFECTIVE_AT,
+  computePlatformFeeMinor,
   feeForSchedule,
+  flatFeeMinorForCurrency,
   platformFeeAt,
   platformFeeBpsAt,
   type PlatformFee,
@@ -47,5 +49,53 @@ describe('platform fee schedule', () => {
     expect(PLATFORM_FEE_EFFECTIVE_AT).toBeNull();
     expect(platformFeeAt(new Date())).toEqual({ bps: 0, flatMinor: 0, flatCurrency: null });
     expect(platformFeeBpsAt(new Date())).toBe(0);
+  });
+});
+
+describe('computePlatformFeeMinor', () => {
+  it('is zero when the stamped fee is zero (every event today)', () => {
+    const r = computePlatformFeeMinor({
+      subtotalMinor: 500000,
+      orderCurrency: 'NGN',
+      ticketCount: 5,
+      bps: 0,
+      flatMinor: 0,
+      flatCurrency: null,
+    });
+    expect(r.feeMinor).toBe(0);
+  });
+
+  it('applies 3% plus the flat fee per ticket when order and flat currency match', () => {
+    // 10.00 USD subtotal, 2 tickets: 3% = 30 minor, flat 99 * 2 = 198 minor.
+    const r = computePlatformFeeMinor({
+      subtotalMinor: 1000,
+      orderCurrency: 'USD',
+      ticketCount: 2,
+      bps: 300,
+      flatMinor: 99,
+      flatCurrency: 'USD',
+    });
+    expect(r.feeMinor).toBe(30 + 198);
+    expect(r.flatApplied).toBe(true);
+  });
+
+  it('applies the percentage but skips the flat fee for a currency with no configured flat amount', () => {
+    // NGN has no configured flat amount by default, so only the 3% applies and
+    // flatApplied is false so the caller can log it.
+    const r = computePlatformFeeMinor({
+      subtotalMinor: 1000000,
+      orderCurrency: 'NGN',
+      ticketCount: 3,
+      bps: 300,
+      flatMinor: 99,
+      flatCurrency: 'USD',
+    });
+    expect(r.feeMinor).toBe(30000);
+    expect(r.flatApplied).toBe(false);
+  });
+
+  it('flatFeeMinorForCurrency is null for an unconfigured currency and set for USD', () => {
+    expect(flatFeeMinorForCurrency('NGN', 3)).toBeNull();
+    expect(flatFeeMinorForCurrency('USD', 3)).toBe(99 * 3);
   });
 });

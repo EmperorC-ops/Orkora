@@ -138,6 +138,18 @@ until the effective date.
    (percentage on the sale plus the flat amount times the paid-ticket count,
    applying the stored flat-fee currency policy). Record the real fee on the
    order (`feesMinor`) instead of 0.
+   - Paystack (built): when the gate is on and the org has a ready subaccount, a
+     paid Paystack checkout routes to that subaccount and passes the platform fee
+     as `transaction_charge`, with the organizer bearing Paystack's processing
+     fee. The buyer's total is unchanged; the fee comes out of the organizer's
+     proceeds. The fee is computed and stored on the order at checkout, only when
+     the split is applied, so with the gate off nothing is recorded or taken.
+     Flat-fee currency: the flat 0.99 USD applies directly to USD orders; other
+     settlement currencies (NGN and the rest Paystack settles) need a per-currency
+     flat amount in `PLATFORM_FEE_FLAT_BY_CURRENCY` before the flat part applies,
+     so no exchange rate is ever invented. The percentage always applies.
+   - Stripe and Flutterwave splits (pending): mirror this with a Connect
+     application fee and a Flutterwave subaccount split.
 4. Refunds with fee handling. Decide and implement whether the platform fee is
    returned on a refund (define this in the Refund Policy first), and make each
    provider's refund path do the right thing.

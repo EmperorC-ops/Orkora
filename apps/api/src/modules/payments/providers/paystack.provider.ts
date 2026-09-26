@@ -47,6 +47,23 @@ export class PaystackProvider implements PaymentProvider {
   async createCheckoutSession(input: CreateCheckoutInput): Promise<CheckoutSession> {
     if (!this.secretKey) throw new Error('Paystack provider is not configured');
 
+    // Split settlement: when a subaccount is supplied, route this transaction to
+    // the organizer's subaccount and keep the platform fee on the main account.
+    //   subaccount: the organizer's subaccount code.
+    //   transaction_charge: a flat amount (smallest unit) that goes to the main
+    //     (platform) account. We pass the computed platform fee here. It
+    //     overrides the subaccount's default percentage, which we created at 0.
+    //   bearer 'subaccount': the organizer bears Paystack's own processing fee,
+    //     consistent with "provider processing fees still apply" in the terms.
+    const split: Record<string, unknown> = {};
+    if (input.subaccountCode) {
+      split.subaccount = input.subaccountCode;
+      split.bearer = 'subaccount';
+      if (input.platformFeeMinor && input.platformFeeMinor > 0n) {
+        split.transaction_charge = toSmallestUnit(input.platformFeeMinor, input.currency);
+      }
+    }
+
     const res = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -63,6 +80,7 @@ export class PaystackProvider implements PaymentProvider {
         // The reference is what Paystack uses to identify the transaction. We
         // mirror our orderId for easy correlation.
         reference: input.orderId,
+        ...split,
       }),
     });
 

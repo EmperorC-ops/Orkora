@@ -18,6 +18,15 @@ export interface CreateCheckoutInput {
   successUrl: string;
   /** Where the provider redirects on cancel. */
   cancelUrl: string;
+  /**
+   * Split settlement (optional). When present, the provider routes the payment
+   * to the organizer's connected account and keeps `platformFeeMinor` for the
+   * platform. Only set when the connected-accounts gate is on and the org has a
+   * ready account for this provider. Providers that do not support splits, or
+   * are not the resolved provider, ignore these.
+   */
+  subaccountCode?: string;
+  platformFeeMinor?: bigint;
 }
 
 export interface CheckoutSession {
