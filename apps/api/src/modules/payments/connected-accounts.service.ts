@@ -46,6 +46,9 @@ export class ConnectedAccountsService {
         accountRef: row?.accountRef ?? null,
         chargesEnabled: row?.chargesEnabled ?? false,
         payoutsEnabled: row?.payoutsEnabled ?? false,
+        // Display-only details (bank, masked account, holder name). Never the
+        // full account number.
+        metadata: (row?.metadata ?? {}) as Record<string, unknown>,
         updatedAt: row?.updatedAt.toISOString() ?? null,
       };
     });

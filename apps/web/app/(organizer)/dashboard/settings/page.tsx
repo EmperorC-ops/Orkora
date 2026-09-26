@@ -76,6 +76,31 @@ interface PaymentPrefs {
   preferences: Array<{ currency: string; provider: string; updatedAt: string }>;
 }
 
+interface ConnectedAccount {
+  provider: string;
+  connected: boolean;
+  ready: boolean;
+  status: string;
+  accountRef: string | null;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  metadata: Record<string, unknown>;
+  updatedAt: string | null;
+}
+
+interface ConnectedAccountsStatus {
+  gateEnabled: boolean;
+  providers: ConnectedAccount[];
+}
+
+interface Bank {
+  name: string;
+  code: string;
+}
+
+// Paystack lists banks per currency; these are the currencies it settles in.
+const PAYSTACK_CURRENCIES = ['NGN', 'GHS', 'KES', 'ZAR'];
+
 const TABS: Array<{ key: TabKey; label: string; Icon: typeof Building2 }> = [
   { key: 'profile', label: 'Organization', Icon: Building2 },
   { key: 'branding', label: 'Branding', Icon: Palette },
@@ -893,6 +918,8 @@ function PaymentsTab({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-6">
+      <PayoutAccountsSection orgId={orgId} />
+
       <Section
         title="Provider preferences"
         subtitle="Override the default per-currency routing. Leaves the default in place when no row exists."
@@ -979,6 +1006,271 @@ function PaymentsTab({ orgId }: { orgId: string }) {
           </div>
         )}
       </Section>
+    </div>
+  );
+}
+
+/* ---------------- Payout accounts (connected accounts) ---------------- */
+
+function PayoutAccountsSection({ orgId }: { orgId: string }) {
+  const toast = useToast();
+  const [status, setStatus] = useState<ConnectedAccountsStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      setStatus(
+        await apiFetch<ConnectedAccountsStatus>(`/v1/organizations/${orgId}/payments/accounts`),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
+
+  async function disconnect(provider: string) {
+    if (!confirm(`Disconnect the ${provider} payout account?`)) return;
+    try {
+      await apiFetch(`/v1/organizations/${orgId}/payments/accounts/${provider}`, {
+        method: 'DELETE',
+      });
+      toast.success('Disconnected');
+      refresh();
+    } catch (err) {
+      toast.error('Could not disconnect', err instanceof Error ? err.message : 'Unknown error');
+    }
+  }
+
+  if (error) return <ErrorPanel text={error} />;
+  if (!status) return <SkeletonCard />;
+
+  const paystack = status.providers.find((p) => p.provider === 'paystack');
+  const paystackEnabled = !!paystack;
+
+  return (
+    <Section
+      title="Payout accounts"
+      subtitle="Connect the account each provider settles ticket sales to. Required before selling paid tickets once the platform fee is live."
+    >
+      {!status.gateEnabled && (
+        <p className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-xs text-amber-200">
+          Connecting a payout account is optional right now. It becomes required for paid tickets when
+          the platform fee goes live. Connecting early does nothing to your current payouts.
+        </p>
+      )}
+
+      {!paystackEnabled ? (
+        <Empty text="Paystack is not enabled on this server yet." />
+      ) : paystack.connected ? (
+        <div className="rounded-2xl border border-surface-border bg-surface-deep/40 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-ink-primary">Paystack</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                    paystack.ready
+                      ? 'bg-[#00C896]/15 text-[#00C896]'
+                      : 'bg-amber-400/15 text-amber-300'
+                  }`}
+                >
+                  {paystack.ready ? 'Connected' : paystack.status}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-ink-secondary">
+                {describePaystackAccount(paystack.metadata)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => disconnect('paystack')}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[#FF9090] hover:bg-[#FF7675]/10"
+            >
+              <Trash2 className="h-3 w-3" /> Disconnect
+            </button>
+          </div>
+        </div>
+      ) : (
+        <PaystackConnectForm orgId={orgId} onConnected={refresh} />
+      )}
+    </Section>
+  );
+}
+
+function describePaystackAccount(meta: Record<string, unknown>): string {
+  const name = typeof meta.accountName === 'string' ? meta.accountName : null;
+  const last4 = typeof meta.accountLast4 === 'string' ? meta.accountLast4 : null;
+  if (name && last4) return `Settling to ${name} (account ending ${last4}).`;
+  if (name) return `Settling to ${name}.`;
+  return 'Payout account connected.';
+}
+
+function PaystackConnectForm({
+  orgId,
+  onConnected,
+}: {
+  orgId: string;
+  onConnected: () => void;
+}) {
+  const toast = useToast();
+  const [currency, setCurrency] = useState('NGN');
+  const [banks, setBanks] = useState<Bank[] | null>(null);
+  const [bankCode, setBankCode] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [resolvedName, setResolvedName] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBanks(null);
+    setBankCode('');
+    apiFetch<{ banks: Bank[] }>(
+      `/v1/organizations/${orgId}/payments/accounts/paystack/banks?currency=${currency}`,
+    )
+      .then((r) => {
+        if (!cancelled) setBanks(r.banks);
+      })
+      .catch(() => {
+        if (!cancelled) setBanks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, currency]);
+
+  // A changed bank or account number invalidates a prior confirmation.
+  useEffect(() => {
+    setResolvedName(null);
+  }, [bankCode, accountNumber]);
+
+  const canResolve = bankCode !== '' && /^[0-9]{6,20}$/.test(accountNumber);
+
+  async function resolve() {
+    setResolving(true);
+    try {
+      const r = await apiFetch<{ accountName: string }>(
+        `/v1/organizations/${orgId}/payments/accounts/paystack/resolve`,
+        { method: 'POST', json: { accountNumber, bankCode } },
+      );
+      setResolvedName(r.accountName);
+    } catch (err) {
+      setResolvedName(null);
+      toast.error('Could not verify account', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setResolving(false);
+    }
+  }
+
+  async function connect() {
+    setConnecting(true);
+    try {
+      await apiFetch(`/v1/organizations/${orgId}/payments/accounts/paystack/connect`, {
+        method: 'POST',
+        json: {
+          bankCode,
+          accountNumber,
+          ...(businessName.trim() ? { businessName: businessName.trim() } : {}),
+        },
+      });
+      toast.success('Paystack connected', 'Your payout account is set up.');
+      onConnected();
+    } catch (err) {
+      toast.error('Could not connect', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Settlement currency">
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            className="w-28 rounded-lg border border-surface-border bg-surface/40 px-3 py-2 font-mono text-sm text-ink-primary outline-none focus:border-brand-500/60"
+          >
+            {PAYSTACK_CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Bank" className="min-w-[220px] flex-1">
+          <select
+            value={bankCode}
+            onChange={(e) => setBankCode(e.target.value)}
+            disabled={!banks || banks.length === 0}
+            className="w-full rounded-lg border border-surface-border bg-surface/40 px-3 py-2 text-sm text-ink-primary outline-none focus:border-brand-500/60 disabled:opacity-60"
+          >
+            <option value="">{banks === null ? 'Loading banks...' : 'Select a bank'}</option>
+            {(banks ?? []).map((b) => (
+              <option key={b.code} value={b.code}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Account number" className="min-w-[200px]">
+          <input
+            value={accountNumber}
+            onChange={(e) => setAccountNumber(e.target.value.replace(/[^0-9]/g, ''))}
+            inputMode="numeric"
+            maxLength={20}
+            placeholder="0123456789"
+            className="w-full rounded-lg border border-surface-border bg-surface/40 px-3 py-2 font-mono text-sm text-ink-primary outline-none focus:border-brand-500/60"
+          />
+        </Field>
+        <button
+          type="button"
+          onClick={resolve}
+          disabled={!canResolve || resolving}
+          className="rounded-full border border-surface-border px-4 py-2 text-sm font-semibold text-ink-secondary transition hover:text-ink-primary disabled:opacity-50"
+        >
+          {resolving ? 'Checking...' : 'Verify account'}
+        </button>
+      </div>
+
+      {resolvedName && (
+        <div className="rounded-xl border border-[#00C896]/30 bg-[#00C896]/10 px-4 py-3 text-sm text-[#00C896]">
+          Account holder: <span className="font-semibold">{resolvedName}</span>
+        </div>
+      )}
+
+      <Field label="Business name (optional)" hint="Defaults to the account holder name.">
+        <input
+          value={businessName}
+          onChange={(e) => setBusinessName(e.target.value)}
+          maxLength={100}
+          placeholder="Shown on your Paystack subaccount"
+          className="w-full max-w-md rounded-lg border border-surface-border bg-surface/40 px-3 py-2 text-sm text-ink-primary outline-none focus:border-brand-500/60"
+        />
+      </Field>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={connect}
+          disabled={!resolvedName || connecting}
+          className="rounded-full bg-brand-gradient px-5 py-2 text-sm font-semibold text-white shadow-glow disabled:opacity-60"
+        >
+          {connecting ? 'Connecting...' : 'Connect Paystack'}
+        </button>
+      </div>
+      <p className="text-[11px] text-ink-muted">
+        Verify the account first so payouts go to the right place. Connecting creates a Paystack
+        subaccount with no fee of its own.
+      </p>
     </div>
   );
 }
