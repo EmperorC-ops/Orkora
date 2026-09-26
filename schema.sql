@@ -821,3 +821,10 @@ alter table events add column if not exists registration_intro_hidden boolean no
 alter table events add column if not exists vip_token text;
 create unique index if not exists events_vip_token_key on events (vip_token);
 alter table registrations add column if not exists is_vip boolean not null default false;
+
+-- ============================================================
+-- PLATFORM FEE (migration 0020, folded in for fresh installs)
+-- ============================================================
+-- Fee rate (basis points) captured per event at creation, for grandfathering.
+-- Default 0: nothing is charged until the platform fee is scheduled and live.
+alter table events add column if not exists platform_fee_bps integer not null default 0;

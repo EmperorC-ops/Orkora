@@ -20,8 +20,12 @@
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { PLANNED_PLATFORM_FEE_BPS } from '../../common/platform-fee';
 
-const PLATFORM_FEE_BPS = 300; // 3.00% in basis points - notional, not charged yet
+// Single source of truth for the planned rate lives in common/platform-fee.ts.
+// This is the notional figure shown to organizers; it is not charged until the
+// fee is scheduled and events are stamped with a non-zero rate at creation.
+const PLATFORM_FEE_BPS = PLANNED_PLATFORM_FEE_BPS; // 3.00% in basis points - notional, not charged yet
 
 @Injectable()
 export class BillingService {

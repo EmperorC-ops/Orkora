@@ -221,6 +221,10 @@ model Event {
   registrationFields Json    @default("[]") @map("registration_fields")
   registrationIntroHidden Boolean @default(false) @map("registration_intro_hidden")
   vipToken        String?  @unique @map("vip_token")
+  // Platform fee rate (basis points) in effect when this event was created.
+  // Captured once so the fee is grandfathered per the Terms of Service. 0 means
+  // no platform fee, which is the case for every event today.
+  platformFeeBps  Int      @default(0) @map("platform_fee_bps")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

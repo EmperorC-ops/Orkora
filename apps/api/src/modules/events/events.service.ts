@@ -30,6 +30,7 @@ import {
   hasVisibleTicketsBlock,
 } from './story.schema';
 import { RegistrationFormSchema } from '../../common/registration-fields';
+import { platformFeeBpsAt } from '../../common/platform-fee';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // omit confusing chars
 
@@ -377,6 +378,9 @@ export class EventsService {
         city: dto.city ?? null,
         registrationFields: this.validateRegistrationFields(dto.registrationFields),
         registrationIntroHidden: dto.registrationIntroHidden ?? undefined,
+        // Stamp the platform fee rate in effect right now. It is 0 until the fee
+        // is scheduled; capturing it here grandfathers the event for its life.
+        platformFeeBps: platformFeeBpsAt(),
         status: 'draft',
       },
     });
