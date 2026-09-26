@@ -1032,10 +1032,33 @@ export class EventsService {
     if (!tier) throw new NotFoundException('Ticket tier not found');
 
     if (!force) {
-      if (tier.quantitySold > 0) {
-        throw new BadRequestException('Cannot delete a tier that has sold tickets');
+      // Refuse cleanly when anything still points at the tier. We check the
+      // real dependent rows (tickets and order items), not just the
+      // quantitySold counter: an expired or released hold decrements
+      // quantitySold back to 0 while leaving cancelled ticket and order-item
+      // rows behind, and those rows are what a raw delete trips over. Checking
+      // them here turns that database foreign-key error (a 500) into a clear
+      // 400 the UI can act on by offering the force delete.
+      const [ticketCount, itemCount] = await Promise.all([
+        this.prisma.ticket.count({ where: { tierId } }),
+        this.prisma.orderItem.count({ where: { tierId } }),
+      ]);
+      if (tier.quantitySold > 0 || ticketCount > 0 || itemCount > 0) {
+        throw new BadRequestException('Cannot delete a tier that has tickets or orders');
       }
-      await this.prisma.ticketTier.delete({ where: { id: tierId } });
+      try {
+        await this.prisma.ticketTier.delete({ where: { id: tierId } });
+      } catch (err) {
+        // Safety net: if a row was created between the checks above and the
+        // delete, surface the same actionable 400 rather than a 500.
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2003'
+        ) {
+          throw new BadRequestException('Cannot delete a tier that has tickets or orders');
+        }
+        throw err;
+      }
       return { ok: true };
     }
 
