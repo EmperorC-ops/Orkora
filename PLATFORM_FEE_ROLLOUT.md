@@ -5,7 +5,9 @@ is true today, the legal gate from Orkora's own terms, the one architectural
 decision everything hinges on, and the engineering and rollout sequence to
 introduce the platform fee correctly.
 
-The fee structure is **3% of the sale plus a flat 0.99 USD per paid ticket**.
+The fee structure is **3% of the sale plus a flat 0.99 USD per paid ticket**. The
+decided per-currency flat amount for NGN (Paystack settlements) is **1,350.00 NGN
+per paid ticket**, set via `PLATFORM_FEE_FLAT_NGN=135000` (kobo).
 Both components are captured per event at creation (see slice 1) so both are
 grandfathered together. The flat component is per paid ticket, not per order, so
 it scales with ticket count. It is denominated in USD; because events sell in
