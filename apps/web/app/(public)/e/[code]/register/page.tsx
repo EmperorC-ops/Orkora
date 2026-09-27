@@ -46,10 +46,14 @@ interface PublicEventLite {
   tiers: PublicTier[];
   registrationFields?: RegistrationField[];
   registrationIntroHidden?: boolean;
-  platformFeeBps?: number;
-  platformFeeFlatMinor?: number;
-  platformFeeFlatCurrency?: string | null;
-  platformFeePassOn?: boolean;
+  // The platform fee the attendee would pay, resolved by the server. Present
+  // only when the fee is live and this event carries one. flatByCurrency gives
+  // the flat per-ticket amount in each tier currency's minor units.
+  platformFee?: {
+    bps: number;
+    passOn: boolean;
+    flatByCurrency: Record<string, number>;
+  } | null;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -124,27 +128,16 @@ export default function RegisterPage() {
     ? Math.max(0, total - appliedDiscount.discountMinor)
     : total;
 
-  // Estimated service fee added to what the attendee pays, but only when the
-  // organizer chose to pass Orkora's fee on. The authoritative amount is
-  // computed server-side and shown on the payment page; this is a clear
-  // pre-checkout estimate. Zero unless the event both passes the fee on and
-  // carries a configured fee (which it does not today).
+  // Service fee added to what the attendee pays, when the organizer chose to
+  // pass Orkora's fee on. Uses the server-resolved fee (percentage plus the
+  // flat per-ticket amount for this tier's currency), so it matches the total
+  // charged at checkout. Zero unless the fee is live, passed on, and paid.
   const serviceFeeMinor = useMemo(() => {
-    if (!event?.platformFeePassOn || !tier || isFree) return 0;
-    const bps = event.platformFeeBps ?? 0;
-    const flatMinor = event.platformFeeFlatMinor ?? 0;
-    const flatCurrency = event.platformFeeFlatCurrency ?? null;
-    if (bps === 0 && flatMinor === 0) return 0;
-    const pct = Math.floor((payable * bps) / 10000);
-    let flat = 0;
-    if (
-      flatMinor > 0 &&
-      flatCurrency &&
-      tier.currency.toUpperCase() === flatCurrency.toUpperCase()
-    ) {
-      flat = flatMinor * attendees.length;
-    }
-    return pct + flat;
+    const pf = event?.platformFee;
+    if (!pf || !pf.passOn || !tier || isFree) return 0;
+    const pct = Math.floor((payable * pf.bps) / 10000);
+    const flatPer = pf.flatByCurrency[tier.currency.toUpperCase()] ?? 0;
+    return pct + flatPer * attendees.length;
   }, [event, tier, isFree, payable, attendees.length]);
   const payableWithFee = payable + serviceFeeMinor;
 
@@ -606,9 +599,7 @@ export default function RegisterPage() {
 
                 {serviceFeeMinor > 0 && (
                   <div className="mt-4 flex items-baseline justify-between">
-                    <span className="text-sm text-ink-secondary">
-                      Service fee (est.)
-                    </span>
+                    <span className="text-sm text-ink-secondary">Service fee</span>
                     <span className="text-sm text-ink-primary">
                       +{formatMoney(serviceFeeMinor, tier.currency)}
                     </span>
@@ -623,8 +614,8 @@ export default function RegisterPage() {
                 </div>
                 {serviceFeeMinor > 0 && (
                   <p className="mt-2 text-[11px] text-ink-muted">
-                    Includes a service fee added by the organizer. The final total is confirmed on the
-                    payment page.
+                    The organizer has added a {formatMoney(serviceFeeMinor, tier.currency)} service
+                    fee to your ticket. This is the total you will pay at checkout.
                   </p>
                 )}
               </>

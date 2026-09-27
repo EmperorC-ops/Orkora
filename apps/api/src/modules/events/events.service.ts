@@ -30,7 +30,8 @@ import {
   hasVisibleTicketsBlock,
 } from './story.schema';
 import { RegistrationFormSchema } from '../../common/registration-fields';
-import { platformFeeAt } from '../../common/platform-fee';
+import { platformFeeAt, flatFeeMinorForCurrency } from '../../common/platform-fee';
+import { connectedAccountsEnabled } from '../../common/payments-flags';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // omit confusing chars
 
@@ -156,7 +157,40 @@ export class EventsService {
     if (event.organization.status === 'suspended' || (hidden && !authorized)) {
       throw new NotFoundException('Event not found');
     }
-    return { ...this.serializeEvent(event), storyPreview: authorized };
+    return {
+      ...this.serializeEvent(event),
+      storyPreview: authorized,
+      platformFee: this.resolvePublicPlatformFee(event),
+    };
+  }
+
+  /**
+   * The platform fee an attendee would actually pay for this event, shaped for
+   * the public register page so it can show the fee before checkout. Returns
+   * null unless the fee is live (gate on) and this event carries a stamped fee.
+   * `flatByCurrency` resolves the flat per-ticket amount for each of the event's
+   * tier currencies, so the page never has to guess an exchange rate.
+   */
+  private resolvePublicPlatformFee(event: {
+    platformFeeBps: number;
+    platformFeeFlatMinor: number;
+    platformFeeFlatCurrency: string | null;
+    platformFeePassOn: boolean;
+    tiers?: Array<{ currency: string }>;
+  }): { bps: number; passOn: boolean; flatByCurrency: Record<string, number> } | null {
+    const hasFee = event.platformFeeBps > 0 || event.platformFeeFlatMinor > 0;
+    if (!connectedAccountsEnabled() || !hasFee) return null;
+    const currencies = Array.from(
+      new Set((event.tiers ?? []).map((t) => t.currency.toUpperCase())),
+    );
+    const flatByCurrency: Record<string, number> = {};
+    for (const cur of currencies) {
+      flatByCurrency[cur] =
+        event.platformFeeFlatCurrency && cur === event.platformFeeFlatCurrency.toUpperCase()
+          ? event.platformFeeFlatMinor
+          : (flatFeeMinorForCurrency(cur, 1) ?? 0);
+    }
+    return { bps: event.platformFeeBps, passOn: event.platformFeePassOn, flatByCurrency };
   }
 
   async findPublicBySlug(orgSlug: string, eventSlug: string, preview?: string) {
@@ -241,7 +275,11 @@ export class EventsService {
     if (event.organization.status === 'suspended' || (hidden && !authorized)) {
       throw new NotFoundException('Event not found');
     }
-    return { ...this.serializeEvent(event), storyPreview: authorized };
+    return {
+      ...this.serializeEvent(event),
+      storyPreview: authorized,
+      platformFee: this.resolvePublicPlatformFee(event),
+    };
   }
 
   /**
