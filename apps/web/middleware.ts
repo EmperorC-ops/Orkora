@@ -88,6 +88,21 @@ function buildCsp(nonce: string): string {
 }
 
 export function middleware(request: NextRequest) {
+  // Development: do NOT enforce the production CSP. Next.js dev mode uses
+  // eval() for Fast Refresh and HMR, which a `strict-dynamic` script-src
+  // blocks. That blocks all client JavaScript, so React never hydrates: the
+  // login form falls back to a native POST that just reloads the page, and
+  // dashboards render as empty shells. CSP is a production hardening concern;
+  // locally we skip it and keep only the invite-accept privacy headers.
+  if (process.env.NODE_ENV !== 'production') {
+    const devResponse = NextResponse.next();
+    if (request.nextUrl.pathname.startsWith('/invite/accept')) {
+      devResponse.headers.set('X-Robots-Tag', 'noindex, nofollow');
+      devResponse.headers.set('Referrer-Policy', 'no-referrer');
+    }
+    return devResponse;
+  }
+
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const csp = buildCsp(nonce);
 
