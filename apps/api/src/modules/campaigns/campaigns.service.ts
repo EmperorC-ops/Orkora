@@ -362,6 +362,16 @@ export class CampaignsService {
   private wrap(bodyHtml: string, unsubUrl: string): string {
     const appUrl = (this.cfg.get<string>('APP_URL') ?? 'https://orkora.events').replace(/\/$/, '');
     const wordmarkUrl = `${appUrl}/brand/orkora-mark.svg`;
+    // Physical postal address in the footer is required for commercial email
+    // (CAN-SPAM). Operator-configured; rendered only when set. HTML-escaped
+    // since it lands in markup.
+    const postal = (this.cfg.get<string>('CAMPAIGN_POSTAL_ADDRESS') ?? '').trim();
+    const postalHtml = postal
+      ? `<br><br>${postal
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}`
+      : '';
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#F5F3FF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -375,7 +385,7 @@ ${bodyHtml}
 </td></tr>
 <tr><td style="padding:16px 28px 28px 28px;color:#94A3B8;font-size:12px;line-height:1.5;border-top:1px solid #E2E8F0;">
 You are receiving this because you registered for one of our events.
-<a href="${unsubUrl}" style="color:#6D28D9;">Unsubscribe</a> at any time.
+<a href="${unsubUrl}" style="color:#6D28D9;">Unsubscribe</a> at any time.${postalHtml}
 </td></tr>
 </table>
 </td></tr>
