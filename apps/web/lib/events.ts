@@ -97,7 +97,16 @@ export type RegistrationFieldType =
   | 'multiselect'
   | 'number'
   | 'date'
-  | 'checkbox';
+  | 'checkbox'
+  // Display-only note (label + optional help text, no input, no answer). Useful
+  // with `showIf` to reveal a message or link when an earlier answer matches.
+  | 'info';
+
+// A condition that reveals a field only when another field's answer matches.
+export interface ShowIf {
+  fieldId: string;
+  equals: string;
+}
 
 // A custom registration question. `id` is the stable key answers are stored
 // under (see REGISTRATION_QUESTIONS.md). Mirrors the API/contracts shape.
@@ -110,6 +119,31 @@ export interface RegistrationField {
   placeholder?: string;
   helpText?: string;
   maxLength?: number;
+  // When set, this field shows only if the referenced field's answer matches.
+  showIf?: ShowIf;
+}
+
+/**
+ * Whether a field is visible given the current answers. A field with no
+ * `showIf` is always visible. For a checkbox controller, "yes"/"true" matches a
+ * ticked box; for a multiselect controller, a match means the value is selected;
+ * otherwise the controller's answer must equal the target (case-insensitive).
+ */
+export function isFieldVisible(
+  field: RegistrationField,
+  answers: Record<string, unknown>,
+): boolean {
+  const cond = field.showIf;
+  if (!cond) return true;
+  const v = answers[cond.fieldId];
+  const target = cond.equals.trim().toLowerCase();
+  if (typeof v === 'boolean') {
+    const truthy = target === 'yes' || target === 'true' || target === 'on' || target === '1';
+    return v === truthy;
+  }
+  if (Array.isArray(v)) return v.map((x) => String(x).trim().toLowerCase()).includes(target);
+  if (v === undefined || v === null) return false;
+  return String(v).trim().toLowerCase() === target;
 }
 
 export interface EventDetail extends OrganizerEventSummary {

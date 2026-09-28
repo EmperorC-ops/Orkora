@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<RegistrationFieldType, string> = {
   number: 'Number',
   date: 'Date',
   checkbox: 'Consent checkbox',
+  info: 'Note / info (no answer)',
 };
 
 const TYPE_ORDER: RegistrationFieldType[] = [
@@ -22,6 +23,7 @@ const TYPE_ORDER: RegistrationFieldType[] = [
   'number',
   'date',
   'checkbox',
+  'info',
 ];
 
 function needsOptions(t: RegistrationFieldType): boolean {
@@ -38,6 +40,10 @@ interface Draft {
   optionsText: string;
   helpText: string;
   placeholder: string;
+  // Conditional visibility: show only when field `showIfFieldId`'s answer equals
+  // `showIfEquals`. Empty `showIfFieldId` means always shown.
+  showIfFieldId: string;
+  showIfEquals: string;
 }
 
 function toDraft(f: RegistrationField): Draft {
@@ -49,6 +55,8 @@ function toDraft(f: RegistrationField): Draft {
     optionsText: (f.options ?? []).join('\n'),
     helpText: f.helpText ?? '',
     placeholder: f.placeholder ?? '',
+    showIfFieldId: f.showIf?.fieldId ?? '',
+    showIfEquals: f.showIf?.equals ?? '',
   };
 }
 
@@ -98,6 +106,8 @@ export default function RegistrationFieldsEditor({
         optionsText: '',
         helpText: '',
         placeholder: '',
+        showIfFieldId: '',
+        showIfEquals: '',
       },
     ]);
   }
@@ -118,25 +128,43 @@ export default function RegistrationFieldsEditor({
 
   function build(): { fields: RegistrationField[]; errors: string[] } {
     const errors: string[] = [];
+    const ids = new Set(drafts.map((d) => d.id));
     const fields: RegistrationField[] = drafts.map((d) => {
+      const isInfo = d.type === 'info';
       const options = needsOptions(d.type)
         ? d.optionsText
             .split('\n')
             .map((o) => o.trim())
             .filter(Boolean)
         : undefined;
-      if (!d.label.trim()) errors.push('Every question needs a label.');
+      if (!d.label.trim()) {
+        errors.push(isInfo ? 'Every note needs text.' : 'Every question needs a label.');
+      }
       if (needsOptions(d.type) && (!options || options.length === 0)) {
         errors.push(`"${d.label.trim() || d.id}" needs at least one option.`);
+      }
+      // Conditional visibility, when set, must reference another existing field.
+      let showIf: { fieldId: string; equals: string } | undefined;
+      if (d.showIfFieldId) {
+        if (d.showIfFieldId === d.id) {
+          errors.push(`"${d.label.trim() || d.id}" cannot depend on itself.`);
+        } else if (!ids.has(d.showIfFieldId)) {
+          errors.push(`"${d.label.trim() || d.id}" depends on a question that no longer exists.`);
+        } else if (!d.showIfEquals.trim()) {
+          errors.push(`"${d.label.trim() || d.id}" needs a value for its show-if condition.`);
+        } else {
+          showIf = { fieldId: d.showIfFieldId, equals: d.showIfEquals.trim() };
+        }
       }
       return {
         id: d.id,
         label: d.label.trim(),
         type: d.type,
-        required: d.required,
+        required: isInfo ? false : d.required,
         ...(options ? { options } : {}),
-        ...(d.placeholder.trim() ? { placeholder: d.placeholder.trim() } : {}),
+        ...(!isInfo && d.placeholder.trim() ? { placeholder: d.placeholder.trim() } : {}),
         ...(d.helpText.trim() ? { helpText: d.helpText.trim() } : {}),
+        ...(showIf ? { showIf } : {}),
       };
     });
     if (drafts.length > 30) errors.push('At most 30 questions.');
@@ -239,16 +267,64 @@ export default function RegistrationFieldsEditor({
                     />
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={d.required}
-                      onChange={(e) => patch(i, { required: e.target.checked })}
-                      disabled={disabled || busy}
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-200"
-                    />
-                    Required
-                  </label>
+                  {d.type !== 'info' && (
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={d.required}
+                        onChange={(e) => patch(i, { required: e.target.checked })}
+                        disabled={disabled || busy}
+                        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-200"
+                      />
+                      Required
+                    </label>
+                  )}
+
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-white p-3">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                      Show only if (optional)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={d.showIfFieldId}
+                        onChange={(e) =>
+                          patch(i, {
+                            showIfFieldId: e.target.value,
+                            ...(e.target.value ? {} : { showIfEquals: '' }),
+                          })
+                        }
+                        disabled={disabled || busy}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 disabled:opacity-60"
+                      >
+                        <option value="">Always show</option>
+                        {drafts
+                          .filter((o) => o.id !== d.id && o.type !== 'info')
+                          .map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.label.trim() || o.id}
+                            </option>
+                          ))}
+                      </select>
+                      {d.showIfFieldId ? (
+                        <>
+                          <span className="text-xs text-slate-500">equals</span>
+                          <input
+                            value={d.showIfEquals}
+                            onChange={(e) => patch(i, { showIfEquals: e.target.value })}
+                            disabled={disabled || busy}
+                            placeholder="e.g. Yes"
+                            className="w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 disabled:opacity-60"
+                          />
+                        </>
+                      ) : null}
+                    </div>
+                    {d.showIfFieldId ? (
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Type the exact answer that reveals this. For a Yes/No dropdown use the option
+                        text (Yes). For a consent checkbox use Yes.
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1">

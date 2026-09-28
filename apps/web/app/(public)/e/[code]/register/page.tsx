@@ -15,7 +15,7 @@ import {
 } from '@/lib/registration';
 import { validateDiscount } from '@/lib/discounts';
 import { ActionButton } from '@/components/action-button';
-import { remainingSeats, type RegistrationField } from '@/lib/events';
+import { remainingSeats, isFieldVisible, type RegistrationField } from '@/lib/events';
 import { RegistrationQuestions } from './RegistrationQuestions';
 
 interface PublicTier {
@@ -678,6 +678,8 @@ function validateAnswers(
 ): Record<string, string> {
   const errs: Record<string, string> = {};
   for (const f of fields) {
+    // Info notes have no answer; hidden conditional fields are not validated.
+    if (f.type === 'info' || !isFieldVisible(f, answers)) continue;
     const v = answers[f.id];
     const empty =
       v === undefined ||
@@ -714,6 +716,8 @@ function buildFormResponses(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const f of fields) {
+    // Do not submit answers for info notes or for hidden conditional fields.
+    if (f.type === 'info' || !isFieldVisible(f, answers)) continue;
     const v = answers[f.id];
     if (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)) {
       continue;

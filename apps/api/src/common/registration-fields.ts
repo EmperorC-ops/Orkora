@@ -18,6 +18,8 @@ export const REGISTRATION_FIELD_TYPES = [
   'number',
   'date',
   'checkbox',
+  // Display-only note (label + optional help text). No input, no answer.
+  'info',
 ] as const;
 export type RegistrationFieldType = (typeof REGISTRATION_FIELD_TYPES)[number];
 
@@ -35,6 +37,11 @@ export const RegistrationFieldSchema = z
     placeholder: z.string().max(120).optional(),
     helpText: z.string().max(240).optional(),
     maxLength: z.number().int().positive().max(5000).optional(),
+    // Conditional visibility: show this field only when `fieldId`'s answer
+    // matches `equals`. Cross-field references are checked at the form level.
+    showIf: z
+      .object({ fieldId, equals: z.string().min(1).max(120) })
+      .optional(),
   })
   .superRefine((f, ctx) => {
     const needsOptions = f.type === 'select' || f.type === 'multiselect';
@@ -50,6 +57,22 @@ export const RegistrationFieldSchema = z
         code: z.ZodIssueCode.custom,
         message: 'options are only valid for select and multiselect fields',
         path: ['options'],
+      });
+    }
+    // A display-only note collects no answer, so it cannot be required.
+    if (f.type === 'info' && f.required) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'an info note cannot be required',
+        path: ['required'],
+      });
+    }
+    // A field cannot depend on itself.
+    if (f.showIf && f.showIf.fieldId === f.id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'a field cannot be conditional on itself',
+        path: ['showIf'],
       });
     }
   });
@@ -69,6 +92,17 @@ export const RegistrationFormSchema = z
         });
       }
       seen.add(f.id);
+    }
+    // A showIf must reference a field that exists in this form.
+    const ids = new Set(fields.map((f) => f.id));
+    for (const f of fields) {
+      if (f.showIf && !ids.has(f.showIf.fieldId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${f.id}" is conditional on an unknown field "${f.showIf.fieldId}"`,
+          path: [],
+        });
+      }
     }
   });
 export type RegistrationForm = z.infer<typeof RegistrationFormSchema>;
@@ -96,6 +130,27 @@ const DEFAULT_TEXT_MAX: Record<'short_text' | 'long_text', number> = {
 };
 
 /**
+ * Whether a field is visible given a submitted answer bag. Mirrors the web
+ * helper. A hidden field is neither required nor stored.
+ */
+export function isFieldVisible(
+  field: RegistrationField,
+  responses: Record<string, unknown>,
+): boolean {
+  const cond = field.showIf;
+  if (!cond) return true;
+  const v = responses[cond.fieldId];
+  const target = cond.equals.trim().toLowerCase();
+  if (typeof v === 'boolean') {
+    const truthy = target === 'yes' || target === 'true' || target === 'on' || target === '1';
+    return v === truthy;
+  }
+  if (Array.isArray(v)) return v.map((x) => String(x).trim().toLowerCase()).includes(target);
+  if (v === undefined || v === null) return false;
+  return String(v).trim().toLowerCase() === target;
+}
+
+/**
  * Validate a submitted answer bag against an event's field definitions.
  * Enforces required, allowed options, and per-type shape; returns a cleaned map
  * containing only recognised fields.
@@ -109,6 +164,11 @@ export function validateResponsesAgainstFields(
   const cleaned: Record<string, ResponseValue> = {};
 
   for (const field of fields) {
+    // Info notes collect no answer; hidden conditional fields are neither
+    // required nor stored. Skip both.
+    if (field.type === 'info') continue;
+    if (!isFieldVisible(field, res)) continue;
+
     const raw = res[field.id];
     const empty =
       raw === undefined ||
