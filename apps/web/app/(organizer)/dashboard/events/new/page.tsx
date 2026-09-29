@@ -60,14 +60,14 @@ export default function NewEventPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <Link
         href="/dashboard/events"
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700"
+        className="inline-flex items-center gap-1 text-sm font-medium text-ink-secondary hover:text-ink-primary"
       >
         <ArrowLeft className="h-4 w-4" /> Back to events
       </Link>
 
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Create a new event</h2>
-        <p className="text-sm text-slate-500">
+        <h2 className="text-2xl font-bold tracking-tight text-ink-primary">Create a new event</h2>
+        <p className="text-sm text-ink-secondary">
           Save as a draft now, fine-tune details later, and publish when you are ready.
         </p>
       </div>

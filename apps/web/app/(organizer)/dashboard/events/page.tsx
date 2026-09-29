@@ -56,8 +56,8 @@ export default function EventsListPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Events</h2>
-          <p className="text-sm text-slate-500">Plan, publish, and manage every event you run.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-ink-primary">Events</h2>
+          <p className="text-sm text-ink-secondary">Plan, publish, and manage every event you run.</p>
         </div>
         <Link
           href="/dashboard/events/new"

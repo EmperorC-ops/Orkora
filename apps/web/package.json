@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next .turbo",
     "brand:generate": "node scripts/generate-brand-assets.mjs",
-    "test:redirect": "node scripts/test-safe-redirect.mjs"
+    "test": "node scripts/test-safe-redirect.mjs && node scripts/test-month-buckets.mjs",
+    "test:redirect": "node scripts/test-safe-redirect.mjs",
+    "test:months": "node scripts/test-month-buckets.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
+import { recentMonthBuckets } from '@/lib/month-buckets';
 import { Skeleton } from '@/components/skeleton';
 import ComposeBrandHomeBanner from './ComposeBrandHomeBanner';
 
@@ -371,19 +372,11 @@ function HeroCard({
 function MonthlyBarChart({ months }: { months: Array<{ month: string; count: number }> }) {
   // Pad to a full 6-month window even when the API returned fewer rows.
   const filled = useMemo(() => {
-    const now = new Date();
-    const out: Array<{ month: string; count: number; label: string }> = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.toISOString().slice(0, 7);
-      const found = months.find((m) => m.month === key);
-      out.push({
-        month: key,
-        count: found?.count ?? 0,
-        label: d.toLocaleDateString('en-GB', { month: 'short' }),
-      });
-    }
-    return out;
+    return recentMonthBuckets(new Date(), 6).map(({ key, label }) => ({
+      month: key,
+      count: months.find((m) => m.month === key)?.count ?? 0,
+      label,
+    }));
   }, [months]);
 
   const max = Math.max(1, ...filled.map((m) => m.count));

@@ -152,7 +152,7 @@ export default function EventDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-slate-500">
+      <div className="flex h-64 items-center justify-center text-sm text-ink-secondary">
         Loading event...
       </div>
     );
@@ -170,7 +170,7 @@ export default function EventDetailPage() {
     <div className="space-y-6">
       <Link
         href="/dashboard/events"
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700"
+        className="inline-flex items-center gap-1 text-sm font-medium text-ink-secondary hover:text-ink-primary"
       >
         <ArrowLeft className="h-4 w-4" /> Back to events
       </Link>

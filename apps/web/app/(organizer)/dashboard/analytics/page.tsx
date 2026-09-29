@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
+import { recentMonthBuckets } from '@/lib/month-buckets';
 
 interface OrgAnalyticsRollup {
   totals: {
@@ -342,25 +343,15 @@ function DualBarChart({
   series: Array<{ month: string; registrations: number; paidOrders: number }>;
 }) {
   const filled = useMemo(() => {
-    const now = new Date();
-    const out: Array<{
-      month: string;
-      registrations: number;
-      paidOrders: number;
-      label: string;
-    }> = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.toISOString().slice(0, 7);
+    return recentMonthBuckets(new Date(), 12).map(({ key, label }) => {
       const found = series.find((m) => m.month === key);
-      out.push({
+      return {
         month: key,
         registrations: found?.registrations ?? 0,
         paidOrders: found?.paidOrders ?? 0,
-        label: d.toLocaleDateString('en-GB', { month: 'short' }),
-      });
-    }
-    return out;
+        label,
+      };
+    });
   }, [series]);
 
   const max = Math.max(1, ...filled.map((m) => Math.max(m.registrations, m.paidOrders)));
