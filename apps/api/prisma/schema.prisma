@@ -216,6 +216,12 @@ model Event {
   status          String   @default("draft")
   category        String?
   city            String?
+  // Venue reveal: shown only on the attendee's ticket + email when
+  // locationOnTicketOnly is true; otherwise public like the rest of the event.
+  venueName            String?  @map("venue_name")
+  venueAddress         String?  @map("venue_address")
+  joinUrl              String?  @map("join_url")
+  locationOnTicketOnly Boolean  @default(false) @map("location_on_ticket_only")
   storyBlocks     Json     @default("[]") @map("story_blocks")
   storyTemplate   String   @default("classic") @map("story_template")
   storyPublishedAt DateTime? @map("story_published_at") @db.Timestamptz

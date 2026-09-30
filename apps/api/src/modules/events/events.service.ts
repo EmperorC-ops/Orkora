@@ -97,6 +97,9 @@ export class EventsService {
         status: true,
         category: true,
         city: true,
+        venueName: true,
+        venueAddress: true,
+        locationOnTicketOnly: true,
         storyBlocks: true,
         storyTemplate: true,
         storyPublishedAt: true,
@@ -158,9 +161,41 @@ export class EventsService {
       throw new NotFoundException('Event not found');
     }
     return {
-      ...this.serializeEvent(event),
+      ...this.applyLocationGate(this.serializeEvent(event)),
       storyPreview: authorized,
       platformFee: this.resolvePublicPlatformFee(event),
+    };
+  }
+
+  /**
+   * Shape the location fields for a PUBLIC payload.
+   *
+   * The event-level join link is never public: it lives only on the attendee's
+   * ticket (registrations.publicTicket) and the ticket email, so it is always
+   * stripped here regardless of the gate. On top of that, when the organizer set
+   * location_on_ticket_only, the venue name, street address and per-session
+   * stream links are withheld too and likewise reappear only on the ticket +
+   * email. locationOnTicketOnly stays on the payload so the public UI can show a
+   * "revealed on your ticket" note. City is never gated. Organizers see all of
+   * these ungated through getForOrg.
+   */
+  private applyLocationGate<
+    T extends {
+      locationOnTicketOnly?: boolean | null;
+      venueName?: string | null;
+      venueAddress?: string | null;
+      joinUrl?: string | null;
+      sessions?: Array<{ streamUrl?: string | null } & Record<string, unknown>>;
+    },
+  >(event: T): T {
+    // The join link is ticket-only, gate on or off.
+    const base = { ...event, joinUrl: null };
+    if (!event.locationOnTicketOnly) return base;
+    return {
+      ...base,
+      venueName: null,
+      venueAddress: null,
+      sessions: (event.sessions ?? []).map((s) => ({ ...s, streamUrl: null })),
     };
   }
 
@@ -214,6 +249,9 @@ export class EventsService {
         status: true,
         category: true,
         city: true,
+        venueName: true,
+        venueAddress: true,
+        locationOnTicketOnly: true,
         storyBlocks: true,
         storyTemplate: true,
         storyPublishedAt: true,
@@ -276,7 +314,7 @@ export class EventsService {
       throw new NotFoundException('Event not found');
     }
     return {
-      ...this.serializeEvent(event),
+      ...this.applyLocationGate(this.serializeEvent(event)),
       storyPreview: authorized,
       platformFee: this.resolvePublicPlatformFee(event),
     };
@@ -305,7 +343,9 @@ export class EventsService {
       },
     });
     if (!event) throw new NotFoundException('Event not found');
-    return this.serializeEvent(event);
+    // Public-by-id read: gate the venue/links exactly as the by-code/by-slug
+    // reads do. Organizers see the ungated venue through getForOrg instead.
+    return this.applyLocationGate(this.serializeEvent(event));
   }
 
   // -------- Public discovery (browse by category / city) --------
@@ -517,6 +557,11 @@ export class EventsService {
           dto.registrationIntroHidden === undefined ? undefined : dto.registrationIntroHidden,
         platformFeePassOn:
           dto.platformFeePassOn === undefined ? undefined : dto.platformFeePassOn,
+        venueName: dto.venueName === undefined ? undefined : dto.venueName,
+        venueAddress: dto.venueAddress === undefined ? undefined : dto.venueAddress,
+        joinUrl: dto.joinUrl === undefined ? undefined : dto.joinUrl,
+        locationOnTicketOnly:
+          dto.locationOnTicketOnly === undefined ? undefined : dto.locationOnTicketOnly,
       },
     });
     return this.serializeEvent(event);

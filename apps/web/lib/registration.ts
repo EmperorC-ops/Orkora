@@ -61,10 +61,16 @@ export interface PublicTicket {
     id: string;
     title: string;
     code: string;
+    kind: string;
     startAt: string;
     endAt: string;
     bannerUrl: string | null;
     timezone: string;
+    // Revealed on the ticket even when the event page hides them
+    // (locationOnTicketOnly). Null when the organizer set no venue / join link.
+    venueName: string | null;
+    venueAddress: string | null;
+    joinUrl: string | null;
   };
   registrationId: string;
   qrToken: string;

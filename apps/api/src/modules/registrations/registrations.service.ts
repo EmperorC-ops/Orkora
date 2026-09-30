@@ -482,6 +482,11 @@ export class RegistrationsService {
           .sendTicketConfirmationEmail(user.email, {
             eventTitle: event.title,
             eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
+            venue: {
+              name: event.venueName,
+              address: event.venueAddress,
+              joinUrl: event.joinUrl,
+            },
             tickets: tickets.map((t) => ({
               code: t.code,
               holderName: t.holderName,
@@ -620,6 +625,11 @@ export class RegistrationsService {
         .sendTicketConfirmationEmail(user.email, {
           eventTitle: event.title,
           eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
+          venue: {
+            name: event.venueName,
+            address: event.venueAddress,
+            joinUrl: event.joinUrl,
+          },
           tickets: [
             {
               code: ticket.code,
@@ -1484,10 +1494,14 @@ export class RegistrationsService {
         id: string;
         title: string;
         code: string;
+        kind: string;
         startAt: Date;
         endAt: Date;
         bannerUrl: string | null;
         timezone: string;
+        venueName: string | null;
+        venueAddress: string | null;
+        joinUrl: string | null;
       };
     };
   }) {
@@ -1505,10 +1519,16 @@ export class RegistrationsService {
         id: event.id,
         title: event.title,
         code: event.code,
+        kind: event.kind,
         startAt: event.startAt.toISOString(),
         endAt: event.endAt.toISOString(),
         bannerUrl: event.bannerUrl,
         timezone: event.timezone,
+        // The ticket is the credential, so the venue and join link are always
+        // shown here even when the event page hides them (locationOnTicketOnly).
+        venueName: event.venueName,
+        venueAddress: event.venueAddress,
+        joinUrl: event.joinUrl,
       },
       registrationId: ticket.registration.id,
       qrToken: this.signer.sign({ t: ticket.id, e: event.id }),

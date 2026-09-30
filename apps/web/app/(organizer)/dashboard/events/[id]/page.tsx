@@ -307,6 +307,10 @@ export default function EventDetailPage() {
           startAt={event.startAt}
           endAt={event.endAt}
           timezone={event.timezone}
+          venueName={event.venueName ?? null}
+          venueAddress={event.venueAddress ?? null}
+          joinUrl={event.joinUrl ?? null}
+          locationOnTicketOnly={event.locationOnTicketOnly ?? false}
           disabled={event.status === 'archived'}
           onSaved={async () => {
             await refresh();

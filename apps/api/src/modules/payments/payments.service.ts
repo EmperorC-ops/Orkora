@@ -809,6 +809,11 @@ export class PaymentsService {
             order.event.endAt,
             order.event.timezone,
           ),
+          venue: {
+            name: order.event.venueName,
+            address: order.event.venueAddress,
+            joinUrl: order.event.joinUrl,
+          },
           tickets: tickets.map((t) => ({
             code: t.code,
             holderName: t.holderName,

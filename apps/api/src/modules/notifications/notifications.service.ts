@@ -48,7 +48,12 @@ export class NotificationsService {
 
   async sendTicketConfirmationEmail(
     to: string,
-    input: { eventTitle: string; eventDateLine: string; tickets: TicketEmailTicket[] },
+    input: {
+      eventTitle: string;
+      eventDateLine: string;
+      tickets: TicketEmailTicket[];
+      venue?: { name?: string | null; address?: string | null; joinUrl?: string | null };
+    },
   ): Promise<void> {
     const { subject, html, text } = ticketConfirmationTemplate(input);
     await this.email.send({ to, subject, html, text });

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Plus, Trash2, Calendar, Ticket, Tag } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Trash2, Calendar, Ticket, Tag, MapPin } from 'lucide-react';
 import { ApiError } from '@/lib/auth';
 import {
   type AttendeeInput,
@@ -43,6 +43,9 @@ interface PublicEventLite {
   endAt: string;
   bannerUrl: string | null;
   timezone: string;
+  city?: string | null;
+  // When true, the venue/address are withheld here and shown on the ticket.
+  locationOnTicketOnly?: boolean;
   tiers: PublicTier[];
   registrationFields?: RegistrationField[];
   registrationIntroHidden?: boolean;
@@ -341,8 +344,20 @@ export default function RegisterPage() {
                 <Calendar className="h-4 w-4" />
                 {formatEventDates(event.startAt, event.endAt, event.timezone)}
               </span>
+              {event.city ? (
+                <span className="inline-flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  {event.city}
+                </span>
+              ) : null}
               <span className="font-mono text-xs uppercase tracking-wider">{event.code}</span>
             </div>
+            {event.locationOnTicketOnly ? (
+              <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-500/10 px-3 py-2 text-xs text-ink-secondary">
+                <MapPin className="h-3.5 w-3.5 text-brand-300" />
+                The full venue and address will be on your ticket once you register.
+              </p>
+            ) : null}
           </header>
 
           <section>

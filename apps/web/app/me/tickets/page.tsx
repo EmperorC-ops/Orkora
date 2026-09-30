@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Calendar, Ticket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar, MapPin, Ticket } from 'lucide-react';
 import { ApiError } from '@/lib/auth';
 import { registrationApi, type PublicTicket } from '@/lib/registration';
 
@@ -106,6 +106,12 @@ export default function MyTicketsPage() {
                         <Ticket className="h-3 w-3" />
                         {t.code}
                       </span>
+                      {t.event.venueName ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3" />
+                          {t.event.venueName}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <ArrowRight className="h-4 w-4 text-ink-secondary" />

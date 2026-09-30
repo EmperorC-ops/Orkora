@@ -876,3 +876,15 @@ create index if not exists payment_connected_accounts_org_idx
 -- Per-event choice: false = organizer absorbs the fee, true = fee is added to
 -- what attendees pay at checkout. Default false.
 alter table events add column if not exists platform_fee_pass_on boolean not null default false;
+
+-- ============================================================
+-- VENUE REVEAL (migration 0024, folded in for fresh installs)
+-- ============================================================
+-- An event can carry a venue name, full street address and an online join link
+-- that are withheld from the public event page and shown only on the attendee's
+-- ticket (and ticket email) once they register. location_on_ticket_only is the
+-- per-event switch. Defaults keep every existing event public and unchanged.
+alter table events add column if not exists venue_name              text;
+alter table events add column if not exists venue_address           text;
+alter table events add column if not exists join_url                text;
+alter table events add column if not exists location_on_ticket_only boolean not null default false;

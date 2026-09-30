@@ -163,6 +163,13 @@ export interface EventDetail extends OrganizerEventSummary {
   vipToken?: string | null;
   // Whether the platform fee is passed on to attendees (true) or absorbed (false).
   platformFeePassOn?: boolean;
+  // Venue reveal. On the organizer read these are always present; on public
+  // reads they are null whenever locationOnTicketOnly is true (revealed only on
+  // the attendee's ticket + email).
+  venueName?: string | null;
+  venueAddress?: string | null;
+  joinUrl?: string | null;
+  locationOnTicketOnly?: boolean;
 }
 
 export interface CreateEventInput {
@@ -181,6 +188,11 @@ export interface CreateEventInput {
   registrationFields?: RegistrationField[];
   registrationIntroHidden?: boolean;
   platformFeePassOn?: boolean;
+  // Venue reveal fields. Pass null to clear; absent means no change.
+  venueName?: string | null;
+  venueAddress?: string | null;
+  joinUrl?: string | null;
+  locationOnTicketOnly?: boolean;
 }
 
 export type UpdateEventInput = Partial<CreateEventInput>;

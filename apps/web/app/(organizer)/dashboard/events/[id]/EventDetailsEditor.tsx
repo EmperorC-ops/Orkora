@@ -28,6 +28,10 @@ export default function EventDetailsEditor({
   startAt,
   endAt,
   timezone,
+  venueName,
+  venueAddress,
+  joinUrl,
+  locationOnTicketOnly,
   disabled,
   onSaved,
   onError,
@@ -40,6 +44,10 @@ export default function EventDetailsEditor({
   startAt: string;
   endAt: string;
   timezone: string;
+  venueName: string | null;
+  venueAddress: string | null;
+  joinUrl: string | null;
+  locationOnTicketOnly: boolean;
   disabled?: boolean;
   onSaved: () => Promise<void> | void;
   onError: (msg: string) => void;
@@ -50,8 +58,15 @@ export default function EventDetailsEditor({
   const [tz, setTz] = useState(timezone);
   const [start, setStart] = useState(() => utcISOToWallTime(startAt, timezone));
   const [end, setEnd] = useState(() => utcISOToWallTime(endAt, timezone));
+  const [vName, setVName] = useState(venueName ?? '');
+  const [vAddr, setVAddr] = useState(venueAddress ?? '');
+  const [vJoin, setVJoin] = useState(joinUrl ?? '');
+  const [gate, setGate] = useState(locationOnTicketOnly);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // The join link only applies to events with an online component.
+  const showJoin = k !== 'physical';
 
   async function save() {
     setErr(null);
@@ -70,6 +85,13 @@ export default function EventDetailsEditor({
       setErr('The end must be after the start.');
       return;
     }
+    // The join link must be a real URL, matching the API. Catch it here so the
+    // organizer gets a clear message instead of a generic save error.
+    const joinTrimmed = vJoin.trim();
+    if (showJoin && joinTrimmed && !/^https?:\/\/\S+$/i.test(joinTrimmed)) {
+      setErr('The join link must be a full URL starting with https://.');
+      return;
+    }
     setBusy(true);
     try {
       await eventsApi(orgId).update(eventId, {
@@ -81,6 +103,12 @@ export default function EventDetailsEditor({
         startAt: startIso,
         endAt: endIso,
         timezone: zone,
+        // Null clears each field; a URL must be valid or the API rejects it, so
+        // send null (not an empty string) when the join link is blank.
+        venueName: vName.trim() || null,
+        venueAddress: vAddr.trim() || null,
+        joinUrl: showJoin && vJoin.trim() ? vJoin.trim() : null,
+        locationOnTicketOnly: gate,
       });
       await onSaved();
     } catch (e) {
@@ -167,6 +195,76 @@ export default function EventDetailsEditor({
               disabled={disabled || busy}
               className={inputClass}
             />
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+          <p className="text-sm font-semibold text-slate-900">Location</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Where the event happens. You can keep the exact venue private until someone registers.
+          </p>
+
+          <div className="mt-3 space-y-4">
+            <div>
+              <label className={labelClass}>Venue name</label>
+              <input
+                value={vName}
+                onChange={(e) => setVName(e.target.value)}
+                disabled={disabled || busy}
+                placeholder="e.g. The Landmark Centre"
+                maxLength={120}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Full address / directions</label>
+              <textarea
+                value={vAddr}
+                onChange={(e) => setVAddr(e.target.value)}
+                disabled={disabled || busy}
+                rows={3}
+                maxLength={400}
+                placeholder="Street address, floor, landmark, parking notes..."
+                className={inputClass}
+              />
+            </div>
+
+            {showJoin ? (
+              <div>
+                <label className={labelClass}>Online join link</label>
+                <input
+                  value={vJoin}
+                  onChange={(e) => setVJoin(e.target.value)}
+                  disabled={disabled || busy}
+                  placeholder="https://..."
+                  inputMode="url"
+                  className={inputClass}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  A full URL starting with https://. Shown only on the attendee&apos;s ticket and
+                  email, never on the public page.
+                </p>
+              </div>
+            ) : null}
+
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={gate}
+                onChange={(e) => setGate(e.target.checked)}
+                disabled={disabled || busy}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              <span className="text-sm text-slate-700">
+                <span className="font-medium">Reveal the venue only on the ticket</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  When on, the public event page shows only the city. The venue name, full
+                  address{showJoin ? ' and join link' : ''} appear on the attendee&apos;s ticket and
+                  ticket email after they register.
+                </span>
+              </span>
+            </label>
           </div>
         </div>
       </div>

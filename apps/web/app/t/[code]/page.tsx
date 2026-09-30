@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle2, MapPin, Video } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { registrationApi, type PublicTicket } from '@/lib/registration';
 import { isFeatureEnabled } from '@/lib/flags';
@@ -92,6 +92,36 @@ export default function TicketPage() {
                 <p className="mt-3 font-mono text-[11px] text-slate-500">{ticket.code}</p>
               </div>
             </div>
+
+            {ticket.event.venueName || ticket.event.venueAddress || ticket.event.joinUrl ? (
+              <div className="mt-6 rounded-2xl border border-surface-border bg-surface/40 p-6">
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                  <MapPin className="h-4 w-4" />
+                  Where
+                </p>
+                {ticket.event.venueName ? (
+                  <p className="mt-3 text-lg font-semibold text-ink-primary">
+                    {ticket.event.venueName}
+                  </p>
+                ) : null}
+                {ticket.event.venueAddress ? (
+                  <p className="mt-1 whitespace-pre-line text-sm text-ink-secondary">
+                    {ticket.event.venueAddress}
+                  </p>
+                ) : null}
+                {ticket.event.joinUrl ? (
+                  <a
+                    href={ticket.event.joinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-gradient px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:opacity-95"
+                  >
+                    <Video className="h-4 w-4" />
+                    Join online
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
 
             {isFeatureEnabled('shareable_cards') ? (
               <ShareActions

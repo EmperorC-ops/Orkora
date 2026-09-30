@@ -65,6 +65,11 @@ interface PublicEvent {
   bannerUrl: string | null;
   city?: string | null;
   category?: string | null;
+  // Venue is null on public reads when locationOnTicketOnly is set; it is then
+  // revealed only on the attendee's ticket + email.
+  venueName?: string | null;
+  venueAddress?: string | null;
+  locationOnTicketOnly?: boolean;
   status: 'draft' | 'published' | 'live' | 'ended' | 'archived';
   storyBlocks?: StoryBlock[];
   storyTemplate?: string;
@@ -354,10 +359,25 @@ export default async function PublicEventPage({
                 <span>{event.city}</span>
               </>
             ) : null}
+            {!event.locationOnTicketOnly && event.venueName ? (
+              <>
+                <span className="text-white/40">·</span>
+                <span>{event.venueName}</span>
+              </>
+            ) : null}
             <span className="text-white/40">·</span>
             <span>{momentDate}</span>
             <span className="text-xs text-white/50">({event.timezone})</span>
           </p>
+
+          {!event.locationOnTicketOnly && event.venueAddress ? (
+            <p className="mt-2 whitespace-pre-line text-sm text-white/70">{event.venueAddress}</p>
+          ) : null}
+          {event.locationOnTicketOnly ? (
+            <p className="mt-2 text-sm text-white/70">
+              The venue and address appear on your ticket after you register.
+            </p>
+          ) : null}
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link

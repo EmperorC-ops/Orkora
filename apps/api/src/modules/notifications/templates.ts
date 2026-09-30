@@ -120,8 +120,28 @@ export function ticketConfirmationTemplate(input: {
   eventTitle: string;
   eventDateLine: string;
   tickets: TicketEmailTicket[];
+  // Venue + join link for the ticket holder. Always safe to include here: the
+  // email only reaches registrants, so it carries the details the public event
+  // page withholds when locationOnTicketOnly is set.
+  venue?: { name?: string | null; address?: string | null; joinUrl?: string | null };
 }) {
-  const { eventTitle, eventDateLine, tickets } = input;
+  const { eventTitle, eventDateLine, tickets, venue } = input;
+
+  const venueName = venue?.name?.trim();
+  const venueAddress = venue?.address?.trim();
+  const joinUrl = venue?.joinUrl?.trim();
+  const venueBlock =
+    venueName || venueAddress || joinUrl
+      ? `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+      <tr><td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;">
+        <div style="font-size:12px;color:#7C3AED;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">Where</div>
+        ${venueName ? `<div style="font-size:16px;color:#0F172A;font-weight:600;margin-top:6px;">${escapeHtml(venueName)}</div>` : ''}
+        ${venueAddress ? `<div style="font-size:14px;color:#475569;margin-top:4px;white-space:pre-line;">${escapeHtml(venueAddress)}</div>` : ''}
+        ${joinUrl ? `<a href="${joinUrl}" style="display:inline-block;margin-top:12px;background:#6D28D9;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13px;">Join online</a>` : ''}
+      </td></tr>
+    </table>`
+      : '';
   const ticketRows = tickets
     .map(
       (t) => `
@@ -158,6 +178,7 @@ export function ticketConfirmationTemplate(input: {
     <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">You are registered</h1>
     <p style="margin:0 0 6px 0;color:#0F172A;font-size:16px;font-weight:600;">${escapeHtml(eventTitle)}</p>
     <p style="margin:0 0 24px 0;color:#64748B;">${escapeHtml(eventDateLine)}</p>
+    ${venueBlock}
     ${shareHero}
     <table width="100%" cellpadding="0" cellspacing="0" border="0">
       ${ticketRows}
@@ -169,9 +190,11 @@ export function ticketConfirmationTemplate(input: {
   return {
     subject: `You are registered for ${eventTitle}`,
     html,
-    text: `You are registered for ${eventTitle}. ${eventDateLine}. Tickets: ${tickets
-      .map((t) => `${t.tierName} (${t.code}) - ${t.ticketUrl}`)
-      .join(', ')}`,
+    text: `You are registered for ${eventTitle}. ${eventDateLine}.${
+      venueName || venueAddress || joinUrl
+        ? ` Where: ${[venueName, venueAddress, joinUrl].filter(Boolean).join(' - ')}.`
+        : ''
+    } Tickets: ${tickets.map((t) => `${t.tierName} (${t.code}) - ${t.ticketUrl}`).join(', ')}`,
   };
 }
 

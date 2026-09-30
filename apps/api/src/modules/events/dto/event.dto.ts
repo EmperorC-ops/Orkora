@@ -165,6 +165,27 @@ export class UpdateEventDto {
   @IsOptional()
   @IsBoolean()
   platformFeePassOn?: boolean;
+
+  // Venue reveal. venueName/venueAddress/joinUrl are shown only on the ticket
+  // (and ticket email) when locationOnTicketOnly is true; otherwise they are
+  // public. Pass null to clear a value.
+  @IsOptional()
+  @IsString()
+  @Length(0, 120)
+  venueName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 400)
+  venueAddress?: string | null;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  joinUrl?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  locationOnTicketOnly?: boolean;
 }
 
 // === Story Mode ===

@@ -38,6 +38,67 @@ describe('EventsService.findById tenancy', () => {
 });
 
 /**
+ * Venue reveal: when an organizer sets location_on_ticket_only, the venue name,
+ * street address, join link and per-session stream links must be withheld from
+ * every public read (they only reappear on the attendee's ticket + email). When
+ * the flag is off, the venue is public and passes through unchanged. City is
+ * never gated.
+ */
+describe('EventsService.findById location gating', () => {
+  const baseEvent = () => ({
+    id: 'evt1',
+    code: 'ABC123',
+    slug: 'demo',
+    title: 'Demo',
+    kind: 'hybrid',
+    startAt: new Date('2026-01-01T00:00:00Z'),
+    endAt: new Date('2026-01-01T02:00:00Z'),
+    timezone: 'Africa/Lagos',
+    city: 'Lagos',
+    venueName: 'The Landmark',
+    venueAddress: '1 Water Corporation Rd',
+    joinUrl: 'https://meet.example/room',
+    locationOnTicketOnly: false,
+    sessions: [{ id: 's1', title: 'Opening', streamUrl: 'https://stream.example/1' }],
+    tiers: [],
+  });
+
+  interface GatedEvent {
+    venueName: string | null;
+    venueAddress: string | null;
+    joinUrl: string | null;
+    city: string | null;
+    locationOnTicketOnly: boolean;
+    sessions: Array<{ streamUrl: string | null }>;
+  }
+
+  it('passes the venue through when the gate is off, but never the join link', async () => {
+    const svc = makeService(jest.fn().mockResolvedValue(baseEvent()));
+    const res = (await svc.findById('evt1')) as unknown as GatedEvent;
+    expect(res.venueName).toBe('The Landmark');
+    expect(res.venueAddress).toBe('1 Water Corporation Rd');
+    // The join link is ticket-only, so it is withheld even with the gate off.
+    expect(res.joinUrl).toBeNull();
+    expect(res.sessions[0].streamUrl).toBe('https://stream.example/1');
+    expect(res.city).toBe('Lagos');
+  });
+
+  it('withholds venue, join link and stream links when the gate is on', async () => {
+    const svc = makeService(
+      jest.fn().mockResolvedValue({ ...baseEvent(), locationOnTicketOnly: true }),
+    );
+    const res = (await svc.findById('evt1')) as unknown as GatedEvent;
+    expect(res.venueName).toBeNull();
+    expect(res.venueAddress).toBeNull();
+    expect(res.joinUrl).toBeNull();
+    expect(res.sessions[0].streamUrl).toBeNull();
+    // City is never gated, and the flag itself stays so the UI can show a note.
+    expect(res.city).toBe('Lagos');
+    expect(res.locationOnTicketOnly).toBe(true);
+  });
+});
+
+/**
  * Story Mode composition validation.
  *
  * Regression cover for the production incident where the composer autosaved in
