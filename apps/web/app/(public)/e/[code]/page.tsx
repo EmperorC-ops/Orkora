@@ -5,6 +5,7 @@ import { dayKeyInTz, remainingSeats, sameCalendarDay } from '@/lib/events';
 import { usesStoryMode, type StoryBlock } from '@/lib/story';
 import { isFeatureEnabled } from '@/lib/flags';
 import StoryRenderer from './StoryRenderer';
+import StoryLiveBar from './StoryLiveBar';
 import EventCountdown, { type Urgency } from './EventCountdown';
 import EventArrivalAnalytics from './EventArrivalAnalytics';
 import InstallPrompt from '../../../_components/InstallPrompt';
@@ -251,6 +252,12 @@ export default async function PublicEventPage({
     return (
       <>
         <EventArrivalAnalytics slug={event.organization.slug ?? ''} />
+        <StoryLiveBar
+          code={event.code}
+          startAt={event.startAt}
+          endAt={event.endAt}
+          status={event.status}
+        />
         {isPreview && !event.storyPublishedAt ? (
           <div className="bg-amber-500 px-4 py-2 text-center text-xs font-semibold text-slate-900">
             Preview - this Story Mode draft is not published yet.
