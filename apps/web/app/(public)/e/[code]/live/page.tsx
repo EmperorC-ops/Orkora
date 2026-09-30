@@ -256,16 +256,32 @@ export default function LiveEngagementPage() {
     return (
       <Wrapper>
         <div className="rounded-2xl border border-surface-border bg-surface/40 p-10 text-center">
-          <p className="text-base font-semibold text-ink-primary">Sign in to join the live room.</p>
+          <p className="text-base font-semibold text-ink-primary">
+            Register to join the live room.
+          </p>
           <p className="mt-2 text-sm text-ink-secondary">
-            Chat and polls are available to authenticated attendees.
+            Follow along, ask questions, and vote from your phone. Register for this event, then
+            open the live room from your ticket.
           </p>
           <Link
-            href={`/login?next=/e/${code}/live`}
+            href={`/e/${code}/register`}
             className="mt-6 inline-flex items-center gap-2 rounded-full bg-brand-gradient px-7 py-3 text-sm font-semibold text-white shadow-glow transition hover:opacity-95"
           >
-            Sign in
+            Register for this event
           </Link>
+          <p className="mt-4 text-xs text-ink-muted">
+            Already registered? Open the live room from the link on your ticket or in your
+            confirmation email.
+          </p>
+          <p className="mt-2 text-xs text-ink-muted">
+            Have an account?{' '}
+            <Link
+              href={`/login?next=/e/${code}/live`}
+              className="font-semibold text-brand-300 transition hover:text-brand-200"
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
       </Wrapper>
     );
