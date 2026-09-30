@@ -3,7 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ArrowUp, HelpCircle, MessageSquare, Send, Users, Vote } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowUp,
+  ExternalLink,
+  HelpCircle,
+  Megaphone,
+  MessageSquare,
+  Send,
+  Users,
+  Vote,
+} from 'lucide-react';
 import { io, type Socket } from 'socket.io-client';
 
 interface Message {
@@ -46,7 +56,48 @@ interface QuestionView {
   }>;
 }
 
+interface Spotlight {
+  kind: 'announcement' | 'link' | 'video';
+  title: string | null;
+  body: string | null;
+  url: string | null;
+  active: boolean;
+  updatedAt: string;
+}
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+
+// Turn a YouTube or Vimeo watch URL into an embeddable one, mirroring the
+// recordings /watch parser. Returns null for anything not embeddable, so the
+// spotlight falls back to a plain link.
+function toEmbedUrl(raw: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\./, '');
+  if (host === 'youtu.be') {
+    const id = u.pathname.slice(1).split('/')[0];
+    return id ? `https://www.youtube.com/embed/${id}` : null;
+  }
+  if (host === 'youtube.com' || host === 'm.youtube.com') {
+    if (u.pathname === '/watch') {
+      const id = u.searchParams.get('v');
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    const m = u.pathname.match(/^\/(embed|live|shorts)\/([^/]+)/);
+    if (m) return `https://www.youtube.com/embed/${m[2]}`;
+    return null;
+  }
+  if (host === 'vimeo.com') {
+    const id = u.pathname.split('/').filter(Boolean)[0];
+    return id && /^\d+$/.test(id) ? `https://player.vimeo.com/video/${id}` : null;
+  }
+  if (host === 'player.vimeo.com') return raw;
+  return null;
+}
 
 interface PublicEventLite {
   id: string;
@@ -63,6 +114,7 @@ export default function LiveEngagementPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [polls, setPolls] = useState<PollView[]>([]);
   const [questions, setQuestions] = useState<QuestionView[]>([]);
+  const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
   const [presence, setPresence] = useState<number>(0);
   const [draft, setDraft] = useState('');
   const [qDraft, setQDraft] = useState('');
@@ -114,6 +166,10 @@ export default function LiveEngagementPage() {
       .then((r) => r.json() as Promise<QuestionView[]>)
       .then(setQuestions)
       .catch(() => null);
+    fetch(`${API}/v1/events/${event.id}/engagement/spotlight`)
+      .then((r) => r.json() as Promise<Spotlight | null>)
+      .then(setSpotlight)
+      .catch(() => null);
 
     const socket = io(`${API}/engagement`, {
       auth: cred,
@@ -148,6 +204,9 @@ export default function LiveEngagementPage() {
     });
     socket.on('qa:list', (list: QuestionView[]) => {
       setQuestions(list);
+    });
+    socket.on('spotlight:update', (s: Spotlight | null) => {
+      setSpotlight(s);
     });
 
     return () => {
@@ -241,6 +300,40 @@ export default function LiveEngagementPage() {
           {presence} live
         </div>
       </header>
+
+      {spotlight ? (
+        <section className="mb-8 rounded-2xl border border-brand-500/30 bg-brand-500/10 p-5">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-200">
+            <Megaphone className="h-4 w-4" /> On screen now
+          </p>
+          {spotlight.title ? (
+            <h2 className="mt-2 text-lg font-semibold text-ink-primary">{spotlight.title}</h2>
+          ) : null}
+          {spotlight.body ? (
+            <p className="mt-1 whitespace-pre-line text-sm text-ink-secondary">{spotlight.body}</p>
+          ) : null}
+          {spotlight.kind === 'video' && spotlight.url && toEmbedUrl(spotlight.url) ? (
+            <div className="mt-3 aspect-video overflow-hidden rounded-xl border border-surface-border">
+              <iframe
+                src={toEmbedUrl(spotlight.url) as string}
+                title={spotlight.title ?? 'Live video'}
+                className="h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : spotlight.url ? (
+            <a
+              href={spotlight.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-gradient px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:opacity-95"
+            >
+              <ExternalLink className="h-4 w-4" /> Open link
+            </a>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">

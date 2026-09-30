@@ -888,3 +888,21 @@ alter table events add column if not exists venue_name              text;
 alter table events add column if not exists venue_address           text;
 alter table events add column if not exists join_url                text;
 alter table events add column if not exists location_on_ticket_only boolean not null default false;
+
+-- ============================================================
+-- LIVE SPOTLIGHT (migration 0025, folded in for fresh installs)
+-- ============================================================
+-- Organizer "on screen now" broadcast for the live second screen: one current
+-- item per event (announcement, link, or embedded video), toggled with active.
+create table if not exists live_spotlights (
+  id                 uuid primary key default uuidv7(),
+  event_id           uuid not null unique references events(id) on delete cascade,
+  kind               text not null,
+  title              text,
+  body               text,
+  url                text,
+  active             boolean not null default true,
+  updated_by_user_id uuid references users(id),
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);

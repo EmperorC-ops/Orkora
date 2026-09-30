@@ -40,6 +40,85 @@ export class EngagementService {
     return { userId: ticket.registration.userId, eventId: ticket.registration.eventId };
   }
 
+  // ----- live spotlight (organizer "on screen now" broadcast) -----
+
+  private shapeSpotlight(r: {
+    kind: string;
+    title: string | null;
+    body: string | null;
+    url: string | null;
+    active: boolean;
+    updatedAt: Date;
+  }) {
+    return {
+      kind: r.kind,
+      title: r.title,
+      body: r.body,
+      url: r.url,
+      active: r.active,
+      updatedAt: r.updatedAt.toISOString(),
+    };
+  }
+
+  /** The current on-screen item for an event, or null when none is active. */
+  async getSpotlight(eventId: string) {
+    const row = await this.prisma.liveSpotlight.findUnique({ where: { eventId } });
+    if (!row || !row.active) return null;
+    return this.shapeSpotlight(row);
+  }
+
+  /**
+   * Set (or replace) the event's on-screen item. Org-scoped: the event must
+   * belong to orgId. announcement needs a title or body; link and video need a
+   * full URL. One row per event, upserted, always re-activated.
+   */
+  async setSpotlight(
+    orgId: string,
+    eventId: string,
+    dto: { kind: string; title?: string | null; body?: string | null; url?: string | null },
+    userId: string,
+  ) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    if (!['announcement', 'link', 'video'].includes(dto.kind)) {
+      throw new BadRequestException('Unknown spotlight kind');
+    }
+    const title = dto.title?.trim() || null;
+    const body = dto.body?.trim() || null;
+    const url = dto.url?.trim() || null;
+    if ((dto.kind === 'link' || dto.kind === 'video') && !url) {
+      throw new BadRequestException('A link is required for this kind');
+    }
+    if (dto.kind === 'announcement' && !title && !body) {
+      throw new BadRequestException('Add a title or a message');
+    }
+    if (url && !/^https?:\/\/\S+$/i.test(url)) {
+      throw new BadRequestException('The link must be a full URL starting with https://');
+    }
+
+    const row = await this.prisma.liveSpotlight.upsert({
+      where: { eventId },
+      create: { eventId, kind: dto.kind, title, body, url, active: true, updatedByUserId: userId },
+      update: { kind: dto.kind, title, body, url, active: true, updatedByUserId: userId },
+    });
+    return this.shapeSpotlight(row);
+  }
+
+  /** Take the current item off screen (kept, but deactivated). Org-scoped. */
+  async clearSpotlight(orgId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    await this.prisma.liveSpotlight.updateMany({ where: { eventId }, data: { active: false } });
+    return null;
+  }
+
   // ----- channels & messages -----
 
   /**

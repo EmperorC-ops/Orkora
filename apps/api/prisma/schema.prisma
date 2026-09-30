@@ -253,6 +253,7 @@ model Event {
   discountCodes DiscountCode[]
   recordings    Recording[]
   storyAnalytics StoryAnalytics[]
+  liveSpotlight LiveSpotlight?
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -874,4 +875,25 @@ model EmailSuppression {
   @@unique([organizationId, email])
   @@index([organizationId, reason])
   @@map("email_suppressions")
+}
+
+// LiveSpotlight: the organizer's "on screen now" broadcast for the live second
+// screen. One current item per event (unique event_id): an announcement, a link,
+// or an embedded video, shown at the top of every participant's live page.
+// `active` toggles it on/off without losing the content.
+model LiveSpotlight {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventId         String   @unique @map("event_id") @db.Uuid
+  kind            String   // 'announcement' | 'link' | 'video'
+  title           String?
+  body            String?
+  url             String?
+  active          Boolean  @default(true)
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("live_spotlights")
 }

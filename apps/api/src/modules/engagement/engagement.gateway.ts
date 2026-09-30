@@ -251,6 +251,14 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
     this.server.to(`event:${eventId}`).emit('poll:update', poll);
   }
 
+  /**
+   * Push the organizer's on-screen item (or null when cleared) to everyone in
+   * the event room, so participants' live pages update without a refresh.
+   */
+  emitSpotlightUpdate(eventId: string, spotlight: unknown): void {
+    this.server.to(`event:${eventId}`).emit('spotlight:update', spotlight);
+  }
+
   private broadcastPresence(eventId: string): void {
     const room = `event:${eventId}`;
     const count = this.server.sockets.adapter.rooms.get(room)?.size ?? 0;

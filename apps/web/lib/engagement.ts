@@ -61,5 +61,31 @@ export const engagementApi = (orgId: string) => {
         `${base}/${eventId}/qa/${questionId}/hidden`,
         { method: 'PATCH', json: { hidden } },
       ),
+
+    // Live "on screen now" spotlight.
+    getSpotlight: (eventId: string) =>
+      apiFetch<Spotlight | null>(`/v1/events/${eventId}/engagement/spotlight`),
+    setSpotlight: (eventId: string, input: SpotlightInput) =>
+      apiFetch<Spotlight>(`${base}/${eventId}/spotlight`, { method: 'POST', json: input }),
+    clearSpotlight: (eventId: string) =>
+      apiFetch<{ ok: boolean }>(`${base}/${eventId}/spotlight`, { method: 'DELETE' }),
   };
 };
+
+export type SpotlightKind = 'announcement' | 'link' | 'video';
+
+export interface SpotlightInput {
+  kind: SpotlightKind;
+  title?: string;
+  body?: string;
+  url?: string;
+}
+
+export interface Spotlight {
+  kind: SpotlightKind;
+  title: string | null;
+  body: string | null;
+  url: string | null;
+  active: boolean;
+  updatedAt: string;
+}

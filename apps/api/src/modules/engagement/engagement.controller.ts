@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -10,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsBoolean } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -32,6 +33,26 @@ class SetAnsweredDto {
 class SetHiddenDto {
   @IsBoolean()
   hidden!: boolean;
+}
+
+class SpotlightDto {
+  @IsIn(['announcement', 'link', 'video'])
+  kind!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  body?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  url?: string;
 }
 
 /**
@@ -58,6 +79,11 @@ export class PublicEngagementController {
   @Get('questions')
   questions(@Param('eventId') eventId: string) {
     return this.service.listQuestions(eventId);
+  }
+
+  @Get('spotlight')
+  spotlight(@Param('eventId') eventId: string) {
+    return this.service.getSpotlight(eventId);
   }
 }
 
@@ -156,5 +182,44 @@ export class OrganizerQaController {
       userId: user.userId,
       hidden: dto.hidden,
     });
+  }
+}
+
+/**
+ * Organizer control for the live "on screen now" spotlight. Setting or clearing
+ * it broadcasts to every participant in the event room via the gateway.
+ */
+@ApiTags('engagement-organizer')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Controller('organizations/:orgId/events/:eventId/spotlight')
+export class OrganizerSpotlightController {
+  constructor(
+    private readonly service: EngagementService,
+    private readonly gateway: EngagementGateway,
+  ) {}
+
+  @Post()
+  @Roles('owner', 'admin', 'organizer')
+  async set(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SpotlightDto,
+  ) {
+    const spotlight = await this.service.setSpotlight(orgId, eventId, dto, user.userId);
+    this.gateway.emitSpotlightUpdate(eventId, spotlight);
+    return spotlight;
+  }
+
+  @Delete()
+  @Roles('owner', 'admin', 'organizer')
+  async clear(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+  ) {
+    await this.service.clearSpotlight(orgId, eventId);
+    this.gateway.emitSpotlightUpdate(eventId, null);
+    return { ok: true };
   }
 }

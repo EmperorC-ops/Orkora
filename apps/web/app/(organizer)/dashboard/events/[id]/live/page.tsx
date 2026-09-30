@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   ListChecks,
+  Megaphone,
   MessageCircleQuestion,
   Plus,
   ThumbsUp,
@@ -17,7 +18,13 @@ import {
 } from 'lucide-react';
 import { ActionButton } from '@/components/action-button';
 import { readActiveOrgId, eventsApi, type EventSession } from '@/lib/events';
-import { engagementApi, type Poll, type QaQuestion } from '@/lib/engagement';
+import {
+  engagementApi,
+  type Poll,
+  type QaQuestion,
+  type Spotlight,
+  type SpotlightKind,
+} from '@/lib/engagement';
 
 export default function LiveControlPage() {
   const params = useParams<{ id: string }>();
@@ -85,6 +92,8 @@ export default function LiveControlPage() {
         </div>
       )}
 
+      <SpotlightSection orgId={orgId} eventId={eventId} onError={setError} />
+
       <PollsSection
         orgId={orgId}
         eventId={eventId}
@@ -102,6 +111,150 @@ export default function LiveControlPage() {
         onError={setError}
       />
     </div>
+  );
+}
+
+/* ----------------------------- spotlight ----------------------------- */
+
+function SpotlightSection({
+  orgId,
+  eventId,
+  onError,
+}: {
+  orgId: string | null;
+  eventId: string;
+  onError: (message: string) => void;
+}) {
+  const [kind, setKind] = useState<SpotlightKind>('announcement');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [url, setUrl] = useState('');
+  const [current, setCurrent] = useState<Spotlight | null>(null);
+
+  useEffect(() => {
+    if (!orgId) return;
+    engagementApi(orgId)
+      .getSpotlight(eventId)
+      .then(setCurrent)
+      .catch(() => null);
+  }, [orgId, eventId]);
+
+  const show = async () => {
+    if (!orgId) throw new Error('No active organization');
+    const t = title.trim();
+    const b = body.trim();
+    const u = url.trim();
+    if (kind === 'announcement' && !t && !b) throw new Error('Add a title or a message');
+    if ((kind === 'link' || kind === 'video') && !u) throw new Error('Add a link');
+    if ((kind === 'link' || kind === 'video') && !/^https?:\/\/\S+$/i.test(u)) {
+      throw new Error('The link must be a full URL starting with https://');
+    }
+    const saved = await engagementApi(orgId).setSpotlight(eventId, {
+      kind,
+      title: t || undefined,
+      body: kind === 'announcement' ? b || undefined : undefined,
+      url: kind === 'announcement' ? undefined : u || undefined,
+    });
+    setCurrent(saved);
+  };
+
+  const clear = async () => {
+    if (!orgId) throw new Error('No active organization');
+    await engagementApi(orgId).clearSpotlight(eventId);
+    setCurrent(null);
+  };
+
+  const inputClass =
+    'w-full rounded-xl border border-surface-border bg-surface-deep/40 px-3 py-2 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand-500/50 focus:outline-none';
+
+  return (
+    <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
+      <div className="flex items-center gap-2">
+        <Megaphone className="h-5 w-5 text-brand-300" />
+        <h2 className="text-lg font-semibold text-ink-primary">On screen now</h2>
+      </div>
+      <p className="mt-1 text-sm text-ink-secondary">
+        Push an announcement, a link, or a video to every participant&apos;s live screen.
+      </p>
+
+      {current ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-500/30 bg-brand-500/10 px-4 py-3 text-sm">
+          <span className="text-ink-secondary">
+            Live now:{' '}
+            <span className="font-semibold text-ink-primary">
+              {current.title || current.url || current.body}
+            </span>{' '}
+            <span className="text-ink-muted">({current.kind})</span>
+          </span>
+          <ActionButton
+            onAction={clear}
+            onError={onError}
+            idleLabel="Clear from screen"
+            pendingLabel="Clearing…"
+            successLabel="Cleared"
+            variant="danger"
+            className="rounded-full px-4 py-1.5 text-xs font-semibold"
+          />
+        </div>
+      ) : (
+        <p className="mt-4 text-xs text-ink-muted">Nothing on screen right now.</p>
+      )}
+
+      <div className="mt-5 space-y-4 rounded-2xl border border-surface-border bg-surface-deep/30 p-4">
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink-muted">
+            Type
+          </label>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as SpotlightKind)}
+            className={inputClass}
+          >
+            <option value="announcement">Announcement</option>
+            <option value="link">Link</option>
+            <option value="video">Video (YouTube or Vimeo)</option>
+          </select>
+        </div>
+
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title (optional)"
+          maxLength={120}
+          className={inputClass}
+        />
+
+        {kind === 'announcement' ? (
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="Message to show on screen"
+            className={inputClass}
+          />
+        ) : (
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://..."
+            inputMode="url"
+            className={inputClass}
+          />
+        )}
+
+        <ActionButton
+          onAction={show}
+          onError={onError}
+          idleLabel="Show on screen"
+          pendingLabel="Sending…"
+          successLabel="On screen"
+          idleIcon={<Megaphone className="h-4 w-4" />}
+          variant="primary"
+          className="rounded-full px-5 py-2 text-sm font-semibold"
+        />
+      </div>
+    </section>
   );
 }
 

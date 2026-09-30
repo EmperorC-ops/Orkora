@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EngagementService } from './engagement.service';
 
 /**
@@ -64,5 +64,108 @@ describe('EngagementService.resolveTicketParticipant', () => {
       NotFoundException,
     );
     expect(findUnique).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Live spotlight (organizer "on screen now" broadcast). Org-scoped writes,
+ * kind-specific validation, and a public read that hides an inactive item.
+ */
+function makeSpotService(opts: {
+  event?: unknown;
+  row?: unknown;
+}) {
+  const prisma = {
+    event: { findFirst: jest.fn().mockResolvedValue('event' in opts ? opts.event : { id: 'e1' }) },
+    liveSpotlight: {
+      findUnique: jest.fn().mockResolvedValue(opts.row ?? null),
+      upsert: jest
+        .fn()
+        .mockImplementation(({ create }: { create: Record<string, unknown> }) => ({
+          ...create,
+          updatedAt: new Date('2026-01-01T00:00:00Z'),
+        })),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+  };
+  return { svc: new EngagementService(prisma as never), prisma };
+}
+
+describe('EngagementService.spotlight', () => {
+  it('getSpotlight returns null when none is set', async () => {
+    const { svc } = makeSpotService({ row: null });
+    await expect(svc.getSpotlight('e1')).resolves.toBeNull();
+  });
+
+  it('getSpotlight hides an inactive item', async () => {
+    const { svc } = makeSpotService({
+      row: { kind: 'announcement', title: 'Hi', body: null, url: null, active: false, updatedAt: new Date() },
+    });
+    await expect(svc.getSpotlight('e1')).resolves.toBeNull();
+  });
+
+  it('getSpotlight returns the active item shaped', async () => {
+    const { svc } = makeSpotService({
+      row: {
+        kind: 'announcement',
+        title: 'Doors open',
+        body: null,
+        url: null,
+        active: true,
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      },
+    });
+    await expect(svc.getSpotlight('e1')).resolves.toEqual({
+      kind: 'announcement',
+      title: 'Doors open',
+      body: null,
+      url: null,
+      active: true,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('setSpotlight 404s when the event is not in the org', async () => {
+    const { svc } = makeSpotService({ event: null });
+    await expect(
+      svc.setSpotlight('org1', 'e1', { kind: 'announcement', title: 'x' }, 'u1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('setSpotlight rejects a link with no url', async () => {
+    const { svc } = makeSpotService({});
+    await expect(
+      svc.setSpotlight('org1', 'e1', { kind: 'link' }, 'u1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('setSpotlight rejects an announcement with no title or body', async () => {
+    const { svc } = makeSpotService({});
+    await expect(
+      svc.setSpotlight('org1', 'e1', { kind: 'announcement' }, 'u1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('setSpotlight rejects a non-url link', async () => {
+    const { svc } = makeSpotService({});
+    await expect(
+      svc.setSpotlight('org1', 'e1', { kind: 'video', url: 'not a url' }, 'u1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('setSpotlight upserts a valid announcement and returns it shaped', async () => {
+    const { svc, prisma } = makeSpotService({});
+    const out = await svc.setSpotlight('org1', 'e1', { kind: 'announcement', body: 'Hello' }, 'u1');
+    expect(out).toMatchObject({ kind: 'announcement', body: 'Hello', active: true });
+    expect(prisma.liveSpotlight.upsert).toHaveBeenCalled();
+  });
+
+  it('clearSpotlight deactivates the row', async () => {
+    const { svc, prisma } = makeSpotService({});
+    await expect(svc.clearSpotlight('org1', 'e1')).resolves.toBeNull();
+    expect(prisma.liveSpotlight.updateMany).toHaveBeenCalledWith({
+      where: { eventId: 'e1' },
+      data: { active: false },
+    });
   });
 });
