@@ -690,6 +690,9 @@ export class RegistrationsService {
                 timezone: true,
                 bannerUrl: true,
                 status: true,
+                city: true,
+                venueName: true,
+                locationOnTicketOnly: true,
                 organization: {
                   select: {
                     name: true,
@@ -726,6 +729,11 @@ export class RegistrationsService {
         endAt: event.endAt.toISOString(),
         timezone: event.timezone,
         bannerUrl: event.bannerUrl,
+        // The shareable card is public, so it must NOT broadcast a venue the
+        // organizer chose to keep on the ticket only. City is always fine to
+        // show; the venue name appears only when the event is not gated.
+        city: event.city,
+        venueName: event.locationOnTicketOnly ? null : event.venueName,
       },
       brand: {
         name: event.organization.name,

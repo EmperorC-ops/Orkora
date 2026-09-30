@@ -47,6 +47,8 @@ export interface CardProps {
   eyebrow: string;
   title: string;
   dateLine: string;
+  /** Optional location line (e.g. venue name or city) shown under the date. */
+  placeLine?: string;
   footerName?: string;
   eventUrl: string;
   /** Optional hero image (the event banner). When set, it fills the card as
@@ -61,6 +63,7 @@ export function Card({
   eyebrow,
   title,
   dateLine,
+  placeLine,
   footerName,
   eventUrl,
   imageUrl,
@@ -162,6 +165,9 @@ export function Card({
         </div>
         {dateLine ? (
           <div style={{ display: 'flex', fontSize: base + 6, opacity: 0.9 }}>{dateLine}</div>
+        ) : null}
+        {placeLine ? (
+          <div style={{ display: 'flex', fontSize: base + 2, opacity: 0.8 }}>{placeLine}</div>
         ) : null}
       </div>
 

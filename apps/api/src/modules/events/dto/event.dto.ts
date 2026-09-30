@@ -102,6 +102,26 @@ export class CreateEventDto {
   @IsOptional()
   @IsBoolean()
   platformFeePassOn?: boolean;
+
+  // Venue reveal (see UpdateEventDto). Settable at creation too so the organizer
+  // does not have to re-open the event to add its location.
+  @IsOptional()
+  @IsString()
+  @Length(0, 120)
+  venueName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 400)
+  venueAddress?: string | null;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  joinUrl?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  locationOnTicketOnly?: boolean;
 }
 
 export class UpdateEventDto {

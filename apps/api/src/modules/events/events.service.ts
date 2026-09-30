@@ -465,6 +465,10 @@ export class EventsService {
         city: dto.city ?? null,
         registrationFields: this.validateRegistrationFields(dto.registrationFields),
         registrationIntroHidden: dto.registrationIntroHidden ?? undefined,
+        venueName: dto.venueName ?? null,
+        venueAddress: dto.venueAddress ?? null,
+        joinUrl: dto.joinUrl ?? null,
+        locationOnTicketOnly: dto.locationOnTicketOnly ?? undefined,
         // Stamp the platform fee in effect right now (3% plus a flat 0.99 USD
         // per paid ticket once scheduled; all zero until then). Capturing it
         // here grandfathers the event for its whole life.

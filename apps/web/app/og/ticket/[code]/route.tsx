@@ -32,6 +32,9 @@ interface Share {
     startAt: string;
     timezone: string;
     bannerUrl: string | null;
+    city: string | null;
+    // Null for gated events, so the venue never lands on a public share card.
+    venueName: string | null;
   };
   brand: { name: string; brandColor: string | null };
 }
@@ -62,6 +65,9 @@ export async function GET(
         eyebrow="I am going to"
         title={share?.event.title || 'An event on Orkora'}
         dateLine={share ? formatDate(share.event.startAt, share.event.timezone) : ''}
+        placeLine={
+          share ? (share.event.venueName || share.event.city || undefined) : undefined
+        }
         footerName={share?.attendeeFirstName || undefined}
         eventUrl={share ? `${hostFromApp(APP)}/e/${share.event.code}` : hostFromApp(APP)}
         imageUrl={share?.event.bannerUrl ?? null}

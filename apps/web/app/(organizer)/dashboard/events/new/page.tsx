@@ -31,10 +31,20 @@ export default function NewEventPage() {
     }
     const f = new FormData(e.currentTarget);
     const timezone = String(f.get('timezone') ?? 'Africa/Lagos') || 'Africa/Lagos';
+    const kind = (f.get('kind') as EventKind) || 'physical';
+    const venueName = String(f.get('venueName') ?? '').trim();
+    const venueAddress = String(f.get('venueAddress') ?? '').trim();
+    const joinRaw = String(f.get('joinUrl') ?? '').trim();
+    const wantsJoin = kind !== 'physical' && !!joinRaw;
+    if (wantsJoin && !/^https?:\/\/\S+$/i.test(joinRaw)) {
+      setError('The join link must be a full URL starting with https://.');
+      setLoading(false);
+      return;
+    }
     const body = {
       title: String(f.get('title') ?? ''),
       description: (String(f.get('description') ?? '') || undefined) as string | undefined,
-      kind: (f.get('kind') as EventKind) || 'physical',
+      kind,
       // Interpret the typed wall-clock times in the event's timezone, not the
       // organiser's browser zone, so the stored instant is correct regardless
       // of where the event is being created from.
@@ -45,6 +55,10 @@ export default function NewEventPage() {
       bannerUrl: bannerUrl ?? undefined,
       category: (String(f.get('category') ?? '') || undefined) as string | undefined,
       city: (String(f.get('city') ?? '').trim() || undefined) as string | undefined,
+      venueName: venueName || undefined,
+      venueAddress: venueAddress || undefined,
+      joinUrl: wantsJoin ? joinRaw : undefined,
+      locationOnTicketOnly: f.get('locationOnTicketOnly') === 'on',
     };
     try {
       const created = await eventsApi(orgId).create(body);
@@ -132,6 +146,49 @@ export default function NewEventPage() {
           </div>
           <Field label="City (optional)" name="city" placeholder="Lagos" />
         </div>
+
+        <fieldset className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+          <legend className="px-1 text-sm font-semibold text-slate-900">Location</legend>
+          <p className="text-xs text-slate-500">
+            Where the event happens. You can keep the exact venue private until someone registers.
+          </p>
+          <div className="mt-3 space-y-4">
+            <Field label="Venue name" name="venueName" placeholder="e.g. The Landmark Centre" maxLength={120} />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Full address / directions
+              </label>
+              <textarea
+                name="venueAddress"
+                rows={3}
+                maxLength={400}
+                placeholder="Street address, floor, landmark, parking notes..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+              />
+            </div>
+            <div>
+              <Field label="Online join link (for virtual or hybrid)" name="joinUrl" placeholder="https://..." inputMode="url" />
+              <p className="mt-1 text-xs text-slate-500">
+                Shown only on the attendee&apos;s ticket and email, never on the public page.
+              </p>
+            </div>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="locationOnTicketOnly"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              <span className="text-sm text-slate-700">
+                <span className="font-medium">Reveal the venue only on the ticket</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  When on, the public event page shows only the city. The venue name, full address
+                  and join link appear on the attendee&apos;s ticket and ticket email after they
+                  register.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
 
         <ImageUpload
           kind="banner"
