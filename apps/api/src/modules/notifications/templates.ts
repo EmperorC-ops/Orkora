@@ -119,13 +119,29 @@ export interface TicketEmailTicket {
 export function ticketConfirmationTemplate(input: {
   eventTitle: string;
   eventDateLine: string;
+  // Event code, used to build the live second-screen link (/e/<code>/live?t=...).
+  eventCode?: string;
   tickets: TicketEmailTicket[];
   // Venue + join link for the ticket holder. Always safe to include here: the
   // email only reaches registrants, so it carries the details the public event
   // page withholds when locationOnTicketOnly is set.
   venue?: { name?: string | null; address?: string | null; joinUrl?: string | null };
 }) {
-  const { eventTitle, eventDateLine, tickets, venue } = input;
+  const { eventTitle, eventDateLine, eventCode, tickets, venue } = input;
+
+  // "Follow the event live" opens the second screen (chat, polls, Q&A) keyed by
+  // the holder's ticket code, so no login is needed. Uses the lead ticket.
+  const liveCode = tickets[0]?.code;
+  const liveBlock =
+    eventCode && liveCode
+      ? `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
+      <tr><td align="center">
+        <a href="${APP_URL}/e/${encodeURIComponent(eventCode)}/live?t=${encodeURIComponent(liveCode)}" style="display:inline-block;background:#6D28D9;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:600;font-size:14px;">Follow the event live</a>
+        <div style="margin-top:8px;font-size:13px;color:#64748B;">Ask questions, vote in polls, and follow along from your phone.</div>
+      </td></tr>
+    </table>`
+      : '';
 
   const venueName = venue?.name?.trim();
   const venueAddress = venue?.address?.trim();
@@ -179,6 +195,7 @@ export function ticketConfirmationTemplate(input: {
     <p style="margin:0 0 6px 0;color:#0F172A;font-size:16px;font-weight:600;">${escapeHtml(eventTitle)}</p>
     <p style="margin:0 0 24px 0;color:#64748B;">${escapeHtml(eventDateLine)}</p>
     ${venueBlock}
+    ${liveBlock}
     ${shareHero}
     <table width="100%" cellpadding="0" cellspacing="0" border="0">
       ${ticketRows}

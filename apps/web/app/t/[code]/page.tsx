@@ -74,6 +74,19 @@ export default function TicketPage() {
               </p>
             </div>
 
+            <div className="mt-4 text-center">
+              <Link
+                href={`/e/${ticket.event.code}/live?t=${ticket.code}`}
+                className="inline-flex items-center gap-2 rounded-full bg-brand-gradient px-6 py-3 text-sm font-semibold text-white shadow-glow transition hover:opacity-95"
+              >
+                <Video className="h-4 w-4" />
+                Follow the event live
+              </Link>
+              <p className="mt-2 text-xs text-ink-muted">
+                Ask questions, vote in polls, and follow along from your phone.
+              </p>
+            </div>
+
             <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
               <div className="space-y-4">
                 <Row label="Holder" value={ticket.holderName} />

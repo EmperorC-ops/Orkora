@@ -302,8 +302,10 @@ export default async function PublicEventPage({
     ? `${formatDay(start, event.timezone)}, ${formatTime(start, event.timezone)}`
     : `${formatDay(start, event.timezone)} to ${formatDay(end, event.timezone)}`;
   const urgency = resolveUrgency(event.tiers ?? [], Date.now());
-  // Virtual and hybrid events have a live room to jump into once they start.
-  const liveHref = event.kind === 'physical' ? null : `/e/${event.code}/live`;
+  // Every event has a live second screen (chat, polls, Q&A) attendees follow
+  // from their phones, so surface it for all kinds, not just online ones. Ticket
+  // holders enter straight from their ticket link; others hit the sign-in gate.
+  const liveHref = `/e/${event.code}/live`;
   // The confidence row adapts to free vs paid so it never references payment on
   // a free event (no hold-while-you-pay, no receipt).
   const trustPoints = cheapest

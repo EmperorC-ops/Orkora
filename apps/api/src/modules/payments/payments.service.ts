@@ -809,6 +809,7 @@ export class PaymentsService {
             order.event.endAt,
             order.event.timezone,
           ),
+          eventCode: order.event.code,
           venue: {
             name: order.event.venueName,
             address: order.event.venueAddress,

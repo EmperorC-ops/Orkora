@@ -482,6 +482,7 @@ export class RegistrationsService {
           .sendTicketConfirmationEmail(user.email, {
             eventTitle: event.title,
             eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
+            eventCode: event.code,
             venue: {
               name: event.venueName,
               address: event.venueAddress,
@@ -625,6 +626,7 @@ export class RegistrationsService {
         .sendTicketConfirmationEmail(user.email, {
           eventTitle: event.title,
           eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
+          eventCode: event.code,
           venue: {
             name: event.venueName,
             address: event.venueAddress,

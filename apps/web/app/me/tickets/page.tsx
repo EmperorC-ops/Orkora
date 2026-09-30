@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Calendar, MapPin, Ticket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar, MapPin, Ticket, Video } from 'lucide-react';
 import { ApiError } from '@/lib/auth';
 import { registrationApi, type PublicTicket } from '@/lib/registration';
 
@@ -79,7 +79,7 @@ export default function MyTicketsPage() {
         ) : (
           <ul className="space-y-3">
             {tickets.map((t) => (
-              <li key={t.id}>
+              <li key={t.id} className="space-y-2">
                 <Link
                   href={`/t/${t.code}`}
                   className="flex items-center justify-between rounded-2xl border border-surface-border bg-surface/40 px-6 py-5 transition hover:border-brand-500/40"
@@ -115,6 +115,12 @@ export default function MyTicketsPage() {
                     </div>
                   </div>
                   <ArrowRight className="h-4 w-4 text-ink-secondary" />
+                </Link>
+                <Link
+                  href={`/e/${t.event.code}/live?t=${t.code}`}
+                  className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-brand-300 transition hover:text-brand-200"
+                >
+                  <Video className="h-3 w-3" /> Follow live
                 </Link>
               </li>
             ))}

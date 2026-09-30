@@ -81,7 +81,19 @@ export default function LiveEngagementPage() {
   useEffect(() => {
     if (!event) return;
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') : null;
-    if (!token) {
+    // Attendees reach the room straight from their ticket link (/live?t=CODE);
+    // the ticket code is the credential, so no login is required. Fall back to a
+    // signed-in token (organizers, logged-in users), then to the sign-in gate.
+    const ticketCode =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('t')
+        : null;
+    const cred: { ticket: string } | { token: string } | null = ticketCode
+      ? { ticket: ticketCode }
+      : token
+        ? { token }
+        : null;
+    if (!cred) {
       setSignedOut(true);
       return;
     }
@@ -104,7 +116,7 @@ export default function LiveEngagementPage() {
       .catch(() => null);
 
     const socket = io(`${API}/engagement`, {
-      auth: { token },
+      auth: cred,
       transports: ['websocket'],
     });
     socketRef.current = socket;

@@ -16,6 +16,30 @@ export interface PollOption {
 export class EngagementService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // ----- live-room access by ticket -----
+
+  /**
+   * Resolve a ticket code to the participant it belongs to, so an attendee can
+   * enter the live room with the ticket they already hold instead of a login.
+   * The ticket code is a bearer credential (the same one that backs the public
+   * /t/:code ticket page and recordings access). Only a live ticket admits:
+   * 'issued' or 'checked_in'. A 'pending', 'cancelled', 'void', or unknown code
+   * is rejected, as is a code from a different event than the caller claims.
+   */
+  async resolveTicketParticipant(code: string): Promise<{ userId: string; eventId: string }> {
+    const trimmed = (code ?? '').trim();
+    if (!trimmed) throw new NotFoundException('Ticket not found');
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { code: trimmed },
+      select: { status: true, registration: { select: { userId: true, eventId: true } } },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.status !== 'issued' && ticket.status !== 'checked_in') {
+      throw new ForbiddenException('This ticket is not valid for the live room');
+    }
+    return { userId: ticket.registration.userId, eventId: ticket.registration.eventId };
+  }
+
   // ----- channels & messages -----
 
   /**

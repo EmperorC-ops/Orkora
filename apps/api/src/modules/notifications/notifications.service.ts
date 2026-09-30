@@ -51,6 +51,7 @@ export class NotificationsService {
     input: {
       eventTitle: string;
       eventDateLine: string;
+      eventCode?: string;
       tickets: TicketEmailTicket[];
       venue?: { name?: string | null; address?: string | null; joinUrl?: string | null };
     },
