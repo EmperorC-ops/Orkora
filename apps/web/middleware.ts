@@ -75,7 +75,7 @@ function buildCsp(nonce: string): string {
     // frame-src covers Story Mode embeds: playlist providers (Spotify, Apple
     // Music, SoundCloud, YouTube) and optional map embeds. Preset providers
     // only; there is no arbitrary-iframe block in R1.
-    "frame-src 'self' https://open.spotify.com https://embed.music.apple.com https://w.soundcloud.com https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://maps.google.com https://www.openstreetmap.org",
+    "frame-src 'self' https://open.spotify.com https://embed.music.apple.com https://w.soundcloud.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com https://maps.google.com https://www.openstreetmap.org",
     // connect-src must include the R2 storage hosts. Uploads go straight from
     // the browser to a presigned PUT URL on the S3 endpoint
     // (*.r2.cloudflarestorage.com); without it here the fetch is blocked by CSP

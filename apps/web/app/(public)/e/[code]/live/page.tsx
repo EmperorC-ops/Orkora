@@ -337,6 +337,7 @@ export default function LiveEngagementPage() {
                 src={toEmbedUrl(spotlight.url) as string}
                 title={spotlight.title ?? 'Live video'}
                 className="h-full w-full"
+                sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />

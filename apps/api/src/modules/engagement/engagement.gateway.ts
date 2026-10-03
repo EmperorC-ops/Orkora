@@ -59,15 +59,47 @@ interface JwtPayload {
  *   `poll:update`   poll
  *   `presence`      { eventId, count }
  */
+// Same explicit allow-list the HTTP app uses (main.ts). A mismatched origin
+// fails closed rather than being reflected, unlike the former '*'.
+const WS_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 @WebSocketGateway({
   namespace: '/engagement',
-  cors: { origin: '*' },
+  cors: { origin: WS_ORIGINS, credentials: true },
 })
 export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
   private readonly logger = new Logger(EngagementGateway.name);
+
+  // Per-socket sliding-window rate limiter for write actions (socket.io is not
+  // covered by the HTTP throttler). socketId -> action -> recent timestamps.
+  private readonly rate = new Map<string, Map<string, number[]>>();
+
+  /**
+   * Allow at most `limit` of an action per `windowMs` for one socket. Returns
+   * false when the socket is over budget, so the handler can refuse politely.
+   */
+  private allow(clientId: string, action: string, limit: number, windowMs = 10_000): boolean {
+    const now = Date.now();
+    let perAction = this.rate.get(clientId);
+    if (!perAction) {
+      perAction = new Map();
+      this.rate.set(clientId, perAction);
+    }
+    const hits = (perAction.get(action) ?? []).filter((t) => now - t < windowMs);
+    if (hits.length >= limit) {
+      perAction.set(action, hits);
+      return false;
+    }
+    hits.push(now);
+    perAction.set(action, hits);
+    return true;
+  }
 
   constructor(
     private readonly engagement: EngagementService,
@@ -114,6 +146,7 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
   }
 
   handleDisconnect(client: Socket): void {
+    this.rate.delete(client.id);
     // Update presence counts for rooms the socket was in.
     for (const room of client.rooms) {
       if (room.startsWith('event:')) {
@@ -144,7 +177,15 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
     const userId = client.data.userId;
     if (!userId) return { ok: false };
     if (!this.eventAllowed(client, data.eventId)) return { ok: false };
+    if (!this.allow(client.id, 'chat:message', 10)) return { ok: false, error: 'Slow down' };
     try {
+      // Ticket sockets may only write into their own event's channel.
+      if (client.data.viaTicket) {
+        await this.engagement.assertTargetInEvent(
+          { channelId: data.channelId },
+          client.data.ticketEventId as string,
+        );
+      }
       const message = await this.engagement.postMessage({
         userId,
         channelId: data.channelId,
@@ -166,7 +207,14 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
     const userId = client.data.userId;
     if (!userId) return { ok: false };
     if (!this.eventAllowed(client, data.eventId)) return { ok: false };
+    if (!this.allow(client.id, 'poll:vote', 20)) return { ok: false, error: 'Slow down' };
     try {
+      if (client.data.viaTicket) {
+        await this.engagement.assertTargetInEvent(
+          { pollId: data.pollId },
+          client.data.ticketEventId as string,
+        );
+      }
       await this.engagement.vote({
         userId,
         pollId: data.pollId,
@@ -188,7 +236,10 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
     const userId = client.data.userId;
     if (!userId) return { ok: false };
     if (!this.eventAllowed(client, data.eventId)) return { ok: false };
+    if (!this.allow(client.id, 'qa:ask', 5)) return { ok: false, error: 'Slow down' };
     try {
+      // askQuestion derives the Q&A channel from eventId, already pinned-checked
+      // by eventAllowed, so no extra target lookup is needed here.
       await this.engagement.askQuestion({
         eventId: data.eventId,
         userId,
@@ -233,7 +284,14 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
     const userId = client.data.userId;
     if (!userId) return { ok: false };
     if (!this.eventAllowed(client, data.eventId)) return { ok: false };
+    if (!this.allow(client.id, 'qa:upvote', 30)) return { ok: false, error: 'Slow down' };
     try {
+      if (client.data.viaTicket) {
+        await this.engagement.assertTargetInEvent(
+          { questionId: data.questionId },
+          client.data.ticketEventId as string,
+        );
+      }
       await this.engagement.toggleUpvote({
         questionId: data.questionId,
         userId,

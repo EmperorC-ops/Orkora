@@ -234,3 +234,64 @@ describe('EngagementService.chat moderation', () => {
     );
   });
 });
+
+/**
+ * Ticket-socket write scoping: a chat channel, poll, or Q&A question must belong
+ * to the socket's pinned event, so a ticket for event A cannot act in event B by
+ * passing a foreign id.
+ */
+describe('EngagementService.assertTargetInEvent', () => {
+  function svcWith(overrides: Record<string, unknown>) {
+    const prisma = {
+      channel: { findUnique: jest.fn() },
+      poll: { findUnique: jest.fn() },
+      message: { findUnique: jest.fn() },
+      ...overrides,
+    };
+    return new EngagementService(prisma as never);
+  }
+
+  it('passes a channel in the event', async () => {
+    const svc = svcWith({ channel: { findUnique: jest.fn().mockResolvedValue({ eventId: 'e1' }) } });
+    await expect(svc.assertTargetInEvent({ channelId: 'c1' }, 'e1')).resolves.toBeUndefined();
+  });
+
+  it('rejects a channel from another event', async () => {
+    const svc = svcWith({ channel: { findUnique: jest.fn().mockResolvedValue({ eventId: 'other' }) } });
+    await expect(svc.assertTargetInEvent({ channelId: 'c1' }, 'e1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('passes a poll whose session is in the event', async () => {
+    const svc = svcWith({
+      poll: { findUnique: jest.fn().mockResolvedValue({ session: { eventId: 'e1' } }) },
+    });
+    await expect(svc.assertTargetInEvent({ pollId: 'p1' }, 'e1')).resolves.toBeUndefined();
+  });
+
+  it('rejects a poll from another event', async () => {
+    const svc = svcWith({
+      poll: { findUnique: jest.fn().mockResolvedValue({ session: { eventId: 'other' } }) },
+    });
+    await expect(svc.assertTargetInEvent({ pollId: 'p1' }, 'e1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('rejects a question from another event', async () => {
+    const svc = svcWith({
+      message: { findUnique: jest.fn().mockResolvedValue({ channel: { eventId: 'other' } }) },
+    });
+    await expect(svc.assertTargetInEvent({ questionId: 'q1' }, 'e1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('rejects a missing target', async () => {
+    const svc = svcWith({ channel: { findUnique: jest.fn().mockResolvedValue(null) } });
+    await expect(svc.assertTargetInEvent({ channelId: 'gone' }, 'e1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});

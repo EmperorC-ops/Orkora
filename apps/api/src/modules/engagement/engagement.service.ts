@@ -203,6 +203,39 @@ export class EngagementService {
     return { id: messageId };
   }
 
+  /**
+   * Confirm a chat channel, poll, or Q&A question belongs to the given event.
+   * Used to pin a ticket socket to its own event on writes, so a ticket for
+   * event A cannot post, vote, or upvote into event B by passing a foreign id.
+   * Throws when the target is missing or belongs to a different event.
+   */
+  async assertTargetInEvent(
+    target: { channelId?: string; pollId?: string; questionId?: string },
+    eventId: string,
+  ): Promise<void> {
+    if (target.channelId) {
+      const ch = await this.prisma.channel.findUnique({
+        where: { id: target.channelId },
+        select: { eventId: true },
+      });
+      if (!ch || ch.eventId !== eventId) throw new ForbiddenException('Wrong event');
+    }
+    if (target.pollId) {
+      const poll = await this.prisma.poll.findUnique({
+        where: { id: target.pollId },
+        select: { session: { select: { eventId: true } } },
+      });
+      if (!poll || poll.session.eventId !== eventId) throw new ForbiddenException('Wrong event');
+    }
+    if (target.questionId) {
+      const q = await this.prisma.message.findUnique({
+        where: { id: target.questionId },
+        select: { channel: { select: { eventId: true } } },
+      });
+      if (!q || q.channel.eventId !== eventId) throw new ForbiddenException('Wrong event');
+    }
+  }
+
   async postMessage(input: {
     userId: string;
     channelId: string;
