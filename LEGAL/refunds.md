@@ -4,7 +4,7 @@
 
 **Last updated:** 8 July 2026 (draft)
 
-This Policy is issued by **Orkora Technologies Limited**, a registered Nigerian company (RC **9697234**) and a wholly-owned subsidiary of **VoltAfrica Technologies Limited**. It applies to the Orkora event-management platform at `orkora.events`.
+This Policy is issued by **Orkora Technologies Limited**, a registered Nigerian company (RC **9697234**). It applies to the Orkora event-management platform at `orkora.events`.
 
 ## 1. Scope
 

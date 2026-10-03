@@ -25,6 +25,7 @@
  *     gate. Slice D moves to Redis-backed token bucket.
  */
 
+import { statutoryLines } from '../../common/company';
 import {
   BadRequestException,
   ConflictException,
@@ -360,8 +361,9 @@ export class CampaignsService {
   }
 
   private wrap(bodyHtml: string, unsubUrl: string): string {
-    const appUrl = (this.cfg.get<string>('APP_URL') ?? 'https://orkora.events').replace(/\/$/, '');
-    const wordmarkUrl = `${appUrl}/brand/orkora-mark.svg`;
+    // Header wordmark is live text: the previous <img> pointed at an SVG,
+    // which Gmail and Outlook do not render, so most recipients saw a broken
+    // image.
     // Physical postal address in the footer is required for commercial email
     // (CAN-SPAM). Operator-configured; rendered only when set. HTML-escaped
     // since it lands in markup.
@@ -377,8 +379,8 @@ export class CampaignsService {
 <table width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td align="center" style="padding:32px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:16px;overflow:hidden;">
-<tr><td align="center" style="background:linear-gradient(180deg,#6D28D9 0%,#4C1D95 100%);padding:24px;">
-  <img src="${wordmarkUrl}" alt="Orkora" width="48" height="48" style="display:inline-block;border:0;">
+<tr><td align="center" bgcolor="#5B21B6" style="background-color:#5B21B6;background:linear-gradient(180deg,#6D28D9 0%,#4C1D95 100%);padding:24px;">
+  <span style="display:inline-block;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.5px;color:#ffffff;">Orkora</span>
 </td></tr>
 <tr><td style="padding:32px 28px 24px 28px;color:#0F172A;font-size:15px;line-height:1.6;">
 ${bodyHtml}
@@ -386,6 +388,9 @@ ${bodyHtml}
 <tr><td style="padding:16px 28px 28px 28px;color:#94A3B8;font-size:12px;line-height:1.5;border-top:1px solid #E2E8F0;">
 You are receiving this because you registered for one of our events.
 <a href="${unsubUrl}" style="color:#6D28D9;">Unsubscribe</a> at any time.${postalHtml}
+<div style="margin-top:10px;padding-top:10px;border-top:1px solid #E2E8F0;font-size:11px;">Sent by ${statutoryLines()
+      .map((l) => l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+      .join('<br>')}</div>
 </td></tr>
 </table>
 </td></tr>

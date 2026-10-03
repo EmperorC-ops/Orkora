@@ -9,6 +9,7 @@ import {
   Download,
 } from 'lucide-react';
 import { PRICING_TIERS, PRICING_FOOTNOTE, type PricingTier } from '@/lib/pricing';
+import { LegalEntityLine } from '@/components/legal-entity';
 
 /**
  * Public pricing page. Renders the committed rate card from lib/pricing.ts
@@ -176,6 +177,9 @@ export default function PricingPage() {
           <p className="text-xs text-ink-muted">
             &copy; {new Date().getFullYear()} Orkora. Orchestrating every moment.
           </p>
+        </div>
+        <div className="mx-auto max-w-7xl px-6 pb-8 text-center sm:text-left">
+          <LegalEntityLine />
         </div>
       </footer>
     </main>

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import HeroDashboardLive from './_components/HeroDashboardLive';
 import { Brand } from '@/components/brand';
+import { LegalEntityLine } from '@/components/legal-entity';
 
 const capabilities = [
   {
@@ -383,6 +384,9 @@ export default function MarketingHome() {
           <p className="text-xs text-ink-muted">
             &copy; {new Date().getFullYear()} Orkora. Orchestrating every moment.
           </p>
+        </div>
+        <div className="mx-auto max-w-7xl px-6 pb-8 text-center sm:text-left">
+          <LegalEntityLine />
         </div>
       </footer>
     </main>

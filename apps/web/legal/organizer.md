@@ -4,7 +4,7 @@
 
 **Last updated:** 8 July 2026 (draft)
 
-This Organizer Agreement is between you (the Organiser) and **Orkora Technologies Limited** ("Orkora"), a registered Nigerian company (RC **9697234**) and a wholly-owned subsidiary of **VoltAfrica Technologies Limited**. It supplements the Orkora Terms of Service. If there is any conflict between this Agreement and the Terms, this Agreement controls for matters relating to your organisation, your events, and your relationship with attendees.
+This Organizer Agreement is between you (the Organiser) and **Orkora Technologies Limited** ("Orkora"), a registered Nigerian company (RC **9697234**). It supplements the Orkora Terms of Service. If there is any conflict between this Agreement and the Terms, this Agreement controls for matters relating to your organisation, your events, and your relationship with attendees.
 
 ## 1. Who you are
 
@@ -20,11 +20,11 @@ For higher-value organisers, **once your settled volume exceeds the equivalent o
 
 You may invite team members to your Organisation with one of these roles:
 
-- **Owner** — full administrative control, can add or remove other owners.
-- **Admin** — manage events, tickets, payments, refunds, campaigns, billing.
-- **Organiser** — read-write on event content, registrations, attendees, sessions.
-- **Staff** — read-only plus check-in scanning rights.
-- **Vendor** — read-only on assigned events.
+- **Owner**: full administrative control, can add or remove other owners.
+- **Admin**: manage events, tickets, payments, refunds, campaigns, billing.
+- **Organiser**: read-write on event content, registrations, attendees, sessions.
+- **Staff**: read-only plus check-in scanning rights.
+- **Vendor**: read-only on assigned events.
 
 You are responsible for the actions of every member of your Organisation. Revoke access promptly when a team member leaves.
 

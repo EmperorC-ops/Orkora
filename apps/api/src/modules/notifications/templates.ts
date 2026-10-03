@@ -2,16 +2,27 @@
  * Inline email templates. Brand styling must work in every major email client,
  * which means tables, inline CSS, and no flexbox. Keep it simple.
  *
- * The header pulls the wordmark from the public web origin
- * (`APP_URL/brand/orkora-wordmark-on-dark.png`) which lives in
- * `apps/web/public/brand/`. `width` is fixed so Outlook does not resize, and
- * the surrounding `<div>` text fallback covers clients that block remote
- * images by default (Gmail proxies images, so this is rare; the fallback is
- * for "show images" being off).
+ * The header wordmark is live HTML text, not an image. The previous PNG
+ * (`/brand/orkora-wordmark-on-dark.png`) was deleted in bb5a082 when the web
+ * brand moved to a vector mark plus live-text wordmark, which left every email
+ * header pointing at a 404. Text cannot break, needs no remote-image consent,
+ * and matches the live-text wordmark in apps/web/components/brand.tsx.
+ *
+ * Every template's footer carries the company's statutory particulars
+ * (CAMA 2020 ss. 304 and 729), in both the HTML and the plain-text part.
  */
 
+import { statutoryLines, statutoryText } from '../../common/company';
+
 const APP_URL = (process.env.APP_URL ?? 'https://orkora.events').replace(/\/$/, '');
-const WORDMARK_URL = `${APP_URL}/brand/orkora-wordmark-on-dark.png`;
+
+const statutoryHtml = () =>
+  statutoryLines()
+    .map((l) => escapeHtml(l))
+    .join('<br>');
+
+/** Append the statutory line to a plain-text email body. */
+const withStatutory = (text: string) => `${text}\n\n${statutoryText()}`;
 
 const wrap = (body: string) => `
 <!doctype html>
@@ -20,14 +31,15 @@ const wrap = (body: string) => `
     <table width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr><td align="center" style="padding:32px 16px;">
         <table width="520" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 12px rgba(76,29,149,0.08);">
-          <tr><td align="center" style="background:linear-gradient(180deg,#6D28D9 0%,#4C1D95 100%);padding:24px;">
-            <img src="${WORDMARK_URL}" alt="Orkora" width="140" height="auto" style="display:inline-block;border:0;outline:none;text-decoration:none;max-width:140px;height:auto;" />
+          <tr><td align="center" bgcolor="#5B21B6" style="background-color:#5B21B6;background:linear-gradient(180deg,#6D28D9 0%,#4C1D95 100%);padding:24px;">
+            <span style="display:inline-block;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:26px;line-height:32px;font-weight:600;letter-spacing:-0.5px;color:#ffffff;">Orkora</span>
           </td></tr>
           <tr><td style="padding:32px 28px 28px 28px;color:#0F172A;font-size:15px;line-height:1.55;">
             ${body}
           </td></tr>
-          <tr><td style="padding:16px 28px 28px 28px;color:#94A3B8;font-size:12px;">
+          <tr><td style="padding:16px 28px 28px 28px;color:#94A3B8;font-size:12px;line-height:1.5;">
             Orkora - events that run themselves.
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid #E2E8F0;font-size:11px;color:#94A3B8;">${statutoryHtml()}</div>
           </td></tr>
         </table>
       </td></tr>
@@ -51,7 +63,7 @@ export function otpEmailTemplate(code: string) {
   return {
     subject: `Your Orkora code: ${code}`,
     html,
-    text: `Your Orkora verification code is ${code}. It expires in 10 minutes.`,
+    text: withStatutory(`Your Orkora verification code is ${code}. It expires in 10 minutes.`),
   };
 }
 
@@ -72,7 +84,7 @@ export function inviteEmailTemplate(orgName: string, acceptUrl: string) {
   return {
     subject: `Join ${orgName} on Orkora`,
     html,
-    text: `${orgName} invited you to Orkora. Accept here: ${acceptUrl}`,
+    text: withStatutory(`${orgName} invited you to Orkora. Accept here: ${acceptUrl}`),
   };
 }
 
@@ -105,7 +117,7 @@ export function signupCollisionNoticeTemplate() {
   return {
     subject: 'Heads up: a signup was attempted with your email',
     html,
-    text: `Someone just tried to sign up for Orkora using this email. Because you already have an account, we did not create a new one. If it was you, sign in as usual. If it was not, your account is safe and unchanged. If you have forgotten your password, use the "Forgot password" link on the sign-in page.`,
+    text: withStatutory(`Someone just tried to sign up for Orkora using this email. Because you already have an account, we did not create a new one. If it was you, sign in as usual. If it was not, your account is safe and unchanged. If you have forgotten your password, use the "Forgot password" link on the sign-in page.`),
   };
 }
 
@@ -207,11 +219,11 @@ export function ticketConfirmationTemplate(input: {
   return {
     subject: `You are registered for ${eventTitle}`,
     html,
-    text: `You are registered for ${eventTitle}. ${eventDateLine}.${
+    text: withStatutory(`You are registered for ${eventTitle}. ${eventDateLine}.${
       venueName || venueAddress || joinUrl
         ? ` Where: ${[venueName, venueAddress, joinUrl].filter(Boolean).join(' - ')}.`
         : ''
-    } Tickets: ${tickets.map((t) => `${t.tierName} (${t.code}) - ${t.ticketUrl}`).join(', ')}`,
+    } Tickets: ${tickets.map((t) => `${t.tierName} (${t.code}) - ${t.ticketUrl}`).join(', ')}`),
   };
 }
 
@@ -260,9 +272,9 @@ export function receiptTemplate(input: {
   return {
     subject: `Your Orkora receipt - ${eventTitle}`,
     html,
-    text: `Receipt for ${eventTitle} (paid to ${orgName} on ${paidAtLine}). ${lines
+    text: withStatutory(`Receipt for ${eventTitle} (paid to ${orgName} on ${paidAtLine}). ${lines
       .map((l) => `${l.description} x${l.quantity} ${l.amount}`)
-      .join('; ')}. Total paid: ${totalFormatted}. Paid via ${provider}. Reference: ${orderId}.`,
+      .join('; ')}. Total paid: ${totalFormatted}. Paid via ${provider}. Reference: ${orderId}.`),
   };
 }
 
@@ -304,7 +316,7 @@ export function refundTemplate(input: {
   return {
     subject: `Refund issued - ${eventTitle}`,
     html,
-    text: `${orgName} refunded your purchase for ${eventTitle} on ${refundedAtLine}. Amount refunded: ${totalFormatted}, back to your ${provider} payment method. Funds typically arrive in 5 to 10 business days. Your ticket QR codes have been voided. Reference: ${orderId}.`,
+    text: withStatutory(`${orgName} refunded your purchase for ${eventTitle} on ${refundedAtLine}. Amount refunded: ${totalFormatted}, back to your ${provider} payment method. Funds typically arrive in 5 to 10 business days. Your ticket QR codes have been voided. Reference: ${orderId}.`),
   };
 }
 

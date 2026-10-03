@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Brand } from '@/components/brand';
 import { ContactEmail } from '@/components/contact-email';
+import { LegalEntityLine } from '@/components/legal-entity';
 
 /**
  * Shared layout for every page under /legal. Wraps content in the dark
@@ -19,7 +20,7 @@ import { ContactEmail } from '@/components/contact-email';
 // layout.tsx (default, metadata, generateMetadata, viewport, ...). Anything
 // else trips a build-time type error in `.next/types`. Keep the display date
 // as a local const.
-const LAST_UPDATED = '7 July 2026';
+const LAST_UPDATED = '3 October 2026';
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -59,6 +60,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
               <ContactEmail address="privacy@orkora.events" className="text-xs" />
             </span>
           </div>
+          <LegalEntityLine className="mt-4" />
         </footer>
       </div>
     </main>
