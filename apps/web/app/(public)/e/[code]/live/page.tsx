@@ -21,7 +21,9 @@ interface Message {
   body: string;
   createdAt: string;
   replyToId: string | null;
-  user: { id: string; fullName: string; avatarUrl: string | null };
+  // Public live feed: the API sends a redacted display name (first name + last
+  // initial) and no internal user id.
+  user: { fullName: string; avatarUrl: string | null };
 }
 
 interface PollOption {
@@ -47,12 +49,12 @@ interface QuestionView {
   createdAt: string;
   upvotes: number;
   hasUpvoted: boolean;
-  user: { id: string; fullName: string; avatarUrl: string | null };
+  user: { fullName: string; avatarUrl: string | null };
   replies: Array<{
     id: string;
     body: string;
     createdAt: string;
-    user: { id: string; fullName: string; avatarUrl: string | null };
+    user: { fullName: string; avatarUrl: string | null };
   }>;
 }
 

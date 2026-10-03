@@ -12,6 +12,24 @@ export interface PollOption {
   label: string;
 }
 
+/**
+ * Public display name for the live engagement reads (chat, Q&A). The live feed
+ * is readable by anyone who knows the event id, so showing full names would let
+ * an unauthenticated viewer harvest a complete attendee list. We show the first
+ * name and the last initial instead ("Ada Obi" -> "Ada O."). A single-token
+ * name is left as-is; an empty name stays null. Organizer moderation views
+ * (listChatForOrganizer, listQuestionsForOrganizer) use the full name through
+ * their own methods and are deliberately not routed through this.
+ */
+export function redactDisplayName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return parts[0];
+  const last = parts[parts.length - 1];
+  return `${parts[0]} ${last[0].toUpperCase()}.`;
+}
+
 @Injectable()
 export class EngagementService {
   constructor(private readonly prisma: PrismaService) {}
@@ -154,7 +172,7 @@ export class EngagementService {
       body: m.body,
       createdAt: m.createdAt,
       replyToId: m.replyToId,
-      user: { fullName: m.user.fullName, avatarUrl: m.user.avatarUrl },
+      user: { fullName: redactDisplayName(m.user.fullName), avatarUrl: m.user.avatarUrl },
     }));
   }
 
@@ -267,9 +285,11 @@ export class EngagementService {
       replyToId: message.replyToId,
       eventId: channel.eventId,
       channelId: channel.id,
+      // This shape is broadcast to the whole event room (chat:message), so it
+      // mirrors the public read (listMessages): a redacted display name and no
+      // internal user id.
       user: {
-        id: message.user.id,
-        fullName: message.user.fullName,
+        fullName: redactDisplayName(message.user.fullName),
         avatarUrl: message.user.avatarUrl,
       },
     };
@@ -325,14 +345,16 @@ export class EngagementService {
       channelId: channel.id,
       body: q.body,
       createdAt: q.createdAt,
-      user: q.user,
+      // Public read: redact the display name (first name + last initial) so the
+      // open live feed cannot be scraped for a full attendee list.
+      user: { fullName: redactDisplayName(q.user?.fullName), avatarUrl: q.user?.avatarUrl ?? null },
       upvotes: q._count.upvotes,
       hasUpvoted: viewerId ? q.upvotes.length > 0 : false,
       replies: q.replies.map((r) => ({
         id: r.id,
         body: r.body,
         createdAt: r.createdAt,
-        user: r.user,
+        user: { fullName: redactDisplayName(r.user?.fullName), avatarUrl: r.user?.avatarUrl ?? null },
       })),
     }));
   }

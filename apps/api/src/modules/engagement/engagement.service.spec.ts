@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { EngagementService } from './engagement.service';
+import { EngagementService, redactDisplayName } from './engagement.service';
 
 /**
  * resolveTicketParticipant is the credential check that lets an attendee enter
@@ -293,5 +293,38 @@ describe('EngagementService.assertTargetInEvent', () => {
     await expect(svc.assertTargetInEvent({ channelId: 'gone' }, 'e1')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+});
+
+/**
+ * redactDisplayName shortens attendee names for the public live feed so an
+ * unauthenticated viewer cannot harvest a full guest list.
+ */
+describe('redactDisplayName', () => {
+  it('keeps the first name and reduces the surname to an initial', () => {
+    expect(redactDisplayName('Ada Obi')).toBe('Ada O.');
+  });
+
+  it('uses the last token for multi-part names', () => {
+    expect(redactDisplayName('Ada Ngozi Obi')).toBe('Ada O.');
+  });
+
+  it('leaves a single-token name as-is', () => {
+    expect(redactDisplayName('Ada')).toBe('Ada');
+  });
+
+  it('collapses extra whitespace before reducing', () => {
+    expect(redactDisplayName('  Ada   Obi  ')).toBe('Ada O.');
+  });
+
+  it('uppercases the surname initial', () => {
+    expect(redactDisplayName('ada obi')).toBe('ada O.');
+  });
+
+  it('returns null for an empty or missing name', () => {
+    expect(redactDisplayName('')).toBeNull();
+    expect(redactDisplayName('   ')).toBeNull();
+    expect(redactDisplayName(null)).toBeNull();
+    expect(redactDisplayName(undefined)).toBeNull();
   });
 });
