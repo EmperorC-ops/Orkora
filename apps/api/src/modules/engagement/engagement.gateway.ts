@@ -259,6 +259,11 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
     this.server.to(`event:${eventId}`).emit('spotlight:update', spotlight);
   }
 
+  /** Tell everyone to drop a moderated chat message in real time. */
+  emitChatDeleted(eventId: string, messageId: string): void {
+    this.server.to(`event:${eventId}`).emit('chat:deleted', { id: messageId });
+  }
+
   private broadcastPresence(eventId: string): void {
     const room = `event:${eventId}`;
     const count = this.server.sockets.adapter.rooms.get(room)?.size ?? 0;

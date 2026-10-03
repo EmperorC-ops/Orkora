@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import {
+  OrganizerChatController,
   OrganizerPollsController,
   OrganizerQaController,
   OrganizerSpotlightController,
@@ -28,6 +29,7 @@ import { EngagementService } from './engagement.service';
     OrganizerPollsController,
     OrganizerQaController,
     OrganizerSpotlightController,
+    OrganizerChatController,
   ],
   providers: [EngagementService, EngagementGateway],
   exports: [EngagementService],

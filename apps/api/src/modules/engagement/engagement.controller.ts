@@ -223,3 +223,39 @@ export class OrganizerSpotlightController {
     return { ok: true };
   }
 }
+
+/**
+ * Organizer chat moderation: read the live chat feed and remove a message.
+ * Deleting broadcasts chat:deleted so every participant drops it at once.
+ */
+@ApiTags('engagement-organizer')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Controller('organizations/:orgId/events/:eventId/chat')
+export class OrganizerChatController {
+  constructor(
+    private readonly service: EngagementService,
+    private readonly gateway: EngagementGateway,
+  ) {}
+
+  @Get()
+  @Roles('owner', 'admin', 'organizer')
+  list(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.service.listChatForOrganizer(eventId, user.userId);
+  }
+
+  @Delete(':messageId')
+  @Roles('owner', 'admin', 'organizer')
+  async remove(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const res = await this.service.deleteChatMessage(eventId, user.userId, messageId);
+    this.gateway.emitChatDeleted(eventId, messageId);
+    return res;
+  }
+}

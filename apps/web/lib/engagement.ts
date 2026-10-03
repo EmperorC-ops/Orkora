@@ -69,8 +69,22 @@ export const engagementApi = (orgId: string) => {
       apiFetch<Spotlight>(`${base}/${eventId}/spotlight`, { method: 'POST', json: input }),
     clearSpotlight: (eventId: string) =>
       apiFetch<{ ok: boolean }>(`${base}/${eventId}/spotlight`, { method: 'DELETE' }),
+
+    // Chat moderation.
+    listChat: (eventId: string) =>
+      apiFetch<ChatMessageMod[]>(`${base}/${eventId}/chat`),
+    deleteChatMessage: (eventId: string, messageId: string) =>
+      apiFetch<{ id: string }>(`${base}/${eventId}/chat/${messageId}`, { method: 'DELETE' }),
   };
 };
+
+export interface ChatMessageMod {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorId: string | null;
+  authorName: string | null;
+}
 
 export type SpotlightKind = 'announcement' | 'link' | 'video';
 

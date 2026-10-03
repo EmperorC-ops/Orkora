@@ -208,6 +208,9 @@ export default function LiveEngagementPage() {
     socket.on('spotlight:update', (s: Spotlight | null) => {
       setSpotlight(s);
     });
+    socket.on('chat:deleted', (d: { id: string }) => {
+      setMessages((prev) => prev.filter((m) => m.id !== d.id));
+    });
 
     return () => {
       socket.disconnect();

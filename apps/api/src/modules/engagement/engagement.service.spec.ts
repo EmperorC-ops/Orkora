@@ -169,3 +169,68 @@ describe('EngagementService.spotlight', () => {
     });
   });
 });
+
+/**
+ * Chat moderation. Organizer-only, scoped to the event's chat channel, with a
+ * soft delete that the public feed already filters out.
+ */
+function makeChatService(opts: {
+  authorized?: boolean;
+  messages?: Array<Record<string, unknown>>;
+  found?: { channelId: string } | null;
+}) {
+  const update = jest.fn().mockResolvedValue({});
+  const prisma = {
+    event: { findUnique: jest.fn().mockResolvedValue({ organizationId: 'org1' }) },
+    membership: {
+      findFirst: jest.fn().mockResolvedValue(opts.authorized === false ? null : { id: 'm1' }),
+    },
+    channel: { findFirst: jest.fn().mockResolvedValue({ id: 'c1', eventId: 'e1' }) },
+    message: {
+      findMany: jest.fn().mockResolvedValue(opts.messages ?? []),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(opts.found === undefined ? { channelId: 'c1' } : opts.found),
+      update,
+    },
+  };
+  return { svc: new EngagementService(prisma as never), update };
+}
+
+describe('EngagementService.chat moderation', () => {
+  it('listChatForOrganizer refuses a non-organizer', async () => {
+    const { svc } = makeChatService({ authorized: false });
+    await expect(svc.listChatForOrganizer('e1', 'u1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('listChatForOrganizer returns messages oldest-first with author', async () => {
+    const { svc } = makeChatService({
+      messages: [
+        { id: 'm2', body: 'second', createdAt: new Date('2026-01-01T00:01:00Z'), user: { id: 'u2', fullName: 'Bee' } },
+        { id: 'm1', body: 'first', createdAt: new Date('2026-01-01T00:00:00Z'), user: { id: 'u1', fullName: 'Ada' } },
+      ],
+    });
+    const out = await svc.listChatForOrganizer('e1', 'org-user');
+    expect(out.map((m) => m.id)).toEqual(['m1', 'm2']);
+    expect(out[0]).toMatchObject({ body: 'first', authorName: 'Ada', authorId: 'u1' });
+  });
+
+  it('deleteChatMessage soft-deletes a message in the event channel', async () => {
+    const { svc, update } = makeChatService({ found: { channelId: 'c1' } });
+    await expect(svc.deleteChatMessage('e1', 'u1', 'm1')).resolves.toEqual({ id: 'm1' });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'm1' } }));
+  });
+
+  it('deleteChatMessage 404s a message from a different channel', async () => {
+    const { svc, update } = makeChatService({ found: { channelId: 'other' } });
+    await expect(svc.deleteChatMessage('e1', 'u1', 'm1')).rejects.toBeInstanceOf(NotFoundException);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('deleteChatMessage 404s an unknown message', async () => {
+    const { svc } = makeChatService({ found: null });
+    await expect(svc.deleteChatMessage('e1', 'u1', 'nope')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});

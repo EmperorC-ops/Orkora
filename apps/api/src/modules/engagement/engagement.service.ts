@@ -158,6 +158,51 @@ export class EngagementService {
     }));
   }
 
+  /**
+   * Organizer-side chat feed for moderation. Verifies the caller organizes the
+   * event, returns the live (non-deleted) messages oldest-first with the author
+   * name so the console can show who said what.
+   */
+  async listChatForOrganizer(eventId: string, userId: string) {
+    await this.assertEventOrganizer(userId, eventId);
+    const channel = await this.getOrCreateEventChat(eventId);
+    const rows = await this.prisma.message.findMany({
+      where: { channelId: channel.id, deletedAt: null },
+      include: { user: { select: { id: true, fullName: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    return rows.reverse().map((m) => ({
+      id: m.id,
+      body: m.body,
+      createdAt: m.createdAt,
+      authorId: m.user?.id ?? null,
+      authorName: m.user?.fullName ?? null,
+    }));
+  }
+
+  /**
+   * Soft-delete a chat message (moderation). Scoped to the event's chat channel
+   * so an organizer cannot reach another event's messages. The public feed
+   * (listMessages) already filters deletedAt, so it disappears for everyone.
+   */
+  async deleteChatMessage(eventId: string, userId: string, messageId: string) {
+    await this.assertEventOrganizer(userId, eventId);
+    const channel = await this.getOrCreateEventChat(eventId);
+    const msg = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { channelId: true },
+    });
+    if (!msg || msg.channelId !== channel.id) {
+      throw new NotFoundException('Message not found');
+    }
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date() },
+    });
+    return { id: messageId };
+  }
+
   async postMessage(input: {
     userId: string;
     channelId: string;

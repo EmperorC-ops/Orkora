@@ -11,6 +11,7 @@ import {
   ListChecks,
   Megaphone,
   MessageCircleQuestion,
+  MessageSquare,
   Plus,
   ThumbsUp,
   Trash2,
@@ -20,6 +21,7 @@ import { ActionButton } from '@/components/action-button';
 import { readActiveOrgId, eventsApi, type EventSession } from '@/lib/events';
 import {
   engagementApi,
+  type ChatMessageMod,
   type Poll,
   type QaQuestion,
   type Spotlight,
@@ -110,7 +112,88 @@ export default function LiveControlPage() {
         onChanged={refreshQuestions}
         onError={setError}
       />
+
+      <ChatSection orgId={orgId} eventId={eventId} onError={setError} />
     </div>
+  );
+}
+
+/* -------------------------------- chat -------------------------------- */
+
+function ChatSection({
+  orgId,
+  eventId,
+  onError,
+}: {
+  orgId: string | null;
+  eventId: string;
+  onError: (message: string) => void;
+}) {
+  const [messages, setMessages] = useState<ChatMessageMod[]>([]);
+
+  const refresh = useCallback(async () => {
+    if (!orgId) return;
+    try {
+      setMessages(await engagementApi(orgId).listChat(eventId));
+    } catch (err) {
+      onError((err as Error).message);
+    }
+  }, [orgId, eventId, onError]);
+
+  // Chat moves quickly, so poll while the console is open.
+  useEffect(() => {
+    if (!orgId) return;
+    refresh();
+    const id = setInterval(refresh, 5000);
+    return () => clearInterval(id);
+  }, [orgId, refresh]);
+
+  const remove = async (messageId: string) => {
+    if (!orgId) throw new Error('No active organization');
+    await engagementApi(orgId).deleteChatMessage(eventId, messageId);
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  };
+
+  return (
+    <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="h-5 w-5 text-brand-300" />
+        <h2 className="text-lg font-semibold text-ink-primary">Chat</h2>
+      </div>
+      <p className="mt-1 text-sm text-ink-secondary">
+        The live audience chat. Remove a message to drop it from everyone&apos;s screen.
+      </p>
+
+      <div className="mt-4 space-y-2">
+        {messages.length === 0 ? (
+          <p className="text-sm text-ink-secondary">No messages yet.</p>
+        ) : (
+          messages.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-start justify-between gap-3 rounded-xl border border-surface-border bg-surface-deep/30 px-4 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-brand-200">
+                  {m.authorName ?? 'Guest'}
+                </p>
+                <p className="mt-0.5 break-words text-sm text-ink-primary">{m.body}</p>
+              </div>
+              <ActionButton
+                onAction={() => remove(m.id)}
+                onError={onError}
+                idleLabel="Delete"
+                pendingLabel="Deleting…"
+                successLabel="Deleted"
+                idleIcon={<Trash2 className="h-3.5 w-3.5" />}
+                variant="danger"
+                className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+              />
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
