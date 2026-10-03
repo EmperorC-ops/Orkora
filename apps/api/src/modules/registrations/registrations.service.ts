@@ -918,6 +918,38 @@ export class RegistrationsService {
     return this.applyCheckIn(ticket);
   }
 
+  /**
+   * Manual check-in by ticket id, selected from the attendee roster rather than
+   * scanned or typed. Every registrant has a ticket row from the moment they
+   * register (free tickets are 'issued' immediately), so this admits someone
+   * who never received their ticket email, for instance during an email-delivery
+   * outage: staff verify the person against the registration list (photo ID),
+   * then check them in directly with no QR or code. Same tenancy and lifecycle
+   * rules as the QR and code paths.
+   */
+  async checkInByTicketId(orgId: string, eventId: string, rawTicketId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const ticketId = (rawTicketId ?? '').trim();
+    if (!ticketId) throw new BadRequestException('Select an attendee to check in');
+
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        tier: true,
+        registration: { include: { event: { select: { id: true } } } },
+      },
+    });
+    if (!ticket || ticket.registration.event.id !== event.id) {
+      throw new NotFoundException('No ticket for this event');
+    }
+    return this.applyCheckIn(ticket);
+  }
+
   async getCheckinStats(orgId: string, eventId: string) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, organizationId: orgId },

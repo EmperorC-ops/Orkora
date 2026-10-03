@@ -206,6 +206,20 @@ export class CheckinController {
     return this.service.checkInByCode(orgId, eventId, body.code);
   }
 
+  // Manual check-in by ticket id, chosen from the attendee roster. For
+  // registrants who have neither a QR nor a code to hand (e.g. they never
+  // received their ticket email during a delivery outage): staff match the
+  // person to the registration list by photo ID, then check them in directly.
+  @Post('by-ticket')
+  @Roles('staff')
+  checkInByTicketId(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Body() body: { ticketId: string },
+  ) {
+    return this.service.checkInByTicketId(orgId, eventId, body.ticketId);
+  }
+
   // Undo a check-in (mis-scan recovery): revert a checked-in ticket to issued.
   @Post('undo')
   @Roles('staff')

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Download, Search, TicketCheck, Users } from 'lucide-react';
+import { ArrowLeft, Check, Download, Loader2, Search, TicketCheck, UserCheck, Users } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId, type RegistrationField } from '@/lib/events';
 
@@ -29,6 +29,19 @@ interface EventRegistrations {
   rows: RegistrationRow[];
 }
 
+interface CheckInResult {
+  id: string;
+  status: string;
+  checkedInAt: string | null;
+  alreadyCheckedIn: boolean;
+}
+
+// A ticket counts as "at the door and admissible" when it is issued or already
+// checked in. Pending (unpaid), cancelled, and void tickets are not checkable.
+function isLive(status: string): boolean {
+  return status === 'issued' || status === 'checked_in';
+}
+
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
   { value: 'confirmed', label: 'Confirmed' },
@@ -45,10 +58,54 @@ export default function OrganizerRegistrationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
   const [q, setQ] = useState<string>('');
+  const [busyRow, setBusyRow] = useState<string | null>(null);
+  const [rowMsg, setRowMsg] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setOrgId(readActiveOrgId());
   }, []);
+
+  // Manual check-in from the roster: check in every live ticket on the row by
+  // its id, with no QR or code. Updates each ticket's status in place so the
+  // button flips to "Checked in" without a refetch. Used on the event day,
+  // including for attendees who never received their ticket email.
+  async function handleCheckIn(row: RegistrationRow) {
+    if (!orgId) return;
+    const toCheck = row.tickets.filter((t) => t.status === 'issued');
+    if (toCheck.length === 0) return;
+    setBusyRow(row.id);
+    setRowMsg((m) => {
+      const next = { ...m };
+      delete next[row.id];
+      return next;
+    });
+    try {
+      for (const ticket of toCheck) {
+        const res = await apiFetch<CheckInResult>(
+          `/v1/organizations/${orgId}/events/${eventId}/checkin/by-ticket`,
+          { method: 'POST', json: { ticketId: ticket.id } },
+        );
+        setRows((prev) =>
+          prev
+            ? prev.map((r) =>
+                r.id === row.id
+                  ? {
+                      ...r,
+                      tickets: r.tickets.map((t) =>
+                        t.id === res.id ? { ...t, status: res.status } : t,
+                      ),
+                    }
+                  : r,
+              )
+            : prev,
+        );
+      }
+    } catch (err) {
+      setRowMsg((m) => ({ ...m, [row.id]: (err as Error).message }));
+    } finally {
+      setBusyRow(null);
+    }
+  }
 
   useEffect(() => {
     if (!orgId || !eventId) return;
@@ -154,6 +211,7 @@ export default function OrganizerRegistrationsPage() {
                 <th className="px-5 py-3 font-semibold">Tier</th>
                 <th className="px-5 py-3 font-semibold">Tickets</th>
                 <th className="px-5 py-3 font-semibold">Status</th>
+                <th className="px-5 py-3 font-semibold">Check-in</th>
                 <th className="px-5 py-3 font-semibold">Registered</th>
               </tr>
             </thead>
@@ -179,6 +237,9 @@ export default function OrganizerRegistrationsPage() {
                     <div className="h-5 w-20 animate-pulse rounded-full bg-surface-border" />
                   </td>
                   <td className="px-5 py-4">
+                    <div className="h-7 w-24 animate-pulse rounded-lg bg-surface-border" />
+                  </td>
+                  <td className="px-5 py-4">
                     <div className="h-3 w-16 animate-pulse rounded bg-surface-border" />
                   </td>
                 </tr>
@@ -202,6 +263,7 @@ export default function OrganizerRegistrationsPage() {
                 <th className="px-5 py-3 font-semibold">Tier</th>
                 <th className="px-5 py-3 font-semibold">Tickets</th>
                 <th className="px-5 py-3 font-semibold">Status</th>
+                <th className="px-5 py-3 font-semibold">Check-in</th>
                 <th className="px-5 py-3 font-semibold">Registered</th>
                 {fields.length > 0 && (
                   <th className="px-5 py-3 font-semibold">Responses</th>
@@ -237,6 +299,14 @@ export default function OrganizerRegistrationsPage() {
                   </td>
                   <td className="px-5 py-4">
                     <StatusPill status={r.status} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <CheckInCell
+                      row={r}
+                      busy={busyRow === r.id}
+                      error={rowMsg[r.id]}
+                      onCheckIn={() => handleCheckIn(r)}
+                    />
                   </td>
                   <td className="px-5 py-4 text-[11px] text-ink-muted">
                     {new Date(r.createdAt).toLocaleString('en-GB', {
@@ -334,6 +404,54 @@ function Stat({ label, value, icon }: { label: string; value: string; icon: Reac
         <div className="text-[10px] uppercase tracking-wider text-ink-muted">{label}</div>
         <div className="text-sm font-semibold text-ink-primary">{value}</div>
       </div>
+    </div>
+  );
+}
+
+function CheckInCell({
+  row,
+  busy,
+  error,
+  onCheckIn,
+}: {
+  row: RegistrationRow;
+  busy: boolean;
+  error?: string;
+  onCheckIn: () => void;
+}) {
+  const live = row.tickets.filter((t) => isLive(t.status));
+  const checkable = row.tickets.filter((t) => t.status === 'issued');
+  const allIn = live.length > 0 && checkable.length === 0;
+
+  if (allIn) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#00C896]/15 px-3 py-1.5 text-[11px] font-semibold text-[#00C896]">
+        <Check className="h-3.5 w-3.5" /> Checked in
+      </span>
+    );
+  }
+
+  if (checkable.length === 0) {
+    // No admissible ticket: unpaid, cancelled, or refunded. Nothing to check in.
+    return <span className="text-[11px] text-ink-muted">-</span>;
+  }
+
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={onCheckIn}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-500/10 px-3 py-1.5 text-[11px] font-semibold text-brand-200 transition hover:bg-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <UserCheck className="h-3.5 w-3.5" />
+        )}
+        {busy ? 'Checking in' : 'Check in'}
+      </button>
+      {error && <div className="text-[10px] text-[#FF9090]">{error}</div>}
     </div>
   );
 }
