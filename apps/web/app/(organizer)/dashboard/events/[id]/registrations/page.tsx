@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Check, Download, Loader2, Search, TicketCheck, UserCheck, Users } from 'lucide-react';
@@ -60,10 +60,29 @@ export default function OrganizerRegistrationsPage() {
   const [q, setQ] = useState<string>('');
   const [busyRow, setBusyRow] = useState<string | null>(null);
   const [rowMsg, setRowMsg] = useState<Record<string, string>>({});
+  const [checkin, setCheckin] = useState<{ issued: number; checkedIn: number } | null>(null);
 
   useEffect(() => {
     setOrgId(readActiveOrgId());
   }, []);
+
+  // Event-wide check-in tally (issued = expected at the door, checkedIn = done).
+  // Pulled from the stats endpoint, not the roster, so filtering/search on the
+  // list does not distort the count. Refreshed after each check-in.
+  const refreshCheckinStats = useCallback(() => {
+    if (!orgId || !eventId) return;
+    apiFetch<{ issued: number; checkedIn: number }>(
+      `/v1/organizations/${orgId}/events/${eventId}/checkin/stats`,
+    )
+      .then((s) => setCheckin({ issued: s.issued, checkedIn: s.checkedIn }))
+      .catch(() => {
+        /* non-fatal: the header counter just stays as-is */
+      });
+  }, [orgId, eventId]);
+
+  useEffect(() => {
+    refreshCheckinStats();
+  }, [refreshCheckinStats]);
 
   // Manual check-in from the roster: check in every live ticket on the row by
   // its id, with no QR or code. Updates each ticket's status in place so the
@@ -104,6 +123,7 @@ export default function OrganizerRegistrationsPage() {
       setRowMsg((m) => ({ ...m, [row.id]: (err as Error).message }));
     } finally {
       setBusyRow(null);
+      refreshCheckinStats();
     }
   }
 
@@ -156,6 +176,13 @@ export default function OrganizerRegistrationsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Stat label="Registrations" value={String(totals.total)} icon={<Users className="h-4 w-4" />} />
             <Stat label="Tickets issued" value={String(totals.ticketCount)} icon={<TicketCheck className="h-4 w-4" />} />
+            {checkin && (
+              <Stat
+                label="Checked in"
+                value={`${checkin.checkedIn} / ${checkin.issued}`}
+                icon={<UserCheck className="h-4 w-4" />}
+              />
+            )}
             {rows && rows.length > 0 && (
               <button
                 type="button"
