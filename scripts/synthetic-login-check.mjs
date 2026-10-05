@@ -45,12 +45,40 @@ function ok(msg) {
   console.log(`ok    ${msg}`);
 }
 
+// Transient blips should not page us: a deploy in progress, a cold edge node, a
+// brief 5xx, or chunk 404s during Vercel deploy skew all clear within seconds.
+// Retry the network fetches a couple of times with short backoff before a check
+// is allowed to fail. A real, standing failure still exhausts the retries and
+// fails the run, so this does not hide an actual outage. Only transient-looking
+// statuses are retried; a definite answer like 401/403/400 returns immediately
+// so the assertion that reads it still runs.
+const RETRYABLE_STATUS = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
+
+async function fetchWithRetry(url, opts = {}, attempts = 3, backoffMs = 2000) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await fetch(url, opts);
+      if (res.ok || !RETRYABLE_STATUS.has(res.status) || i === attempts) {
+        if (i > 1) ok(`recovered on attempt ${i}: ${url}`);
+        return res;
+      }
+      lastErr = new Error(`status ${res.status}`);
+    } catch (err) {
+      lastErr = err;
+      if (i === attempts) throw err;
+    }
+    await new Promise((r) => setTimeout(r, backoffMs * i));
+  }
+  throw lastErr ?? new Error('fetchWithRetry exhausted');
+}
+
 // -------------------- 1. login page --------------------
 
 let html = '';
 let csp = '';
 try {
-  const res = await fetch(`${BASE}/login`, {
+  const res = await fetchWithRetry(`${BASE}/login`, {
     redirect: 'follow',
     headers: { 'user-agent': 'orkora-synthetic-check/1.0' },
   });
@@ -106,7 +134,9 @@ if (html) {
   for (const src of chunkSrcs) {
     const url = src.startsWith('http') ? src : `${BASE}${src}`;
     try {
-      const res = await fetch(url, { headers: { 'user-agent': 'orkora-synthetic-check/1.0' } });
+      const res = await fetchWithRetry(url, {
+        headers: { 'user-agent': 'orkora-synthetic-check/1.0' },
+      });
       const ct = res.headers.get('content-type') ?? '';
       if (res.status !== 200) {
         fail(`chunk ${url} -> ${res.status} (expected 200)`);
@@ -140,7 +170,7 @@ const email = process.env.SYNTHETIC_LOGIN_EMAIL;
 const password = process.env.SYNTHETIC_LOGIN_PASSWORD;
 if (email && password) {
   try {
-    const res = await fetch(`${API}/v1/auth/login`, {
+    const res = await fetchWithRetry(`${API}/v1/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'user-agent': 'orkora-synthetic-check/1.0' },
       body: JSON.stringify({ email, password }),

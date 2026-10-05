@@ -39,11 +39,11 @@ jobs:
     # For deployment_status events, only run on successful production deploys.
     if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Run synthetic login check
         env:
