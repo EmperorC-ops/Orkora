@@ -7,6 +7,9 @@ import { ArrowLeft, Calendar, CheckCircle2, MapPin, Video } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { registrationApi, type PublicTicket } from '@/lib/registration';
 import { isFeatureEnabled } from '@/lib/flags';
+import { recordTicketCardEvent } from '@/lib/brand';
+import { rememberLastTicket } from '@/lib/pwa';
+import InstallPrompt from '../../_components/InstallPrompt';
 import ShareActions from './ShareActions';
 
 export default function TicketPage() {
@@ -20,7 +23,11 @@ export default function TicketPage() {
     registrationApi
       .getTicket(code)
       .then((t) => {
-        if (!cancelled) setTicket(t);
+        if (cancelled) return;
+        setTicket(t);
+        // Remember this ticket on the device so an installed Orkora opens
+        // straight to it (see /app), including offline via the service worker.
+        rememberLastTicket(t.code);
       })
       .catch(() => {
         if (!cancelled) setError('We could not load this ticket.');
@@ -143,6 +150,20 @@ export default function TicketPage() {
                 eventTitle={ticket.event.title}
               />
             ) : null}
+
+            {/* Inline (not floating) so it can never sit over the QR code. The
+                offline claim is true: the service worker caches this page and
+                its ticket payload, so an installed copy shows the QR with no
+                signal at the door. */}
+            <div className="mt-6">
+              <InstallPrompt
+                variant="inline"
+                surface="ticket"
+                title="Keep your ticket on your phone"
+                description="Add Orkora to your home screen. Your QR code works at the door even with no signal."
+                onEvent={(evt) => recordTicketCardEvent(ticket.code, `install_prompt.${evt}`, 'ticket')}
+              />
+            </div>
           </>
         )}
       </div>

@@ -768,6 +768,11 @@ export class RegistrationsService {
       'shareable_card.generated',
       'shareable_card.viewed',
       'shareable_card.downloaded',
+      // PWA install prompt funnel on the ticket page; `source` carries the
+      // surface (e.g. 'ticket') so conversion can be read per placement.
+      'install_prompt.shown',
+      'install_prompt.installed',
+      'install_prompt.dismissed',
     ]);
     if (!allowed.has(input.kind)) return { ok: true };
     const ticket = await this.prisma.ticket.findUnique({

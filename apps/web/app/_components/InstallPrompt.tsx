@@ -25,9 +25,17 @@
  *   <InstallPrompt variant="inline" />   // inline card, e.g. on the event page
  *
  * Both variants share the same logic; only the wrapper changes.
+ *
+ * Surfaces: pass `surface` to give a placement its own copy and its own
+ * dismissal memory. Without it, one dismissal anywhere silenced the prompt
+ * everywhere for a week, which wasted the highest-intent moments (an attendee
+ * holding their ticket at the door, or sitting in the live room). `title` and
+ * `description` let each surface say why installing helps right now, instead
+ * of a generic "get the app". `onEvent` reports shown / installed / dismissed
+ * so a surface can count conversion.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Smartphone, Share, Plus, X, Download } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -36,9 +44,16 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 type Variant = 'banner' | 'inline';
+export type InstallPromptEvent = 'shown' | 'installed' | 'dismissed';
 
 const DISMISS_KEY = 'orkora_install_dismissed_at';
 const DISMISS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// Per-surface dismissal key. The unnamed surface keeps the original key so
+// existing dismissals on the event page carry over unchanged.
+function dismissKey(surface?: string): string {
+  return surface ? `${DISMISS_KEY}:${surface}` : DISMISS_KEY;
+}
 
 function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
@@ -61,10 +76,10 @@ function detectIos(): boolean {
   return isIos;
 }
 
-function dismissed(): boolean {
+function dismissed(surface?: string): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    const ts = Number(window.localStorage.getItem(DISMISS_KEY));
+    const ts = Number(window.localStorage.getItem(dismissKey(surface)));
     if (!ts) return false;
     return Date.now() - ts < DISMISS_WINDOW_MS;
   } catch {
@@ -72,23 +87,46 @@ function dismissed(): boolean {
   }
 }
 
-function markDismissed(): void {
+function markDismissed(surface?: string): void {
   try {
-    window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    window.localStorage.setItem(dismissKey(surface), String(Date.now()));
   } catch {
     /* ignore storage failures */
   }
 }
 
-export default function InstallPrompt({ variant = 'banner' }: { variant?: Variant }) {
+export default function InstallPrompt({
+  variant = 'banner',
+  surface,
+  title = 'Install Orkora',
+  description,
+  onEvent,
+}: {
+  variant?: Variant;
+  surface?: string;
+  title?: string;
+  description?: string;
+  onEvent?: (event: InstallPromptEvent) => void;
+}) {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHint, setShowIosHint] = useState(false);
   const [hidden, setHidden] = useState(true);
+  // Report "shown" once per mount, not on every re-render.
+  const reportedShown = useRef(false);
+  // Keep the latest callback without re-subscribing the install listeners.
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    if (hidden || reportedShown.current) return;
+    reportedShown.current = true;
+    onEventRef.current?.('shown');
+  }, [hidden]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (isStandalone()) return; // already installed
-    if (dismissed()) return;
+    if (dismissed(surface)) return;
 
     // Android / desktop Chrome path: wait for beforeinstallprompt.
     const onBeforeInstall = (e: Event) => {
@@ -113,19 +151,25 @@ export default function InstallPrompt({ variant = 'banner' }: { variant?: Varian
     }
 
     return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-  }, []);
+  }, [surface]);
 
   async function handleInstall() {
     if (!deferred) return;
     await deferred.prompt();
     const result = await deferred.userChoice;
-    if (result.outcome === 'dismissed') markDismissed();
+    if (result.outcome === 'dismissed') {
+      markDismissed(surface);
+      onEventRef.current?.('dismissed');
+    } else {
+      onEventRef.current?.('installed');
+    }
     setDeferred(null);
     setHidden(true);
   }
 
   function handleDismiss() {
-    markDismissed();
+    markDismissed(surface);
+    onEventRef.current?.('dismissed');
     setHidden(true);
   }
 
@@ -147,9 +191,9 @@ export default function InstallPrompt({ variant = 'banner' }: { variant?: Varian
             <Smartphone className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1 text-left">
-            <p className="text-sm font-semibold text-ink-primary">Install Orkora</p>
+            <p className="text-sm font-semibold text-ink-primary">{title}</p>
             <p className="text-xs text-ink-secondary">
-              Get the app on your home screen. No App Store needed.
+              {description ?? 'Get the app on your home screen. No App Store needed.'}
             </p>
           </div>
           <button
@@ -190,7 +234,10 @@ export default function InstallPrompt({ variant = 'banner' }: { variant?: Varian
               <Smartphone className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-ink-primary">Install Orkora</p>
+              <p className="text-sm font-semibold text-ink-primary">{title}</p>
+              {description ? (
+                <p className="mt-1 text-xs text-ink-secondary">{description}</p>
+              ) : null}
               <p className="mt-1 text-xs leading-relaxed text-ink-secondary">
                 Tap{' '}
                 <Share className="inline-block h-3.5 w-3.5 align-text-bottom text-brand-300" />{' '}

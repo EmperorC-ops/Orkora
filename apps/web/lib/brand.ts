@@ -90,7 +90,12 @@ export function recordBrandEvent(
  */
 export function recordTicketCardEvent(
   code: string,
-  kind: 'shareable_card.generated' | 'shareable_card.downloaded',
+  kind:
+    | 'shareable_card.generated'
+    | 'shareable_card.downloaded'
+    | 'install_prompt.shown'
+    | 'install_prompt.installed'
+    | 'install_prompt.dismissed',
   source?: string | null,
 ): void {
   if (!code) return;

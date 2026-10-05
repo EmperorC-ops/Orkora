@@ -15,6 +15,9 @@ import {
   Vote,
 } from 'lucide-react';
 import { io, type Socket } from 'socket.io-client';
+import { recordTicketCardEvent } from '@/lib/brand';
+import { rememberLastTicket } from '@/lib/pwa';
+import InstallPrompt from '../../../../_components/InstallPrompt';
 
 interface Message {
   id: string;
@@ -118,6 +121,9 @@ export default function LiveEngagementPage() {
   const [questions, setQuestions] = useState<QuestionView[]>([]);
   const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
   const [presence, setPresence] = useState<number>(0);
+  // Ticket code the attendee arrived with (/live?t=CODE), kept for the install
+  // prompt's analytics; null for signed-in (JWT) participants.
+  const [entryTicket, setEntryTicket] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [qDraft, setQDraft] = useState('');
   const socketRef = useRef<Socket | null>(null);
@@ -150,6 +156,12 @@ export default function LiveEngagementPage() {
     if (!cred) {
       setSignedOut(true);
       return;
+    }
+    if (ticketCode) {
+      setEntryTicket(ticketCode);
+      // The live room is reached from the ticket; remember it so an installed
+      // Orkora launches back to this attendee's ticket (see /app).
+      rememberLastTicket(ticketCode);
     }
 
     // Bootstrap recent messages and active polls via REST.
@@ -321,6 +333,21 @@ export default function LiveEngagementPage() {
           {presence} live
         </div>
       </header>
+
+      {/* Inline, above the content, so it never covers the chat composer at
+          the bottom of the screen. Its own dismissal memory ('live') so a
+          dismissal on the event page days ago does not silence it here. */}
+      <div className="mb-8">
+        <InstallPrompt
+          variant="inline"
+          surface="live"
+          title="Jump back in faster next time"
+          description="Add Orkora to your home screen to return to the live room in one tap."
+          onEvent={(evt) => {
+            if (entryTicket) recordTicketCardEvent(entryTicket, `install_prompt.${evt}`, 'live');
+          }}
+        />
+      </div>
 
       {spotlight ? (
         <section className="mb-8 rounded-2xl border border-brand-500/30 bg-brand-500/10 p-5">

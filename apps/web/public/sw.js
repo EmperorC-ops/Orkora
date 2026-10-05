@@ -56,7 +56,12 @@
 // v5 2026-07-23: flush caches so installs pick up the CSP change that lets the
 // QR check-in scanner worker run (worker-src blob:). Old cached page shells
 // carried the pre-fix CSP and kept the scanner blocked.
-const VERSION = 'orkora-v5-2026-07-23';
+// v6 2026-10-05: launcher. The manifest start_url is now /app, which routes an
+// installed copy to the signed-in user's tickets or the last ticket viewed on
+// the device. /app is cached like a ticket page so a cold offline launch at
+// the door still reaches the cached QR instead of /offline.html. Bumped so
+// installs refetch the manifest.
+const VERSION = 'orkora-v6-2026-10-05';
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;
@@ -167,9 +172,11 @@ self.addEventListener('fetch', (event) => {
     return; // let the browser handle it directly
   }
 
-  // Ticket pages (/t/<code>). Network-first, cache fallback, offline page
-  // last resort.
-  if (url.pathname.match(/^\/t\/[^/]+$/)) {
+  // Ticket pages (/t/<code>) and the installed-app launcher (/app). Network-
+  // first, cache fallback, offline page last resort. /app is a public,
+  // user-agnostic shell that decides its destination on the client, so caching
+  // it is safe and is what makes an offline cold launch reach the ticket.
+  if (url.pathname.match(/^\/t\/[^/]+$/) || url.pathname === '/app') {
     event.respondWith(networkFirstPage(req, PAGES_CACHE, PAGE_TTL_MS));
     return;
   }

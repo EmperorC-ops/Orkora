@@ -59,7 +59,14 @@ export class PublicRegistrationsController {
  */
 class CardAnalyticsDto {
   @IsString()
-  @IsIn(['shareable_card.generated', 'shareable_card.viewed', 'shareable_card.downloaded'])
+  @IsIn([
+    'shareable_card.generated',
+    'shareable_card.viewed',
+    'shareable_card.downloaded',
+    'install_prompt.shown',
+    'install_prompt.installed',
+    'install_prompt.dismissed',
+  ])
   kind!: string;
 
   @IsOptional()
