@@ -483,6 +483,141 @@ describe('RegistrationsService.checkInByTicketId', () => {
   });
 });
 
+/**
+ * Delivery-outage recovery. Ticket emails are fire-and-forget with no send
+ * log, so this re-sends to confirmed registrations created since a moment the
+ * operator supplies. Dry-run by default; only admitting tickets are included;
+ * one failure must not abort the batch.
+ */
+describe('RegistrationsService.resendTicketConfirmations', () => {
+  const evt = {
+    id: 'evt1',
+    title: 'Show',
+    code: 'SHOW1',
+    startAt: new Date('2026-10-10T10:00:00Z'),
+    endAt: new Date('2026-10-10T12:00:00Z'),
+    timezone: 'UTC',
+    venueName: null,
+    venueAddress: null,
+    joinUrl: null,
+  };
+  function reg(id: string, email: string, ticketStatuses: string[]) {
+    return {
+      id,
+      createdAt: new Date('2026-10-01T00:00:00Z'),
+      user: { email },
+      tickets: ticketStatuses.map((status, i) => ({
+        id: `${id}-t${i}`,
+        code: `${id.toUpperCase()}${i}`,
+        holderName: 'Ada',
+        status,
+        tier: { name: 'General' },
+      })),
+    };
+  }
+  function build(rows: unknown[], sendImpl?: jest.Mock) {
+    const findMany = jest.fn().mockResolvedValue(rows);
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(evt) },
+      registration: { findMany },
+    };
+    const send = sendImpl ?? jest.fn().mockResolvedValue(undefined);
+    const notifications = { sendTicketConfirmationEmail: send };
+    const cfg = { get: jest.fn().mockReturnValue('https://app.example.com') };
+    const signer = { sign: jest.fn(), verify: jest.fn() };
+    const svc = new RegistrationsService(
+      prisma as never,
+      cfg as never,
+      notifications as never,
+      signer as never,
+    );
+    return { svc, send, findMany };
+  }
+
+  it('404s when the event is not in the org', async () => {
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(null) },
+      registration: { findMany: jest.fn() },
+    };
+    const svc = makeSvc(prisma);
+    await expect(svc.resendTicketConfirmations('org1', 'evt1', {})).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('rejects an unparseable since', async () => {
+    const { svc } = build([]);
+    await expect(
+      svc.resendTicketConfirmations('org1', 'evt1', { since: 'yesterday-ish' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('dry-runs by default: counts matches and sends nothing', async () => {
+    const { svc, send } = build([reg('r1', 'a@x.test', ['issued'])]);
+    const out = await svc.resendTicketConfirmations('org1', 'evt1', {});
+    expect(out).toMatchObject({ dryRun: true, matched: 1, sent: 0, failed: 0 });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('applies since as a createdAt lower bound on the query', async () => {
+    const { svc, findMany } = build([]);
+    await svc.resendTicketConfirmations('org1', 'evt1', { since: '2026-10-01T00:00:00Z' });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'confirmed',
+          createdAt: { gte: new Date('2026-10-01T00:00:00Z') },
+        }),
+      }),
+    );
+  });
+
+  it('sends to each confirmed registration with admitting tickets when dryRun is false', async () => {
+    const { svc, send } = build([
+      reg('r1', 'a@x.test', ['issued']),
+      reg('r2', 'b@x.test', ['checked_in', 'issued']),
+    ]);
+    const out = await svc.resendTicketConfirmations('org1', 'evt1', { dryRun: false });
+    expect(out).toMatchObject({ dryRun: false, matched: 2, sent: 2, failed: 0 });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenCalledWith(
+      'b@x.test',
+      expect.objectContaining({
+        eventTitle: 'Show',
+        tickets: expect.arrayContaining([
+          expect.objectContaining({ code: 'R20', ticketUrl: 'https://app.example.com/t/R20' }),
+        ]),
+      }),
+    );
+  });
+
+  it('skips a registration whose tickets are all non-admitting', async () => {
+    // The query filters to issued/checked_in, so such a row arrives with no
+    // tickets; it must not be emailed and must not count as matched.
+    const { svc, send } = build([reg('r1', 'a@x.test', [])]);
+    const out = await svc.resendTicketConfirmations('org1', 'evt1', { dryRun: false });
+    expect(out).toMatchObject({ matched: 0, sent: 0 });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('records a per-registration failure and continues the batch', async () => {
+    const send = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Postmark error 422'))
+      .mockResolvedValueOnce(undefined);
+    const { svc } = build(
+      [reg('r1', 'a@x.test', ['issued']), reg('r2', 'b@x.test', ['issued'])],
+      send,
+    );
+    const out = await svc.resendTicketConfirmations('org1', 'evt1', { dryRun: false });
+    expect(out).toMatchObject({ matched: 2, sent: 1, failed: 1 });
+    expect(out.failures).toEqual([
+      { registrationId: 'r1', email: 'a@x.test', error: 'Postmark error 422' },
+    ]);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('RegistrationsService.undoCheckIn', () => {
   const evt = { id: 'evt1' };
   const checkedInTicket = {

@@ -950,6 +950,115 @@ export class RegistrationsService {
     return this.applyCheckIn(ticket);
   }
 
+  /**
+   * Re-send ticket confirmation emails for an event's confirmed registrations.
+   *
+   * Recovery tool for a delivery outage (provider quota exhausted, bad token,
+   * provider down). Ticket emails are fire-and-forget with no send log, so the
+   * database cannot say who did or did not receive theirs; the operator instead
+   * supplies `since` (the moment delivery broke, e.g. the last successful send
+   * in the provider's activity log) and we re-send to every confirmed
+   * registration created from then on. Re-sending someone their own ticket is
+   * harmless, so erring wide is safe. Only tickets that admit (issued or
+   * checked_in) are included; unpaid or voided ones are never emailed.
+   *
+   * `dryRun` defaults to TRUE: the call reports how many would be sent without
+   * sending anything. Pass `dryRun: false` explicitly to send. Failures are
+   * collected per registration rather than aborting the batch.
+   */
+  async resendTicketConfirmations(
+    orgId: string,
+    eventId: string,
+    opts: { since?: string; dryRun?: boolean },
+  ) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: {
+        id: true,
+        title: true,
+        code: true,
+        startAt: true,
+        endAt: true,
+        timezone: true,
+        venueName: true,
+        venueAddress: true,
+        joinUrl: true,
+      },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const dryRun = opts.dryRun !== false;
+    let since: Date | undefined;
+    if (opts.since) {
+      since = new Date(opts.since);
+      if (Number.isNaN(since.getTime())) {
+        throw new BadRequestException('since must be an ISO-8601 date-time');
+      }
+    }
+
+    const rows = await this.prisma.registration.findMany({
+      where: {
+        eventId: event.id,
+        status: 'confirmed',
+        ...(since ? { createdAt: { gte: since } } : {}),
+      },
+      include: {
+        user: { select: { email: true } },
+        tickets: {
+          where: { status: { in: ['issued', 'checked_in'] } },
+          include: { tier: { select: { name: true } } },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const targets = rows.filter((r) => r.tickets.length > 0);
+    const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
+    const eventDateLine = formatDateRange(event.startAt, event.endAt, event.timezone);
+
+    let sent = 0;
+    const failures: Array<{ registrationId: string; email: string; error: string }> = [];
+
+    if (!dryRun) {
+      for (const r of targets) {
+        try {
+          await this.notifications.sendTicketConfirmationEmail(r.user.email, {
+            eventTitle: event.title,
+            eventDateLine,
+            eventCode: event.code,
+            venue: {
+              name: event.venueName,
+              address: event.venueAddress,
+              joinUrl: event.joinUrl,
+            },
+            tickets: r.tickets.map((t) => ({
+              code: t.code,
+              holderName: t.holderName,
+              tierName: t.tier.name,
+              ticketUrl: `${appUrl}/t/${t.code}`,
+            })),
+          });
+          sent += 1;
+        } catch (err) {
+          failures.push({
+            registrationId: r.id,
+            email: r.user.email,
+            error: (err as Error).message,
+          });
+        }
+      }
+    }
+
+    return {
+      dryRun,
+      since: since?.toISOString() ?? null,
+      matched: targets.length,
+      sent,
+      failed: failures.length,
+      failures,
+    };
+  }
+
   async getCheckinStats(orgId: string, eventId: string) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, organizationId: orgId },

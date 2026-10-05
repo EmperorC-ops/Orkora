@@ -135,6 +135,20 @@ export class OrganizerRegistrationsController {
   ) {
     return this.service.listForOrgEvent(orgId, eventId, query);
   }
+
+  // Delivery-outage recovery: re-send ticket confirmation emails to confirmed
+  // registrations created since a given moment. Dry-run by default (reports a
+  // count, sends nothing); pass { dryRun: false } to actually send. Admin-only
+  // because it fans out email to attendees.
+  @Post('resend-confirmations')
+  @Roles('admin')
+  resendConfirmations(
+    @Param('orgId') orgId: string,
+    @Param('eventId') eventId: string,
+    @Body() body: { since?: string; dryRun?: boolean },
+  ) {
+    return this.service.resendTicketConfirmations(orgId, eventId, body ?? {});
+  }
 }
 
 /**
