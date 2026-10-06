@@ -42,11 +42,14 @@ function isLive(status: string): boolean {
   return status === 'issued' || status === 'checked_in';
 }
 
+// One tab strip, two dimensions: the first four filter on registration status;
+// 'vip' filters on the isVip flag (any status) via the API's `vip=true` param.
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'pending', label: 'Pending' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'vip', label: 'VIP' },
 ];
 
 export default function OrganizerRegistrationsPage() {
@@ -131,7 +134,8 @@ export default function OrganizerRegistrationsPage() {
     if (!orgId || !eventId) return;
     let cancelled = false;
     const params = new URLSearchParams();
-    if (status) params.set('status', status);
+    if (status === 'vip') params.set('vip', 'true');
+    else if (status) params.set('status', status);
     if (q) params.set('q', q);
     const suffix = params.toString() ? `?${params.toString()}` : '';
     apiFetch<EventRegistrations>(
