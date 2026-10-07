@@ -54,6 +54,25 @@ export class FlutterwaveProvider implements PaymentProvider {
     // Flutterwave amount is in major units (e.g. NGN naira), not kobo.
     const major = toMajorUnit(input.amountMinor);
 
+    // Split settlement. When the caller supplies the organizer's connected
+    // subaccount, route the payment to it and keep the platform fee as a flat
+    // commission. `transaction_charge_type: 'flat'` means WE receive exactly
+    // `transaction_charge` and the subaccount gets the remainder (Flutterwave's
+    // own processing fee comes out of the subaccount's share). The commission is
+    // in MAJOR units like every other Flutterwave amount, which is the one way
+    // this differs from Paystack and must not be confused with kobo.
+    // https://developer.flutterwave.com/docs/split-payments (Overriding the Default)
+    const subaccounts =
+      input.subaccountCode && input.platformFeeMinor !== undefined
+        ? [
+            {
+              id: input.subaccountCode,
+              transaction_charge_type: 'flat',
+              transaction_charge: toMajorUnit(input.platformFeeMinor),
+            },
+          ]
+        : undefined;
+
     const res = await fetch('https://api.flutterwave.com/v3/payments', {
       method: 'POST',
       headers: {
@@ -68,6 +87,7 @@ export class FlutterwaveProvider implements PaymentProvider {
         customer: { email: input.customerEmail },
         meta: { orderId: input.orderId, description: input.description },
         customizations: { title: 'Orkora', description: input.description },
+        ...(subaccounts ? { subaccounts } : {}),
       }),
     });
 
@@ -207,6 +227,19 @@ export class FlutterwaveProvider implements PaymentProvider {
     return { status: 'pending' };
   }
 
+  /**
+   * Refund the buyer. Per Flutterwave's refunds doc, the refund amount is
+   * deducted from OUR available balance (the platform wallet). There is no
+   * request parameter that reverses a subaccount split, and the doc does not
+   * state that an organizer's already-settled share is clawed back. So on a
+   * split charge a full refund is funded entirely by Orkora, and recovering the
+   * organizer's portion is a ledger matter (netting against their later
+   * settlements), not an API call. This is the opposite of Paystack's automatic
+   * proportional reversal and must be verified in test mode before the fee
+   * goes live on Flutterwave. The buyer still gets the full amount back, which
+   * is the PLATFORM_FEE_REFUNDABLE policy; `refundBreakdownMinor` stays correct.
+   * https://developer.flutterwave.com/docs/refunds
+   */
   async refund(input: {
     providerRef: string;
     amountMinor: bigint;
@@ -268,6 +301,118 @@ export class FlutterwaveProvider implements PaymentProvider {
       this.logger.warn({ err }, 'Flutterwave verifyRefund failed');
       return { status: 'pending' };
     }
+  }
+
+  // ---------- Connected accounts (collection subaccounts) ----------
+  //
+  // Flutterwave settles split payments to a "collection subaccount" that stands
+  // in for the organizer's bank account. Onboarding is a direct API flow like
+  // Paystack (no redirect): list banks for the country, resolve the account
+  // number to confirm the holder, then create the subaccount and keep its
+  // `RS_...` id. Note these are COLLECTION subaccounts (/v3/subaccounts), not
+  // the separate "payout subaccount" wallet product (/v3/payout-subaccounts).
+  // https://developer.flutterwave.com/docs/split-payments
+
+  /** Settlement banks for an ISO-2 country, for the bank picker. */
+  async listBanks(country: string): Promise<Array<{ name: string; code: string }>> {
+    if (!this.secretKey) throw new Error('Flutterwave provider is not configured');
+    const res = await fetch(
+      `https://api.flutterwave.com/v3/banks/${encodeURIComponent(country.toUpperCase())}`,
+      { headers: { Authorization: `Bearer ${this.secretKey}` } },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Flutterwave bank list failed (${res.status}): ${text}`);
+    }
+    const body = (await res.json()) as {
+      status: string;
+      data?: Array<{ name: string; code: string }>;
+    };
+    if (body.status !== 'success' || !body.data) return [];
+    return body.data.map((b) => ({ name: b.name, code: b.code }));
+  }
+
+  /**
+   * Resolve a bank account to confirm the holder name before creating a
+   * subaccount, so a mistyped number cannot pay the wrong person.
+   * https://developer.flutterwave.com/reference/resolve-account-transfer-details
+   */
+  async resolveAccount(
+    accountNumber: string,
+    bankCode: string,
+  ): Promise<{ accountName: string }> {
+    if (!this.secretKey) throw new Error('Flutterwave provider is not configured');
+    const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ account_number: accountNumber, account_bank: bankCode }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Flutterwave account resolve failed (${res.status}): ${text}`);
+    }
+    const body = (await res.json()) as {
+      status: string;
+      message: string;
+      data?: { account_name?: string };
+    };
+    if (body.status !== 'success' || !body.data?.account_name) {
+      throw new Error(`Could not verify that account: ${body.message}`);
+    }
+    return { accountName: body.data.account_name };
+  }
+
+  /**
+   * Create a Flutterwave collection subaccount for an organizer's settlement
+   * bank account. The default split is `percentage` at 0, so the subaccount
+   * takes nothing by itself; the platform fee is applied per transaction as a
+   * flat `transaction_charge` override in createCheckoutSession. Creating a
+   * subaccount therefore never moves money or takes a cut on its own.
+   * Returns the `RS_...` subaccount id used in the checkout split.
+   * https://developer.flutterwave.com/docs/split-payments (Creating Subaccounts)
+   */
+  async createSubaccount(input: {
+    businessName: string;
+    businessMobile: string;
+    businessEmail?: string;
+    bankCode: string;
+    accountNumber: string;
+    country: string;
+  }): Promise<{ subaccountId: string }> {
+    if (!this.secretKey) throw new Error('Flutterwave provider is not configured');
+    const res = await fetch('https://api.flutterwave.com/v3/subaccounts', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        account_bank: input.bankCode,
+        account_number: input.accountNumber,
+        business_name: input.businessName,
+        business_mobile: input.businessMobile,
+        ...(input.businessEmail ? { business_email: input.businessEmail } : {}),
+        country: input.country.toUpperCase(),
+        split_type: 'percentage',
+        split_value: 0,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Flutterwave subaccount create failed (${res.status}): ${text}`);
+    }
+    const body = (await res.json()) as {
+      status: string;
+      message: string;
+      data?: { subaccount_id?: string };
+    };
+    if (body.status !== 'success' || !body.data?.subaccount_id) {
+      throw new Error(`Flutterwave subaccount declined: ${body.message}`);
+    }
+    return { subaccountId: body.data.subaccount_id };
   }
 
   /** Resolve Flutterwave's numeric transaction id from our tx_ref (= orderId). */

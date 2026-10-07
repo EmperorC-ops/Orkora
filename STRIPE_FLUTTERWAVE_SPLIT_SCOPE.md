@@ -1,6 +1,29 @@
 # Stripe (Connect) and Flutterwave Platform-Fee Split: Engineering Scope
 
-Status: scoping only. No source code is changed by this document.
+Status: Flutterwave build IMPLEMENTED 2026-10-07 (shared guard, checkout split,
+onboarding, tests); awaiting test-mode verification before fee go-live. Stripe
+section remains scoping only.
+
+Confirmed against Flutterwave docs during the build (resolves B(h) unknowns):
+- Subaccount create: `POST /v3/subaccounts` with `account_bank`, `account_number`,
+  `business_name`, `business_mobile` (required), `country` (ISO-2), optional
+  `business_email`, `split_type`/`split_value`; returns `data.subaccount_id`
+  (`RS_...`). We create with `split_type: 'percentage', split_value: 0`.
+- Checkout split: `subaccounts: [{ id, transaction_charge_type: 'flat',
+  transaction_charge }]` on `/v3/payments`, charge in MAJOR units. `'flat'`
+  means the platform receives exactly `transaction_charge`; the subaccount gets
+  the remainder and bears Flutterwave's processing fee.
+- Banks: `GET /v3/banks/{country}`. Resolve: `POST /v3/accounts/resolve`
+  (`account_number`, `account_bank`) returning `data.account_name`.
+- REFUNDS (B(d), the key risk): the refund is deducted from the PLATFORM's
+  available balance. No request parameter reverses a subaccount split and the
+  docs do not state the organizer's settled share is clawed back. So a full
+  refund on a split charge is funded by Orkora; recovering the organizer's
+  portion is a ledger/netting matter, not an API call. Verify in test mode
+  (pre- and post-settlement) before the fee goes live on Flutterwave.
+- Operational: 7.5% VAT applies to the split fee (Nigeria); NGN charges over
+  10,000 incur a NGN 50 stamp duty from settlement, and if settlement falls
+  below a flat split the whole settlement goes to the main account.
 
 Decision (2026-10-07): the Stripe Connect build (Provider A) is NOT being
 pursued. Orkora is replacing Stripe with a local provider rather than extending

@@ -19,3 +19,20 @@ export function accountIsReady(row: {
 }): boolean {
   return row.status === 'active' && row.chargesEnabled === true;
 }
+
+/**
+ * Providers whose checkout can consume the split fields on CreateCheckoutInput
+ * (`subaccountCode` + `platformFeeMinor`) and actually route the organizer's
+ * share to their connected account while keeping the platform fee.
+ *
+ * A provider is only added here once its createCheckoutSession wires the split;
+ * for anything else the fields would be silently ignored and the whole payment
+ * would settle centrally with no fee taken, so the checkout guard must not
+ * attempt a split for it. Stripe is deliberately absent: Stripe Connect is not
+ * being built (decision 2026-10-07, see STRIPE_FLUTTERWAVE_SPLIT_SCOPE.md).
+ */
+const SPLIT_CAPABLE_PROVIDERS = new Set<string>(['paystack', 'flutterwave']);
+
+export function providerSupportsSplit(providerName: string): boolean {
+  return SPLIT_CAPABLE_PROVIDERS.has(providerName);
+}

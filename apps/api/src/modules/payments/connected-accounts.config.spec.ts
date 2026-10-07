@@ -1,4 +1,8 @@
-import { accountIsReady, connectedAccountsEnabled } from './connected-accounts.config';
+import {
+  accountIsReady,
+  connectedAccountsEnabled,
+  providerSupportsSplit,
+} from './connected-accounts.config';
 
 describe('connected-accounts gate config', () => {
   const original = process.env.PAYMENTS_CONNECTED_ACCOUNTS;
@@ -26,5 +30,16 @@ describe('connected-accounts gate config', () => {
     expect(accountIsReady({ status: 'active', chargesEnabled: false })).toBe(false);
     expect(accountIsReady({ status: 'pending', chargesEnabled: true })).toBe(false);
     expect(accountIsReady({ status: 'disabled', chargesEnabled: true })).toBe(false);
+  });
+
+  // The checkout split is only attempted for providers that wire it. Stripe is
+  // excluded on purpose (Stripe Connect is not being built), and an unknown
+  // name must never be treated as split-capable.
+  it('only Paystack and Flutterwave are split-capable', () => {
+    expect(providerSupportsSplit('paystack')).toBe(true);
+    expect(providerSupportsSplit('flutterwave')).toBe(true);
+    expect(providerSupportsSplit('stripe')).toBe(false);
+    expect(providerSupportsSplit('')).toBe(false);
+    expect(providerSupportsSplit('PAYSTACK')).toBe(false);
   });
 });

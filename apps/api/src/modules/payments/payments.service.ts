@@ -9,7 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { PaymentsRegistry } from './providers/registry';
 import { PaymentPreferencesService } from './preferences.service';
 import { ConnectedAccountsService } from './connected-accounts.service';
-import { connectedAccountsEnabled } from './connected-accounts.config';
+import { connectedAccountsEnabled, providerSupportsSplit } from './connected-accounts.config';
 import { refundBreakdownMinor } from '../../common/platform-fee';
 import * as Sentry from '@sentry/node';
 import { formatMoney } from './money';
@@ -310,11 +310,11 @@ export class PaymentsService {
     // and keep the platform fee. The fee itself was computed and stored on the
     // order at creation (`feesMinor`), honoring the organizer's absorb / pass-on
     // choice. Today (gate off) this branch is skipped and the charge behaves
-    // exactly as before, settling centrally with no fee. Currently only Paystack
-    // supports the split.
+    // exactly as before, settling centrally with no fee. Only providers whose
+    // checkout actually wires the split are eligible (providerSupportsSplit).
     let splitAccountRef: string | undefined;
     let platformFeeMinor: bigint | undefined;
-    if (connectedAccountsEnabled() && providerName === 'paystack') {
+    if (connectedAccountsEnabled() && providerSupportsSplit(providerName)) {
       const accountRef = await this.connectedAccounts.getReadyAccountRef(
         order.event.organizationId,
         providerName,

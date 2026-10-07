@@ -11,6 +11,8 @@ import { ConnectedAccountsController } from './connected-accounts.controller';
 import { ConnectedAccountsService } from './connected-accounts.service';
 import { PaystackOnboardingController } from './paystack-onboarding.controller';
 import { PaystackOnboardingService } from './paystack-onboarding.service';
+import { FlutterwaveOnboardingController } from './flutterwave-onboarding.controller';
+import { FlutterwaveOnboardingService } from './flutterwave-onboarding.service';
 import { FlutterwaveProvider } from './providers/flutterwave.provider';
 import { PaystackProvider } from './providers/paystack.provider';
 import { PaymentsRegistry } from './providers/registry';
@@ -25,6 +27,7 @@ import { PaymentsMaintenanceCron } from './payments-maintenance.cron';
     PaymentPreferencesController,
     ConnectedAccountsController,
     PaystackOnboardingController,
+    FlutterwaveOnboardingController,
   ],
   providers: [
     PaymentsService,
@@ -32,6 +35,7 @@ import { PaymentsMaintenanceCron } from './payments-maintenance.cron';
     PaymentPreferencesService,
     ConnectedAccountsService,
     PaystackOnboardingService,
+    FlutterwaveOnboardingService,
     StripeProvider,
     PaystackProvider,
     FlutterwaveProvider,
