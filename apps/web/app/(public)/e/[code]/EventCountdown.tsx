@@ -17,7 +17,8 @@ function phaseFor(startMs: number, endMs: number, now: number): Phase {
 // Turn a millisecond gap into a human countdown. Above a day we drop seconds
 // (they are noise at that range); inside the final day we show the full
 // hh:mm:ss so the last stretch feels live, the way a showtime clock should.
-function formatCountdown(ms: number): string {
+// Exported so the Story Mode band (StoryLiveBar) ticks identically.
+export function formatCountdown(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const days = Math.floor(total / 86400);
   const hours = Math.floor((total % 86400) / 3600);

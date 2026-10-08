@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { formatCountdown } from './EventCountdown';
+
+type Phase = 'before' | 'now' | 'ended';
 
 /**
- * A slim "Happening now" band for the Story Mode event page, which does not use
- * the classic EventCountdown. It shows only while the event is live (between its
- * start and end), and links attendees to the live second screen. Purely clock
- * driven, like EventCountdown, so it needs no status flip; before hydration it
- * falls back to the server status so the first paint matches.
+ * The slim moment band for the Story Mode event page, which does not use the
+ * classic EventCountdown. Two visible phases: a "Starts in" countdown before the
+ * event, and a "Happening now" state with a link to the live second screen
+ * while it runs. After the event it renders nothing, so an ended story page
+ * stays clean (the classic page shows an "ended" line instead; Story Mode's
+ * narrative blocks carry that context themselves).
+ *
+ * Purely clock driven, like EventCountdown, so it needs no status flip; before
+ * hydration it falls back to the server status so the first paint matches.
  */
 export default function StoryLiveBar({
   code,
@@ -31,8 +38,36 @@ export default function StoryLiveBar({
     return () => clearInterval(id);
   }, []);
 
-  const live = now !== null ? now >= startMs && now <= endMs : status === 'live';
-  if (!live) return null;
+  const phase: Phase =
+    now !== null
+      ? now < startMs
+        ? 'before'
+        : now <= endMs
+          ? 'now'
+          : 'ended'
+      : status === 'ended'
+        ? 'ended'
+        : status === 'live'
+          ? 'now'
+          : 'before';
+
+  if (phase === 'ended') return null;
+
+  if (phase === 'before') {
+    return (
+      <div className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-white/10 bg-surface-deep/90 px-4 py-2 text-sm text-white backdrop-blur">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-muted">
+          Starts in
+        </span>
+        <span
+          aria-hidden="true"
+          className="font-mono text-base font-bold tabular-nums text-ink-primary"
+        >
+          {now !== null ? formatCountdown(startMs - now) : '--'}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
