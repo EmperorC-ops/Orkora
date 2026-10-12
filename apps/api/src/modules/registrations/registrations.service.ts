@@ -46,6 +46,42 @@ function generateTicketCode(): string {
 }
 
 /**
+ * Free-tier re-registration dedupe. Returns the submitted attendees that do NOT
+ * already hold a live ticket on this registration, in their original order.
+ *
+ * Identity is holder email + holder name, both normalised (trimmed, lowercased,
+ * inner whitespace collapsed). Matching is one-to-one: each existing ticket can
+ * absorb at most one submitted attendee, so a genuine group that reuses one
+ * email for several different names still gets a ticket per name, and two
+ * identically named guests already ticketed absorb two identical rows.
+ *
+ * Background: during the 2026-10 email outage, attendees who received no
+ * confirmation registered again with the same details and were issued a second
+ * ticket each (one seat consumed per retry). Paid tiers already had a
+ * duplicate-order guard; free tiers did not.
+ */
+export function attendeesNotYetTicketed<A extends { fullName: string; email: string }>(
+  attendees: A[],
+  existing: Array<{ holderName: string; holderEmail: string }>,
+): A[] {
+  const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+  const key = (name: string, email: string) => `${norm(email)}|${norm(name)}`;
+  const available = new Map<string, number>();
+  for (const t of existing) {
+    const k = key(t.holderName, t.holderEmail);
+    available.set(k, (available.get(k) ?? 0) + 1);
+  }
+  const out: A[] = [];
+  for (const a of attendees) {
+    const k = key(a.fullName, a.email);
+    const left = available.get(k) ?? 0;
+    if (left > 0) available.set(k, left - 1);
+    else out.push(a);
+  }
+  return out;
+}
+
+/**
  * Partially masks an email for display on the public (bearer-code) ticket page,
  * e.g. "jason@gmail.com" -> "j***@gmail.com". The ticket code is a strong
  * credential, but a forwarded ticket link should not expose the holder's full
@@ -280,6 +316,64 @@ export class RegistrationsService {
         }
       }
 
+      // Free-tier duplicate guard, the counterpart of the paid guard above.
+      // Re-submitting the same details (refresh, double tap, or retrying because
+      // the confirmation email never arrived) must not issue another ticket and
+      // consume another seat. Attendees who already hold a live ticket on this
+      // registration for this tier are dropped; only genuinely new attendees are
+      // issued. If nobody is new, this is a replay: re-send the existing tickets
+      // and return them, with no new rows, no inventory bump, and no change to
+      // the registration. Existing tickets, including any duplicates issued
+      // before this guard existed, are never modified here.
+      let attendeesToIssue = dto.attendees;
+      if (isFree) {
+        const prior = await tx.registration.findUnique({
+          where: { eventId_userId: { eventId: event.id, userId: user.id } },
+          include: {
+            tickets: {
+              where: { tierId: tier.id, status: { in: ['issued', 'checked_in'] } },
+              orderBy: { issuedAt: 'asc' },
+            },
+          },
+        });
+        if (prior && prior.tickets.length > 0) {
+          attendeesToIssue = attendeesNotYetTicketed(dto.attendees, prior.tickets);
+          if (attendeesToIssue.length === 0) {
+            const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
+            await this.notifications
+              .sendTicketConfirmationEmail(user.email, {
+                eventTitle: event.title,
+                eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
+                eventCode: event.code,
+                venue: {
+                  name: event.venueName,
+                  address: event.venueAddress,
+                  joinUrl: event.joinUrl,
+                },
+                tickets: prior.tickets.map((t) => ({
+                  code: t.code,
+                  holderName: t.holderName,
+                  tierName: tier.name,
+                  ticketUrl: `${appUrl}/t/${t.code}`,
+                })),
+              })
+              .catch((err) => err);
+            return {
+              registrationId: prior.id,
+              status: prior.status,
+              userId: user.id,
+              eventId: event.id,
+              eventCode: event.code,
+              tickets: prior.tickets.map((t) => this.shapeTicket(t, tier.name, event.id)),
+              order: null,
+            };
+          }
+        }
+      }
+      // Equals `qty` on the paid path; on the free path it excludes attendees
+      // already ticketed, so capacity and the sold count reflect real new seats.
+      const issueQty = attendeesToIssue.length;
+
       const locked = await tx.$queryRawUnsafe<
         Array<{ quantity_total: number | null; quantity_sold: number }>
       >(
@@ -289,7 +383,7 @@ export class RegistrationsService {
       const row = locked[0];
       if (!row) throw new NotFoundException('Ticket tier not found');
       const remaining = row.quantity_total === null ? Infinity : row.quantity_total - row.quantity_sold;
-      if (qty > remaining) {
+      if (issueQty > remaining) {
         throw new ConflictException('Not enough tickets remaining in this tier');
       }
 
@@ -313,7 +407,7 @@ export class RegistrationsService {
       // Bump the sold count atomically.
       await tx.ticketTier.update({
         where: { id: tier.id },
-        data: { quantitySold: { increment: qty } },
+        data: { quantitySold: { increment: issueQty } },
       });
 
       // Paid path needs the order created BEFORE the tickets so we can stamp
@@ -459,7 +553,7 @@ export class RegistrationsService {
       // success, but they are bound to THIS order via orderId so an
       // abandoned sibling order cannot poison this attempt's tickets.
       const tickets = await Promise.all(
-        dto.attendees.map((a) =>
+        attendeesToIssue.map((a) =>
           tx.ticket.create({
             data: {
               registrationId: registration.id,

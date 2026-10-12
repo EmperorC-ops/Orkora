@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { RegistrationsService } from './registrations.service';
+import { RegistrationsService, attendeesNotYetTicketed } from './registrations.service';
 import type { RegisterAttendeesDto } from './dto/registration.dto';
 
 /**
@@ -35,6 +35,9 @@ function basePrismaMocks(opts: {
   pendingOrder?: Record<string, unknown> | null;
   registration?: Record<string, unknown>;
   existingTickets?: Array<Record<string, unknown>>;
+  // Free-tier dedupe: the (event, user) registration found before issuing, with
+  // its live tickets on the tier. Null (default) means a first registration.
+  priorRegistration?: Record<string, unknown> | null;
 }) {
   const findFirstPaid = jest.fn().mockResolvedValue(opts.paidOrder ?? null);
   const findFirstPending = jest.fn().mockResolvedValue(opts.pendingOrder ?? null);
@@ -59,6 +62,7 @@ function basePrismaMocks(opts: {
       }),
     },
     registration: {
+      findUnique: jest.fn().mockResolvedValue(opts.priorRegistration ?? null),
       findUniqueOrThrow: jest.fn().mockResolvedValue(opts.registration ?? { id: 'r1', status: 'pending' }),
       upsert: jest.fn().mockResolvedValue({ id: 'r1', status: 'pending' }),
       update: jest.fn().mockResolvedValue({}),
@@ -280,6 +284,140 @@ describe('RegistrationsService.register group minimum', () => {
     await expect(
       svc.register('TESTCODE', dto({ attendees: four, paymentMethod: 'free' })),
     ).resolves.toBeDefined();
+  });
+});
+
+/**
+ * Free-tier dedupe rule. Identity is normalised email + name, matched one to one,
+ * so a real group sharing one email with different names is never collapsed.
+ */
+describe('attendeesNotYetTicketed', () => {
+  const a = (fullName: string, email: string) => ({ fullName, email });
+  const t = (holderName: string, holderEmail: string) => ({ holderName, holderEmail });
+
+  it('drops an attendee who already holds a ticket (normalised case and spacing)', () => {
+    expect(
+      attendeesNotYetTicketed([a('  Ada   Obi ', 'ADA@x.co')], [t('Ada Obi', 'ada@x.co')]),
+    ).toEqual([]);
+  });
+
+  it('keeps a genuinely new attendee and preserves submission order', () => {
+    const out = attendeesNotYetTicketed(
+      [a('Ada Obi', 'ada@x.co'), a('Bayo Ade', 'bayo@x.co'), a('Chi Eze', 'chi@x.co')],
+      [t('Ada Obi', 'ada@x.co')],
+    );
+    expect(out.map((x) => x.fullName)).toEqual(['Bayo Ade', 'Chi Eze']);
+  });
+
+  it('never collapses different names that share one email (a real group)', () => {
+    const out = attendeesNotYetTicketed(
+      [a('Ada Obi', 'family@x.co'), a('Tobi Obi', 'family@x.co')],
+      [t('Ada Obi', 'family@x.co')],
+    );
+    expect(out.map((x) => x.fullName)).toEqual(['Tobi Obi']);
+  });
+
+  it('matches one to one: two identical guests need two existing tickets', () => {
+    expect(
+      attendeesNotYetTicketed(
+        [a('Guest', 'g@x.co'), a('Guest', 'g@x.co')],
+        [t('Guest', 'g@x.co')],
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('issues everyone when nothing is held yet', () => {
+    expect(attendeesNotYetTicketed([a('Ada Obi', 'ada@x.co')], [])).toHaveLength(1);
+  });
+});
+
+/**
+ * Free-tier duplicate guard inside register(): a resubmission of the same
+ * details must not issue tickets or consume seats, and a partial resubmission
+ * issues only the new attendees. Existing tickets are never modified.
+ */
+describe('RegistrationsService.register free-tier duplicate guard', () => {
+  const freeTier = { ...tier, priceMinor: 0n };
+  const priorTicket = {
+    id: 'tk1',
+    code: 'PRIORCODE1',
+    holderName: 'A B',
+    holderEmail: 'a@b.co',
+    status: 'issued',
+    tierId: 'tier-1',
+    issuedAt: new Date(),
+  };
+
+  function setup(prior: Record<string, unknown> | null) {
+    const { $transaction, tx } = basePrismaMocks({
+      paidOrder: null,
+      pendingOrder: null,
+      registration: { id: 'r1', status: 'confirmed' },
+      priorRegistration: prior,
+    });
+    const prisma = {
+      event: { findUnique: jest.fn().mockResolvedValue(event) },
+      ticketTier: { findUnique: jest.fn().mockResolvedValue(freeTier) },
+      $transaction,
+    };
+    const svc = makeSvc(prisma);
+    const spyTarget = svc as unknown as {
+      upsertUserByEmail: (...args: unknown[]) => Promise<{ id: string; email: string }>;
+    };
+    jest.spyOn(spyTarget, 'upsertUserByEmail').mockResolvedValue({ id: 'u1', email: 'a@b.co' });
+    const notifications = (svc as unknown as {
+      notifications: { sendTicketConfirmationEmail: jest.Mock };
+    }).notifications;
+    return { svc, tx, notifications };
+  }
+
+  it('a pure resubmission issues nothing, bumps nothing, and re-sends the existing ticket', async () => {
+    const { svc, tx, notifications } = setup({
+      id: 'r1',
+      status: 'confirmed',
+      tickets: [priorTicket],
+    });
+    const out = await svc.register('TESTCODE', dto({ paymentMethod: 'free' }));
+    expect(tx.ticket.create).not.toHaveBeenCalled();
+    expect(tx.ticketTier.update).not.toHaveBeenCalled();
+    expect(tx.registration.upsert).not.toHaveBeenCalled();
+    expect(out.tickets.map((x) => x.code)).toEqual(['PRIORCODE1']);
+    expect(notifications.sendTicketConfirmationEmail).toHaveBeenCalledWith(
+      'a@b.co',
+      expect.objectContaining({
+        tickets: [expect.objectContaining({ code: 'PRIORCODE1' })],
+      }),
+    );
+  });
+
+  it('a partial resubmission issues and counts only the new attendee', async () => {
+    const { svc, tx } = setup({ id: 'r1', status: 'confirmed', tickets: [priorTicket] });
+    await svc.register(
+      'TESTCODE',
+      dto({
+        paymentMethod: 'free',
+        attendees: [
+          { fullName: 'A B', email: 'a@b.co', phone: undefined },
+          { fullName: 'New Guest', email: 'new@b.co', phone: undefined },
+        ],
+      }),
+    );
+    expect(tx.ticket.create).toHaveBeenCalledTimes(1);
+    expect(tx.ticket.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ holderName: 'New Guest' }) }),
+    );
+    expect(tx.ticketTier.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { quantitySold: { increment: 1 } } }),
+    );
+  });
+
+  it('a first registration is unchanged: everyone is issued', async () => {
+    const { svc, tx } = setup(null);
+    await svc.register('TESTCODE', dto({ paymentMethod: 'free' }));
+    expect(tx.ticket.create).toHaveBeenCalledTimes(1);
+    expect(tx.ticketTier.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { quantitySold: { increment: 1 } } }),
+    );
   });
 });
 
