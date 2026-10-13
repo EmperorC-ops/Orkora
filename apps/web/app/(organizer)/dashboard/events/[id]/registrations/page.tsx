@@ -42,6 +42,12 @@ function isLive(status: string): boolean {
   return status === 'issued' || status === 'checked_in';
 }
 
+// Tickets on a registration that admit someone; cancelled or void ones are
+// history, not seats.
+function liveCount(r: RegistrationRow): number {
+  return r.tickets.filter((t) => isLive(t.status)).length;
+}
+
 // One tab strip, two dimensions: the first four filter on registration status;
 // 'vip' filters on the isVip flag (any status) via the API's `vip=true` param.
 const STATUS_FILTERS = [
@@ -158,7 +164,12 @@ export default function OrganizerRegistrationsPage() {
     if (!rows) return null;
     const confirmed = rows.filter((r) => r.status === 'confirmed').length;
     const pending = rows.filter((r) => r.status === 'pending').length;
-    const ticketCount = rows.reduce((sum, r) => sum + r.tickets.length, 0);
+    // Count only tickets that admit (issued or checked in). Cancelled, refunded
+    // (void) and unpaid tickets are not seats, so they must not inflate this.
+    const ticketCount = rows.reduce(
+      (sum, r) => sum + r.tickets.filter((t) => isLive(t.status)).length,
+      0,
+    );
     return { total: rows.length, confirmed, pending, ticketCount };
   }, [rows]);
 
@@ -325,7 +336,7 @@ export default function OrganizerRegistrationsPage() {
                   </td>
                   <td className="px-5 py-4">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-brand-300">
-                      {r.tickets.length} ticket{r.tickets.length === 1 ? '' : 's'}
+                      {liveCount(r)} ticket{liveCount(r) === 1 ? '' : 's'}
                     </span>
                   </td>
                   <td className="px-5 py-4">
