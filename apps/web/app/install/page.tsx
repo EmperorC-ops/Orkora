@@ -138,7 +138,7 @@ export default function InstallPage() {
             The native Orkora app for Android is in internal preview.
           </h2>
           <p className="mt-3 text-sm text-ink-secondary">
-            The PWA above is the recommended install for everyone. The native Android build adds a couple of niceties (secure on-device ticket storage via expo-secure-store, push notifications, offline ticket QR even without a network connection). It is currently distributed by direct link to a small group of beta organizers.
+            The PWA above is the recommended install for everyone. The native Android build adds a couple of niceties (secure on-device ticket storage via expo-secure-store, push notifications, offline ticket QR even without a network connection). It is currently distributed by direct link on request.
           </p>
           <p className="mt-3 text-sm text-ink-secondary">
             Want the APK? Email{' '}

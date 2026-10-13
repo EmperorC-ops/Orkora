@@ -51,7 +51,7 @@ export default function BillingPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-ink-primary">Billing</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Your plan, lifetime revenue, and what Orkora would take under the post-beta pricing.
+          Your plan, lifetime revenue, and what the published platform fee comes to on your sales.
         </p>
       </header>
 
@@ -60,7 +60,11 @@ export default function BillingPage() {
           <div className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Current plan</div>
           <div className="mt-2 text-xl font-semibold capitalize text-ink-primary">{overview.plan.name}</div>
           <div className="mt-1 text-xs text-ink-secondary">
-            Platform fee: {overview.plan.platformFeePercent}% (advisory only during private beta)
+            {/* Not charged until PLATFORM_FEE_EFFECTIVE_AT, which the Terms require
+                to be at least 60 days after written notice to organizers. Update
+                this line to show the effective date once the notice is sent. */}
+            Platform fee: {overview.plan.platformFeePercent}%. Not yet charged; you will get at
+            least 60 days&apos; written notice before it takes effect.
           </div>
         </div>
         <div className="rounded-2xl border border-surface-border bg-surface/40 p-5">

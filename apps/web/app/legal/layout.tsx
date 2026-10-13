@@ -6,13 +6,13 @@ import { LegalEntityLine } from '@/components/legal-entity';
 
 /**
  * Shared layout for every page under /legal. Wraps content in the dark
- * theme shared with the rest of the app, prepends a light beta-version
- * banner, and pins a "questions" contact line at the bottom.
+ * theme shared with the rest of the app, prepends a short "last updated /
+ * changes are announced in advance" note, and pins a "questions" contact line
+ * at the bottom.
  *
- * The previous "Draft for review by counsel" red banner was intended for
- * counsel and internal reviewers; now that the pages ship for real users,
- * we replace it with a shorter beta note that keeps the "still evolving"
- * signal without shouting DRAFT. The full counsel-marked-up source with
+ * Earlier versions carried a "Draft for review by counsel" banner and then a
+ * private-beta note; both were retired as the platform moved to general
+ * availability (2026-10). The full counsel-marked-up source with
  * [COUNSEL NOTE: ...] markers is retained at LEGAL/*.md at repo root and
  * stripped from the rendered output by lib/legal-markdown.tsx.
  */
@@ -41,9 +41,8 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
 
       <div className="mx-auto max-w-3xl px-6 py-12">
         <div className="mb-10 rounded-xl border border-brand-500/25 bg-brand-500/5 px-4 py-3 text-xs leading-6 text-ink-secondary">
-          <strong className="text-brand-300">Beta version.</strong>{' '}
-          Orkora is in private beta, and these policies reflect the platform as it operates today. We may update them
-          as the platform evolves; material changes will be announced at least 30 days in advance. Last updated{' '}
+          These policies reflect the platform as it operates today. We may update them as the platform evolves;
+          material changes will be announced at least 30 days in advance. Last updated{' '}
           {LAST_UPDATED}. Questions? <ContactEmail address="hello@orkora.events" className="text-xs" />
         </div>
 

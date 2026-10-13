@@ -317,13 +317,13 @@ export default function MarketingHome() {
             </div>
             <div className="mt-12 flex flex-col items-center justify-center gap-4 text-center">
               <p className="text-sm text-ink-secondary">
-                In private beta with a focused cohort of organizers. Public sign-ups open soon.
+                Set up your first event in minutes. Free events are always free.
               </p>
               <Link
                 href="/signup"
                 className="inline-flex items-center gap-2 rounded-full border border-white/15 px-6 py-2 text-sm font-semibold text-ink-primary transition hover:bg-white/5"
               >
-                Request beta access <ArrowRight className="h-4 w-4" />
+                Get started <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
