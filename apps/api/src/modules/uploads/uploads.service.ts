@@ -9,6 +9,11 @@ import { randomUUID } from 'crypto';
 import { StorageService } from './storage.service';
 import type { UploadKind } from './dto/upload.dto';
 
+/** Still-image types accepted for campaign flyers. */
+const FLYER_TYPES = /^image\/(png|jpeg|jpg|webp)$/i;
+/** Per-flyer ceiling, below the general MAX_UPLOAD_BYTES. */
+export const FLYER_MAX_BYTES = 5 * 1024 * 1024;
+
 @Injectable()
 export class UploadsService {
   /**
@@ -47,6 +52,21 @@ export class UploadsService {
         `Upload exceeds the ${formatBytes(this.maxUploadBytes)} limit ` +
           `(requested ${formatBytes(input.sizeBytes)}).`,
       );
+    }
+
+    // Campaign flyers are shown inline in bulk email: still images only (no
+    // video, no GIF animation), and a tighter size cap so a flyer stays quick
+    // to load on mobile data for every recipient.
+    if (input.kind === 'campaign_flyer') {
+      if (!FLYER_TYPES.test(input.contentType)) {
+        throw new BadRequestException('A flyer must be a PNG, JPEG, or WEBP image.');
+      }
+      if (input.sizeBytes > FLYER_MAX_BYTES) {
+        throw new PayloadTooLargeException(
+          `A flyer can be at most ${formatBytes(FLYER_MAX_BYTES)} ` +
+            `(this one is ${formatBytes(input.sizeBytes)}).`,
+        );
+      }
     }
 
     const ext = inferExtension(input.filename, input.contentType);

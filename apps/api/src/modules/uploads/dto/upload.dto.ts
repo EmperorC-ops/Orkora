@@ -1,7 +1,7 @@
 import { IsIn, IsInt, IsString, Min, MaxLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export const UPLOAD_KINDS = ['banner', 'avatar', 'logo', 'recording'] as const;
+export const UPLOAD_KINDS = ['banner', 'avatar', 'logo', 'recording', 'campaign_flyer'] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
 
 // Images cover the branding kinds; video/* is allowed so the recording library

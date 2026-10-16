@@ -782,6 +782,8 @@ model Campaign {
   fromName        String   @map("from_name")
   fromEmail       String   @map("from_email")
   replyTo         String?  @map("reply_to")
+  // Optional inline flyer image (our media host only; see migration 0026).
+  flyerUrl        String?  @map("flyer_url")
   status          String   @default("draft") // draft | scheduled | sending | sent | cancelled | failed
   sendMode        String   @default("now") @map("send_mode") // now | scheduled | triggered
   scheduledAt     DateTime? @map("scheduled_at") @db.Timestamptz

@@ -39,6 +39,7 @@ import { createHmac, randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { AudienceMaterialiser, type Recipient } from './audience.materialiser';
 import { applyTokens, markdownToHtml } from './markdown';
+import { acceptFlyerUrl, renderFlyerBlock } from './flyer';
 
 const BATCH_SIZE = 500;
 const POSTMARK_API = 'https://api.postmarkapp.com';
@@ -145,6 +146,7 @@ export class CampaignsService {
       replyTo?: string;
       audienceId: string;
       eventId?: string;
+      flyerUrl?: string;
     },
   ) {
     // Verify audience belongs to the same org
@@ -154,6 +156,7 @@ export class CampaignsService {
     if (!audience) throw new BadRequestException('Audience not found for this organization');
 
     const bodyHtml = markdownToHtml(input.bodyMarkdown);
+    const flyerUrl = input.flyerUrl ? this.requireFlyerUrl(input.flyerUrl) : null;
 
     return this.prisma.campaign.create({
       data: {
@@ -168,9 +171,25 @@ export class CampaignsService {
         fromEmail: input.fromEmail,
         replyTo: input.replyTo ?? null,
         audienceId: input.audienceId,
+        flyerUrl,
         createdById,
       },
     });
+  }
+
+  /**
+   * Accept a flyer URL only if it points at our own media host under
+   * campaign_flyers/ (what the upload flow produces). Anything else is
+   * refused with a message the organizer can act on.
+   */
+  private requireFlyerUrl(raw: string): string {
+    const ok = acceptFlyerUrl(raw, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
+    if (!ok) {
+      throw new BadRequestException(
+        'The flyer must be an image uploaded through Orkora. Upload it again from the campaign editor.',
+      );
+    }
+    return ok;
   }
 
   async patch(
@@ -185,6 +204,7 @@ export class CampaignsService {
       fromEmail: string;
       replyTo: string;
       audienceId: string;
+      flyerUrl: string | null;
     }>,
   ) {
     const existing = await this.get(id, organizationId);
@@ -194,6 +214,12 @@ export class CampaignsService {
     const data: Record<string, unknown> = { ...patch };
     if (typeof patch.bodyMarkdown === 'string') {
       data.bodyHtml = markdownToHtml(patch.bodyMarkdown);
+    }
+    // null (or empty) removes the flyer; a new value must pass the host check.
+    if (patch.flyerUrl === null || patch.flyerUrl === '') {
+      data.flyerUrl = null;
+    } else if (typeof patch.flyerUrl === 'string') {
+      data.flyerUrl = this.requireFlyerUrl(patch.flyerUrl);
     }
     return this.prisma.campaign.update({ where: { id }, data });
   }
@@ -347,7 +373,13 @@ export class CampaignsService {
    * token substitution -> wrap in brand template with unsubscribe.
    */
   private renderForRecipient(
-    campaign: { id: string; bodyHtml: string; bodyMarkdown: string; fromName: string },
+    campaign: {
+      id: string;
+      bodyHtml: string;
+      bodyMarkdown: string;
+      fromName: string;
+      flyerUrl?: string | null;
+    },
     recipient: Recipient,
   ): string {
     const ctx: Record<string, string> = {
@@ -356,8 +388,12 @@ export class CampaignsService {
       email: recipient.email,
     };
     const personalisedBody = applyTokens(campaign.bodyHtml, ctx);
+    // Re-check the stored flyer at send time: it is rendered only if it still
+    // passes the same host rule enforced on save.
+    const flyer = acceptFlyerUrl(campaign.flyerUrl, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
+    const body = flyer ? `${renderFlyerBlock(flyer)}\n${personalisedBody}` : personalisedBody;
     const unsubUrl = this.unsubscribeUrl(campaign.id, recipient.email);
-    return this.wrap(personalisedBody, unsubUrl);
+    return this.wrap(body, unsubUrl);
   }
 
   private wrap(bodyHtml: string, unsubUrl: string): string {

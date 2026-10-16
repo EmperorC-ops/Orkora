@@ -76,4 +76,43 @@ describe('UploadsService.presign size enforcement', () => {
       expect.objectContaining({ contentLength: 5_000 }),
     );
   });
+
+  // Campaign flyers go inline into bulk email: still images only, 5 MB cap,
+  // stored under campaign_flyers/ (the prefix the campaign host check expects).
+  describe('campaign_flyer', () => {
+    const flyer = {
+      kind: 'campaign_flyer' as const,
+      filename: 'flyer.png',
+      contentType: 'image/png',
+      userId: 'u-1',
+    };
+
+    it('accepts a PNG flyer and stores it under campaign_flyers/', async () => {
+      const presignUpload = jest.fn().mockResolvedValue({ uploadUrl: 'u', publicUrl: 'p' });
+      const storage = { enabled: true, presignUpload } as unknown as StorageService;
+      const cfg = { get: jest.fn().mockReturnValue(8 * 1024 * 1024) } as unknown as ConfigService;
+      const svc = new UploadsService(storage, cfg);
+      await svc.presign({ ...flyer, sizeBytes: 2_000_000 });
+      expect(presignUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ key: expect.stringMatching(/^campaign_flyers\/u-1\/.+\.png$/) }),
+      );
+    });
+
+    it('rejects a GIF or a video as a flyer', async () => {
+      const svc = makeService(8 * 1024 * 1024);
+      await expect(
+        svc.presign({ ...flyer, contentType: 'image/gif', filename: 'f.gif', sizeBytes: 1_000 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        svc.presign({ ...flyer, contentType: 'video/mp4', filename: 'f.mp4', sizeBytes: 1_000 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a flyer over 5 MB even when the general limit is higher', async () => {
+      const svc = makeService(8 * 1024 * 1024);
+      await expect(
+        svc.presign({ ...flyer, sizeBytes: 6 * 1024 * 1024 }),
+      ).rejects.toBeInstanceOf(PayloadTooLargeException);
+    });
+  });
 });

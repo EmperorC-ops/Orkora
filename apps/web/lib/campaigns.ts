@@ -47,12 +47,14 @@ export function campaignsApi(orgId: string) {
       replyTo?: string;
       audienceId: string;
       eventId?: string;
+      /** Optional inline flyer image URL from the campaign_flyer upload flow. */
+      flyerUrl?: string;
     }) =>
       apiFetch<CampaignSummary>(`${base}/campaigns`, {
         method: 'POST',
         json: input,
       }),
-    patch: (id: string, patch: Partial<{ name: string; subject: string; previewText: string; bodyMarkdown: string; fromName: string; fromEmail: string; replyTo: string; audienceId: string }>) =>
+    patch: (id: string, patch: Partial<{ name: string; subject: string; previewText: string; bodyMarkdown: string; fromName: string; fromEmail: string; replyTo: string; audienceId: string; flyerUrl: string | null }>) =>
       apiFetch<CampaignSummary>(`${base}/campaigns/${id}`, {
         method: 'PATCH',
         json: patch,

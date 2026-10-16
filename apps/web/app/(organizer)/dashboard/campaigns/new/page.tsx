@@ -9,6 +9,7 @@ import { readActiveOrgId } from '@/lib/events';
 import { apiFetch } from '@/lib/auth';
 import { campaignsApi, type AudienceSummary } from '@/lib/campaigns';
 import { eventsApi, type OrganizerEventSummary } from '@/lib/events';
+import { ImageUpload } from '@/components/image-upload';
 
 export default function NewCampaignPage() {
   const router = useRouter();
@@ -21,6 +22,9 @@ export default function NewCampaignPage() {
   const [subject, setSubject] = useState('');
   const [previewText, setPreviewText] = useState('');
   const [bodyMarkdown, setBodyMarkdown] = useState('');
+  // Optional flyer image, shown inline at the top of the email with a
+  // "Download flyer" button. Images only; PDFs must be exported first.
+  const [flyerUrl, setFlyerUrl] = useState<string | null>(null);
   // Sender defaults so the Send-test / Send buttons are usable immediately.
   // Without a default fromName/fromEmail the buttons stay disabled (they are
   // in the required-field guard), which reads as an inert "nothing happens"
@@ -87,6 +91,7 @@ export default function NewCampaignPage() {
         fromEmail,
         audienceId: aid,
         eventId: eventId || undefined,
+        flyerUrl: flyerUrl ?? undefined,
       });
       await api.testSend(campaign.id, testEmail);
       setSuccess(`Test sent to ${testEmail}.`);
@@ -113,6 +118,7 @@ export default function NewCampaignPage() {
         fromEmail,
         audienceId: aid,
         eventId: eventId || undefined,
+        flyerUrl: flyerUrl ?? undefined,
       });
       const result = await api.send(campaign.id);
       setSuccess(`Sent to ${result.recipientCount} recipients.`);
@@ -241,6 +247,18 @@ export default function NewCampaignPage() {
               placeholder="Preview text (shown after subject in the inbox)"
               className="mb-4 w-full border-0 border-b border-surface-border bg-transparent pb-3 text-sm text-ink-secondary outline-none placeholder-ink-muted"
             />
+            <div className="mb-4">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                Flyer (optional)
+              </span>
+              <div className="max-w-[240px]">
+                <ImageUpload kind="campaign_flyer" value={flyerUrl} onChange={setFlyerUrl} />
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">
+                Shown at the top of the email with a Download flyer button. Have a PDF? Export it as
+                an image first.
+              </p>
+            </div>
             <textarea
               value={bodyMarkdown}
               onChange={(e) => setBodyMarkdown(e.target.value)}

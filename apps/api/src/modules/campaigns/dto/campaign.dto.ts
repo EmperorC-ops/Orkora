@@ -49,6 +49,13 @@ export class CreateCampaignDto {
   @IsOptional()
   @IsUUID()
   eventId?: string;
+
+  // Optional inline flyer image. Must be on our media host (checked in the
+  // service against S3_PUBLIC_BASE_URL); see campaigns/flyer.ts.
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  flyerUrl?: string;
 }
 
 export class PatchCampaignDto {
@@ -60,6 +67,8 @@ export class PatchCampaignDto {
   @IsOptional() @IsEmail() fromEmail?: string;
   @IsOptional() @IsEmail() replyTo?: string;
   @IsOptional() @IsUUID() audienceId?: string;
+  // null removes the flyer; a string replaces it (host-checked in the service).
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(500) flyerUrl?: string | null;
 }
 
 export class ScheduleCampaignDto {

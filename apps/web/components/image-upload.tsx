@@ -14,14 +14,19 @@ interface PresignResponse {
 const ACCEPTED = 'image/png,image/jpeg,image/jpg,image/webp,image/gif';
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
 
-export type UploadKind = 'banner' | 'avatar' | 'logo';
+// Campaign flyers go inline into bulk email: still images only, smaller cap.
+// Mirrors the API's campaign_flyer rules in uploads.service.ts.
+const FLYER_ACCEPTED = 'image/png,image/jpeg,image/jpg,image/webp';
+const FLYER_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+export type UploadKind = 'banner' | 'avatar' | 'logo' | 'campaign_flyer';
 
 interface Props {
   kind: UploadKind;
   value: string | null | undefined;
   onChange: (url: string | null) => void;
   /** Visual aspect ratio. Defaults sensibly per kind. */
-  aspect?: 'banner' | 'square';
+  aspect?: 'banner' | 'square' | 'flyer';
   className?: string;
   label?: string;
 }
@@ -32,16 +37,28 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
 
-  const ratio = aspect ?? (kind === 'avatar' ? 'square' : 'banner');
+  const ratio =
+    aspect ?? (kind === 'avatar' ? 'square' : kind === 'campaign_flyer' ? 'flyer' : 'banner');
+  const isFlyer = kind === 'campaign_flyer';
+  const maxBytes = isFlyer ? FLYER_MAX_BYTES : MAX_BYTES;
+  const typePattern = isFlyer
+    ? /^image\/(png|jpeg|jpg|webp)$/i
+    : /^image\/(png|jpeg|jpg|webp|gif)$/i;
+  const typeHint = isFlyer ? 'PNG, JPEG, or WEBP' : 'PNG, JPEG, WEBP, or GIF';
+  const sizeHint = isFlyer ? '5 MB' : '8 MB';
 
   async function handleFile(file: File) {
     setError(null);
-    if (file.size > MAX_BYTES) {
-      setError('File is over 8 MB. Pick a smaller image.');
+    if (file.size > maxBytes) {
+      setError(`File is over ${sizeHint}. Pick a smaller image.`);
       return;
     }
-    if (!file.type.match(/^image\/(png|jpeg|jpg|webp|gif)$/i)) {
-      setError('Use a PNG, JPEG, WEBP, or GIF.');
+    if (!file.type.match(typePattern)) {
+      setError(
+        isFlyer
+          ? 'Use a PNG, JPEG, or WEBP image. If your flyer is a PDF, export it as an image first.'
+          : `Use a ${typeHint}.`,
+      );
       return;
     }
     setBusy(true);
@@ -84,8 +101,12 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
     if (inputRef.current) inputRef.current.value = '';
   }
 
-  const aspectClass = ratio === 'square' ? 'aspect-square' : 'aspect-[16/7]';
+  const aspectClass =
+    ratio === 'square' ? 'aspect-square' : ratio === 'flyer' ? 'aspect-[3/4]' : 'aspect-[16/7]';
   const radiusClass = ratio === 'square' ? 'rounded-full' : 'rounded-2xl';
+  // Flyers are shown whole (never cropped) so the organizer previews exactly
+  // what recipients will see.
+  const fitClass = ratio === 'flyer' ? 'object-contain' : 'object-cover';
 
   return (
     <div className={className}>
@@ -106,7 +127,7 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
           <img
             src={value}
             alt=""
-            className="absolute inset-0 h-full w-full object-cover"
+            className={`absolute inset-0 h-full w-full ${fitClass}`}
             onError={() => setLoadError(true)}
             onLoad={() => setLoadError(false)}
           />
@@ -114,7 +135,7 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
           <div className="flex h-full w-full flex-col items-center justify-center text-slate-400">
             <ImagePlus className="h-6 w-6" />
             <span className="mt-2 text-xs">
-              {ratio === 'square' ? 'Add avatar' : 'Add banner image'}
+              {ratio === 'square' ? 'Add avatar' : ratio === 'flyer' ? 'Add flyer image' : 'Add banner image'}
             </span>
           </div>
         )}
@@ -128,7 +149,7 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPTED}
+          accept={isFlyer ? FLYER_ACCEPTED : ACCEPTED}
           className="absolute inset-0 cursor-pointer opacity-0"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -139,7 +160,7 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
 
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="text-slate-500">
-          PNG, JPEG, WEBP, or GIF up to 8 MB.
+          {typeHint} up to {sizeHint}.
         </span>
         {value ? (
           <button
