@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { OrgsService } from './orgs.service';
+import { OrgsService, normalizePostalAddress } from './orgs.service';
 import { AuditService } from '../audit/audit.service';
 
 /**
@@ -181,5 +181,29 @@ describe('OrgsService.removeMember', () => {
       svc.removeMember('org-1', 'actor', 'target'),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.membership.delete).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Mailing address for campaign footers: stored tidy (trimmed lines, no blank
+ * lines, no control characters, at most six lines), empty becomes null.
+ */
+describe('normalizePostalAddress', () => {
+  it('keeps a multi-line address, trimming each line and dropping blanks', () => {
+    expect(normalizePostalAddress('  12 Admiralty Way \r\n\r\n Lekki, Lagos \n Nigeria ')).toBe(
+      '12 Admiralty Way\nLekki, Lagos\nNigeria',
+    );
+  });
+
+  it('turns empty, whitespace-only, and null input into null', () => {
+    expect(normalizePostalAddress('')).toBeNull();
+    expect(normalizePostalAddress('  \n \n ')).toBeNull();
+    expect(normalizePostalAddress(null)).toBeNull();
+    expect(normalizePostalAddress(undefined)).toBeNull();
+  });
+
+  it('removes control characters and caps the address at six lines', () => {
+    expect(normalizePostalAddress('PO Box 1\u0000\u0007 Ikeja')).toBe('PO Box 1 Ikeja');
+    expect(normalizePostalAddress('a\nb\nc\nd\ne\nf\ng\nh')).toBe('a\nb\nc\nd\ne\nf');
   });
 });

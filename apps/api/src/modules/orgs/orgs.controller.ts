@@ -105,6 +105,13 @@ class UpdateOrgDto {
   @IsOptional()
   @IsObject()
   socials?: Record<string, string>;
+
+  // Mailing address printed in this organization's campaign email footers.
+  // Plain text, line breaks allowed; empty or null clears it.
+  @IsOptional()
+  @IsString()
+  @Length(0, 300)
+  postalAddress?: string | null;
 }
 
 class SubscribeDto {

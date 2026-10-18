@@ -28,6 +28,24 @@ interface UpdateOrgInput {
   brandAccent?: string | null;
   brandSurface?: string | null;
   socials?: Record<string, string>;
+  postalAddress?: string | null;
+}
+
+/**
+ * Normalise a mailing address for storage: control characters other than line
+ * breaks are dropped, each line is trimmed, blank lines removed, at most six
+ * lines kept. An address that ends up empty is stored as null.
+ */
+export function normalizePostalAddress(raw: string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const lines = raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ')
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l.length > 0)
+    .slice(0, 6);
+  return lines.length > 0 ? lines.join('\n') : null;
 }
 
 // Channels we render on the Brand Home SocialsBar. Anything else is dropped.
@@ -390,6 +408,9 @@ export class OrgsService {
         ...(input.brandAccent !== undefined ? { brandAccent: input.brandAccent } : {}),
         ...(input.brandSurface !== undefined ? { brandSurface: input.brandSurface } : {}),
         ...(input.socials !== undefined ? { socials: sanitizeSocials(input.socials) } : {}),
+        ...(input.postalAddress !== undefined
+          ? { postalAddress: normalizePostalAddress(input.postalAddress) }
+          : {}),
       },
     });
 

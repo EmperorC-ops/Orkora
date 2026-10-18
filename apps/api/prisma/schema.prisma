@@ -36,6 +36,8 @@ model Organization {
   // and blocked from new registrations.
   status        String   @default("active")
   countryCode   String   @default("NG") @map("country_code") @db.Char(2)
+  // Optional mailing address for campaign email footers (migration 0027).
+  postalAddress String?  @map("postal_address")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

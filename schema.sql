@@ -906,3 +906,10 @@ create table if not exists live_spotlights (
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );
+
+-- ============================================================
+-- ORG POSTAL ADDRESS (migration 0027, folded in for fresh installs)
+-- ============================================================
+-- Optional mailing address printed in the footer of the organization's campaign
+-- emails; falls back to the platform CAMPAIGN_POSTAL_ADDRESS when unset.
+alter table organizations add column if not exists postal_address text;
