@@ -38,7 +38,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { AudienceMaterialiser, type Recipient } from './audience.materialiser';
-import { applyTokens, markdownToHtml } from './markdown';
+import { applyTokens, applyTokensText, markdownToHtml, renderPreheader } from './markdown';
 import { acceptFlyerUrl, renderFlyerBlock } from './flyer';
 
 const BATCH_SIZE = 500;
@@ -239,15 +239,28 @@ export class CampaignsService {
    * campaign_sends (no need - it's a developer / organizer
    * verification, not a real send).
    */
-  async testSend(id: string, organizationId: string, email: string) {
+  async testSend(id: string, organizationId: string, email: string, actorUserId?: string) {
     const campaign = await this.get(id, organizationId);
-    const recipient: Recipient = { email, name: null, userId: null };
+    // A test address is not a registrant, so there is no attendee name to fill
+    // {{first_name}} with; previews used to read "Hi ,". Use the name of the
+    // organizer sending the test so the preview looks like the real thing.
+    const actor = actorUserId
+      ? await this.prisma.user.findUnique({
+          where: { id: actorUserId },
+          select: { fullName: true },
+        })
+      : null;
+    const recipient: Recipient = {
+      email,
+      name: actor?.fullName?.trim() || null,
+      userId: null,
+    };
     const html = this.renderForRecipient(campaign, recipient);
     await this.postmarkSingle({
       from: `${campaign.fromName} <${campaign.fromEmail}>`,
       to: email,
       replyTo: campaign.replyTo ?? undefined,
-      subject: `[TEST] ${campaign.subject}`,
+      subject: `[TEST] ${this.subjectForRecipient(campaign.subject, recipient)}`,
       htmlBody: html,
       tag: `campaign-test:${campaign.id}`,
       metadata: { campaignId: campaign.id, mode: 'test' },
@@ -325,7 +338,7 @@ export class CampaignsService {
         From: `${campaign.fromName} <${campaign.fromEmail}>`,
         To: r.email,
         ReplyTo: campaign.replyTo ?? undefined,
-        Subject: campaign.subject,
+        Subject: this.subjectForRecipient(campaign.subject, r),
         HtmlBody: this.renderForRecipient(campaign, r),
         Tag: `campaign:${campaign.id}`,
         Metadata: { campaignId: campaign.id, organizationId },
@@ -372,6 +385,24 @@ export class CampaignsService {
    * Build the final HTML body for one recipient: markdown -> html ->
    * token substitution -> wrap in brand template with unsubscribe.
    */
+  /**
+   * Token values for one recipient, shared by the body, the preview line and
+   * the subject so all three always personalise the same way.
+   */
+  private tokenContext(recipient: Recipient): Record<string, string> {
+    const name = (recipient.name ?? '').trim();
+    return {
+      first_name: name.split(/\s+/)[0] ?? '',
+      full_name: name,
+      email: recipient.email,
+    };
+  }
+
+  /** Subject line for one recipient: tokens filled as plain text, one line. */
+  private subjectForRecipient(subject: string, recipient: Recipient): string {
+    return applyTokensText(subject, this.tokenContext(recipient));
+  }
+
   private renderForRecipient(
     campaign: {
       id: string;
@@ -379,24 +410,22 @@ export class CampaignsService {
       bodyMarkdown: string;
       fromName: string;
       flyerUrl?: string | null;
+      previewText?: string | null;
     },
     recipient: Recipient,
   ): string {
-    const ctx: Record<string, string> = {
-      first_name: (recipient.name ?? '').split(' ')[0] ?? '',
-      full_name: recipient.name ?? '',
-      email: recipient.email,
-    };
+    const ctx = this.tokenContext(recipient);
     const personalisedBody = applyTokens(campaign.bodyHtml, ctx);
+    const preheader = renderPreheader(campaign.previewText, ctx);
     // Re-check the stored flyer at send time: it is rendered only if it still
     // passes the same host rule enforced on save.
     const flyer = acceptFlyerUrl(campaign.flyerUrl, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
     const body = flyer ? `${renderFlyerBlock(flyer)}\n${personalisedBody}` : personalisedBody;
     const unsubUrl = this.unsubscribeUrl(campaign.id, recipient.email);
-    return this.wrap(body, unsubUrl);
+    return this.wrap(body, unsubUrl, preheader);
   }
 
-  private wrap(bodyHtml: string, unsubUrl: string): string {
+  private wrap(bodyHtml: string, unsubUrl: string, preheaderHtml = ''): string {
     // Header wordmark is live text: the previous <img> pointed at an SVG,
     // which Gmail and Outlook do not render, so most recipients saw a broken
     // image.
@@ -412,6 +441,7 @@ export class CampaignsService {
       : '';
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#F5F3FF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+${preheaderHtml}
 <table width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td align="center" style="padding:32px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:16px;overflow:hidden;">

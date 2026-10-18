@@ -4,7 +4,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { CampaignsService } from './campaigns.service';
 import { AudienceMaterialiser } from './audience.materialiser';
 import { PrismaService } from '../../database/prisma/prisma.service';
-import { markdownToHtml, applyTokens } from './markdown';
+import { markdownToHtml, applyTokens, applyTokensText, renderPreheader } from './markdown';
 import { createHmac } from 'crypto';
 
 const PEPPER = 'test-pepper-very-long-1234567890';
@@ -245,5 +245,125 @@ describe('CampaignsService.sendNow daily cap', () => {
     // 1001 recipients passes the 2000 Slice A cap but trips the 1000 daily cap.
     await expect(svc.sendNow('camp-1', 'org-1')).rejects.toBeInstanceOf(BadRequestException);
     await expect(svc.sendNow('camp-1', 'org-1')).rejects.toThrow(/1000 recipients per organisation/);
+  });
+});
+
+/**
+ * Subject personalisation is plain text: no HTML entities in the inbox, and a
+ * stored name can never break the subject onto a second header line.
+ */
+describe('applyTokensText', () => {
+  it('fills tokens without HTML-escaping', () => {
+    expect(applyTokensText('Hi {{first_name}}, your seat is booked', { first_name: "O'Brien" })).toBe(
+      "Hi O'Brien, your seat is booked",
+    );
+  });
+
+  it('collapses line breaks and control characters in values onto one line', () => {
+    expect(applyTokensText('Hi {{first_name}}!', { first_name: 'Ada\r\nBcc: x@y.z' })).toBe(
+      'Hi Ada Bcc: x@y.z!',
+    );
+  });
+
+  it('leaves unknown tokens visible so typos show in the test send', () => {
+    expect(applyTokensText('Hi {{frist_name}}', { first_name: 'Ada' })).toBe('Hi {{frist_name}}');
+  });
+
+  it('trims and collapses whitespace in the result', () => {
+    expect(applyTokensText('  Hi   {{first_name}}  ', { first_name: 'Ada' })).toBe('Hi Ada');
+  });
+});
+
+/**
+ * The preview line (preheader) is hidden in the opened email, escaped, and
+ * personalised with the same tokens as the body.
+ */
+describe('renderPreheader', () => {
+  it('returns nothing when there is no preview text', () => {
+    expect(renderPreheader(null, {})).toBe('');
+    expect(renderPreheader('   ', {})).toBe('');
+  });
+
+  it('renders a hidden block with the personalised text first', () => {
+    const html = renderPreheader('{{first_name}}, keep your QR code handy', { first_name: 'Temi' });
+    expect(html).toContain('display:none');
+    expect(html).toContain('mso-hide:all');
+    expect(html.indexOf('Temi, keep your QR code handy')).toBeGreaterThan(0);
+  });
+
+  it('escapes both the organizer text and the token values', () => {
+    const html = renderPreheader('<b>Hi</b> {{first_name}}', { first_name: '<script>x</script>' });
+    expect(html).not.toContain('<b>');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;b&gt;Hi&lt;/b&gt;');
+  });
+});
+
+/**
+ * Test sends: the address is not a registrant, so the organizer's own name
+ * fills the tokens (previews used to read "Hi ,"); the subject and preview
+ * line are personalised the same way as a real send.
+ */
+describe('CampaignsService.testSend personalisation', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  async function build(actorName: string | null) {
+    const prisma = {
+      campaign: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'camp-1',
+          organizationId: 'org-1',
+          status: 'draft',
+          audienceId: 'aud-1',
+          fromName: 'Orkora',
+          fromEmail: 'no-reply@orkora.events',
+          replyTo: null,
+          subject: '{{first_name}}, your seat is booked',
+          bodyMarkdown: 'Hi {{first_name}}',
+          bodyHtml: '<p>Hi {{first_name}}</p>',
+          previewText: '{{first_name}}, keep your QR code handy',
+          flyerUrl: null,
+          audience: { id: 'aud-1', name: 'All', cachedCount: 0 },
+        }),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue(actorName === null ? null : { fullName: actorName }) },
+    };
+    const mod: TestingModule = await Test.createTestingModule({
+      providers: [
+        CampaignsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ConfigService, useValue: makeCfg({ POSTMARK_TOKEN: 'x' }) },
+        { provide: AudienceMaterialiser, useValue: { materialise: jest.fn() } },
+      ],
+    }).compile();
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ MessageID: 'm-1' }),
+      text: async () => '',
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    return { svc: mod.get(CampaignsService), fetchMock };
+  }
+
+  function sentPayload(fetchMock: jest.Mock): { Subject: string; HtmlBody: string } {
+    return JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body));
+  }
+
+  it("fills tokens with the sender's first name in subject, preview and body", async () => {
+    const { svc, fetchMock } = await build('Temitope Felix Sodeinde');
+    await svc.testSend('camp-1', 'org-1', 'me@x.co', 'user-1');
+    const p = sentPayload(fetchMock);
+    expect(p.Subject).toBe('[TEST] Temitope, your seat is booked');
+    expect(p.HtmlBody).toContain('<p>Hi Temitope</p>');
+    expect(p.HtmlBody).toContain('Temitope, keep your QR code handy');
+  });
+
+  it('falls back to empty values when the sender has no name on file', async () => {
+    const { svc, fetchMock } = await build(null);
+    await svc.testSend('camp-1', 'org-1', 'me@x.co', 'user-1');
+    expect(sentPayload(fetchMock).Subject).toBe('[TEST] , your seat is booked');
   });
 });

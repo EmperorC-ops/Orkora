@@ -135,8 +135,10 @@ export class CampaignsController {
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: TestSendDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.campaigns.testSend(id, orgId, dto.email);
+    // The sender's own name fills the tokens, so the test reads like a real send.
+    return this.campaigns.testSend(id, orgId, dto.email, user.userId);
   }
 
   @Post('campaigns/:id/send')

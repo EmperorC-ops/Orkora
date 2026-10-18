@@ -267,7 +267,10 @@ export default function NewCampaignPage() {
               className="w-full rounded-xl border border-surface-border bg-surface-deep/60 px-4 py-3 text-sm leading-relaxed text-ink-primary placeholder-ink-muted"
             />
             <div className="mt-2 text-xs text-ink-muted">
-              Body is markdown. We escape HTML to prevent injection.
+              Body is markdown. We escape HTML to prevent injection. Tokens such as{' '}
+              <code>{'{{first_name}}'}</code>, <code>{'{{full_name}}'}</code> and{' '}
+              <code>{'{{email}}'}</code> work in the subject, preview text and body, filled in
+              for each attendee. Test sends use your own name.
             </div>
           </div>
 

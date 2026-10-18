@@ -114,3 +114,37 @@ export function applyTokens(html: string, ctx: Record<string, string>): string {
     return v === undefined ? m : escape(v);
   });
 }
+
+/**
+ * Token swap for PLAIN TEXT destinations such as the subject line. Unlike
+ * applyTokens, values are not HTML-escaped (a subject shows "O'Brien", not
+ * "O&#39;Brien"). Instead every value is forced onto one line: control
+ * characters and line breaks collapse to a single space, so a stored name can
+ * never split a mail header. The template text itself is collapsed the same
+ * way. Unknown tokens stay visible, as in applyTokens.
+ */
+export function applyTokensText(text: string, ctx: Record<string, string>): string {
+  const oneLine = (s: string) => s.replace(/[\u0000-\u001f\u007f  ]+/g, ' ').replace(/\s+/g, ' ');
+  return oneLine(
+    text.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, name) => {
+      const v = ctx[name];
+      return v === undefined ? m : oneLine(v);
+    }),
+  ).trim();
+}
+
+/**
+ * Hidden inbox preview line ("preheader"). Email clients show this snippet
+ * after the subject in the message list; it is not displayed in the opened
+ * email. The organizer's text is HTML-escaped first, then tokens are filled
+ * (applyTokens escapes their values too). A run of invisible filler follows it
+ * so the client does not append the start of the body after a short preview.
+ * Returns '' when there is no preview text.
+ */
+export function renderPreheader(previewText: string | null | undefined, ctx: Record<string, string>): string {
+  const raw = (previewText ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+  if (!raw) return '';
+  const text = applyTokens(escape(raw), ctx);
+  const filler = '&#847;&zwnj;&nbsp;'.repeat(60);
+  return `<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:#F5F3FF;">${text}${filler}</div>`;
+}
