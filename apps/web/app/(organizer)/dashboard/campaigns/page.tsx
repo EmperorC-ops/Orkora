@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useState } from 'react';
-import { Mail, Plus } from 'lucide-react';
+import { Mail, Plus, Trash2 } from 'lucide-react';
 import { readActiveOrgId } from '@/lib/events';
 import { campaignsApi, type CampaignSummary } from '@/lib/campaigns';
 
@@ -20,20 +20,39 @@ export default function CampaignsListPage() {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
-    const orgId = readActiveOrgId();
-    if (!orgId) {
+    const id = readActiveOrgId();
+    if (!id) {
       setError('No active organization. Sign in or accept an invite first.');
       setLoading(false);
       return;
     }
-    campaignsApi(orgId)
+    setOrgId(id);
+    campaignsApi(id)
       .list()
       .then(setCampaigns)
       .catch(() => setError('Could not load campaigns.'))
       .finally(() => setLoading(false));
   }, []);
+
+  // Delete a draft straight from the list, so a backlog of unused drafts can be
+  // cleared without opening each one. The API only allows deleting drafts.
+  async function deleteDraft(c: CampaignSummary) {
+    if (!orgId) return;
+    if (!window.confirm(`Delete the draft "${c.name}"? This cannot be undone.`)) return;
+    setDeleting(c.id);
+    try {
+      await campaignsApi(orgId).remove(c.id);
+      setCampaigns((prev) => prev.filter((x) => x.id !== c.id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Could not delete the draft.');
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   return (
     <div>
@@ -84,7 +103,7 @@ export default function CampaignsListPage() {
 
       {!error && !loading && campaigns.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface/40">
-          <div className="hidden grid-cols-[1fr_140px_120px_120px_100px] gap-3 border-b border-surface-border px-5 py-3 text-xs font-semibold uppercase tracking-wider text-ink-muted lg:grid">
+          <div className="hidden grid-cols-[1fr_140px_120px_120px_100px] gap-3 border-b border-surface-border py-3 pl-5 pr-[68px] text-xs font-semibold uppercase tracking-wider text-ink-muted lg:grid">
             <div>Campaign</div>
             <div>Audience</div>
             <div>Sent</div>
@@ -92,10 +111,13 @@ export default function CampaignsListPage() {
             <div>Status</div>
           </div>
           {campaigns.map((c) => (
-            <Link
+            <div
               key={c.id}
+              className="flex items-stretch border-b border-surface-border last:border-b-0"
+            >
+            <Link
               href={`/dashboard/campaigns/${c.id}` as Route}
-              className="block border-b border-surface-border px-5 py-4 transition last:border-b-0 hover:bg-brand-500/5"
+              className="block min-w-0 flex-1 px-5 py-4 transition hover:bg-brand-500/5"
             >
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_140px_120px_120px_100px] lg:items-center">
                 <div>
@@ -117,6 +139,23 @@ export default function CampaignsListPage() {
                 </div>
               </div>
             </Link>
+            {/* Kept outside the row link: a button inside a link is invalid and
+                a click would also open the campaign. Drafts only. */}
+            <div className="flex w-12 flex-none items-center justify-center">
+              {c.status === 'draft' ? (
+                <button
+                  type="button"
+                  onClick={() => void deleteDraft(c)}
+                  disabled={deleting === c.id}
+                  aria-label={`Delete draft ${c.name}`}
+                  title="Delete draft"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition hover:bg-rose-500/10 hover:text-rose-400 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            </div>
           ))}
         </div>
       )}

@@ -206,10 +206,19 @@ export class CampaignsService {
       fromEmail: string;
       replyTo: string;
       audienceId: string;
+      eventId: string;
       flyerUrl: string | null;
     }>,
   ) {
     const existing = await this.get(id, organizationId);
+    // A new audience must belong to this organization, as on create.
+    if (patch.audienceId) {
+      const audience = await this.prisma.campaignAudience.findFirst({
+        where: { id: patch.audienceId, organizationId },
+        select: { id: true },
+      });
+      if (!audience) throw new BadRequestException('Audience not found for this organization');
+    }
     if (existing.status !== 'draft' && existing.status !== 'scheduled') {
       throw new ConflictException(`Cannot edit a campaign in status ${existing.status}`);
     }

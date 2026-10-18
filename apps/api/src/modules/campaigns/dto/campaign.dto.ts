@@ -67,6 +67,8 @@ export class PatchCampaignDto {
   @IsOptional() @IsEmail() fromEmail?: string;
   @IsOptional() @IsEmail() replyTo?: string;
   @IsOptional() @IsUUID() audienceId?: string;
+  // Editing a draft can switch it to another event (with that event's audience).
+  @IsOptional() @IsUUID() eventId?: string;
   // null removes the flyer; a string replaces it (host-checked in the service).
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(500) flyerUrl?: string | null;
 }

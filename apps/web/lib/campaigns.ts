@@ -22,6 +22,18 @@ export interface CampaignSummary {
   audience: { id: string; name: string; cachedCount: number } | null;
 }
 
+/** Full campaign as returned by GET /campaigns/:id, used to edit a draft. */
+export interface CampaignDetail extends CampaignSummary {
+  previewText: string | null;
+  bodyMarkdown: string;
+  fromName: string;
+  fromEmail: string;
+  replyTo: string | null;
+  eventId: string | null;
+  audienceId: string;
+  flyerUrl: string | null;
+}
+
 export interface AudienceSummary {
   id: string;
   name: string;
@@ -36,7 +48,12 @@ export function campaignsApi(orgId: string) {
   const base = `/v1/organizations/${orgId}`;
   return {
     list: () => apiFetch<CampaignSummary[]>(`${base}/campaigns`),
-    get: (id: string) => apiFetch<CampaignSummary>(`${base}/campaigns/${id}`),
+    get: (id: string) => apiFetch<CampaignDetail>(`${base}/campaigns/${id}`),
+    /** Delete a draft. The API refuses anything that is not a draft. */
+    remove: (id: string) =>
+      apiFetch<void>(`${base}/campaigns/${id}`, {
+        method: 'DELETE',
+      }),
     create: (input: {
       name: string;
       subject: string;
@@ -54,7 +71,7 @@ export function campaignsApi(orgId: string) {
         method: 'POST',
         json: input,
       }),
-    patch: (id: string, patch: Partial<{ name: string; subject: string; previewText: string; bodyMarkdown: string; fromName: string; fromEmail: string; replyTo: string; audienceId: string; flyerUrl: string | null }>) =>
+    patch: (id: string, patch: Partial<{ name: string; subject: string; previewText: string; bodyMarkdown: string; fromName: string; fromEmail: string; replyTo: string; audienceId: string; eventId: string; flyerUrl: string | null }>) =>
       apiFetch<CampaignSummary>(`${base}/campaigns/${id}`, {
         method: 'PATCH',
         json: patch,

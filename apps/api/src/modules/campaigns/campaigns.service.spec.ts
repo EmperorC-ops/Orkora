@@ -249,6 +249,57 @@ describe('CampaignsService.sendNow daily cap', () => {
 });
 
 /**
+ * Editing a draft: the composer now updates one draft instead of creating a new
+ * campaign per test send. Switching to another audience must stay inside the
+ * organization, and only drafts or scheduled campaigns can be edited.
+ */
+describe('CampaignsService.patch', () => {
+  async function build(campaign: Record<string, unknown>, audience: unknown) {
+    const prisma = {
+      campaign: {
+        findFirst: jest.fn().mockResolvedValue(campaign),
+        update: jest.fn().mockResolvedValue({ id: 'camp-1' }),
+      },
+      campaignAudience: { findFirst: jest.fn().mockResolvedValue(audience) },
+    };
+    const mod: TestingModule = await Test.createTestingModule({
+      providers: [
+        CampaignsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ConfigService, useValue: makeCfg() },
+        { provide: AudienceMaterialiser, useValue: { materialise: jest.fn() } },
+      ],
+    }).compile();
+    return { svc: mod.get(CampaignsService), prisma };
+  }
+
+  it('updates a draft in place, including a new event and audience', async () => {
+    const { svc, prisma } = await build({ id: 'camp-1', status: 'draft' }, { id: 'aud-2' });
+    await svc.patch('camp-1', 'org-1', { subject: 'New subject', audienceId: 'aud-2', eventId: 'evt-2' });
+    expect(prisma.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'camp-1' },
+        data: expect.objectContaining({ subject: 'New subject', audienceId: 'aud-2', eventId: 'evt-2' }),
+      }),
+    );
+  });
+
+  it("refuses an audience from another organization", async () => {
+    const { svc, prisma } = await build({ id: 'camp-1', status: 'draft' }, null);
+    await expect(svc.patch('camp-1', 'org-1', { audienceId: 'aud-x' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(prisma.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses to edit a campaign that has been sent', async () => {
+    const { svc, prisma } = await build({ id: 'camp-1', status: 'sent' }, { id: 'aud-1' });
+    await expect(svc.patch('camp-1', 'org-1', { subject: 'x' })).rejects.toThrow(/Cannot edit/);
+    expect(prisma.campaign.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * Subject personalisation is plain text: no HTML entities in the inbox, and a
  * stored name can never break the subject onto a second header line.
  */
