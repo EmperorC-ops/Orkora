@@ -124,7 +124,7 @@ export function applyTokens(html: string, ctx: Record<string, string>): string {
  * way. Unknown tokens stay visible, as in applyTokens.
  */
 export function applyTokensText(text: string, ctx: Record<string, string>): string {
-  const oneLine = (s: string) => s.replace(/[\u0000-\u001f\u007f  ]+/g, ' ').replace(/\s+/g, ' ');
+  const oneLine = (s: string) => s.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ');
   return oneLine(
     text.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (m, name) => {
       const v = ctx[name];
