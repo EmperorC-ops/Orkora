@@ -39,7 +39,7 @@ import { createHmac, randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { AudienceMaterialiser, type Recipient } from './audience.materialiser';
 import { applyTokens, applyTokensText, markdownToHtml, renderPreheader } from './markdown';
-import { acceptFlyerUrl, renderFlyerBlock } from './flyer';
+import { acceptFlyerUrl, acceptLogoUrl, renderBrandHeader, renderFlyerBlock } from './flyer';
 
 const BATCH_SIZE = 500;
 const POSTMARK_API = 'https://api.postmarkapp.com';
@@ -127,6 +127,8 @@ export class CampaignsService {
       where: { id, organizationId },
       include: {
         audience: { select: { id: true, name: true, cachedCount: true } },
+        // Name and logo for the email header (option B: organizer branding).
+        organization: { select: { name: true, logoUrl: true, postalAddress: true } },
       },
     });
     if (!campaign) throw new NotFoundException('Campaign not found');
@@ -411,6 +413,7 @@ export class CampaignsService {
       fromName: string;
       flyerUrl?: string | null;
       previewText?: string | null;
+      organization?: { name: string; logoUrl: string | null; postalAddress?: string | null } | null;
     },
     recipient: Recipient,
   ): string {
@@ -422,22 +425,39 @@ export class CampaignsService {
     const flyer = acceptFlyerUrl(campaign.flyerUrl, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
     const body = flyer ? `${renderFlyerBlock(flyer)}\n${personalisedBody}` : personalisedBody;
     const unsubUrl = this.unsubscribeUrl(campaign.id, recipient.email);
-    return this.wrap(body, unsubUrl, preheader);
+    // Header carries the organizer: their uploaded logo when it passes the
+    // same "our media only" rule as flyers, otherwise their name.
+    const header = renderBrandHeader({
+      name: campaign.organization?.name,
+      logoUrl: acceptLogoUrl(
+        campaign.organization?.logoUrl,
+        this.cfg.get<string>('S3_PUBLIC_BASE_URL'),
+      ),
+    });
+    // Footer address: the organization's own mailing address when set (it is
+    // their event being promoted), otherwise the platform-wide fallback.
+    const postal =
+      campaign.organization?.postalAddress?.trim() ||
+      (this.cfg.get<string>('CAMPAIGN_POSTAL_ADDRESS') ?? '').trim();
+    return this.wrap(body, unsubUrl, preheader, header, postal);
   }
 
-  private wrap(bodyHtml: string, unsubUrl: string, preheaderHtml = ''): string {
-    // Header wordmark is live text: the previous <img> pointed at an SVG,
-    // which Gmail and Outlook do not render, so most recipients saw a broken
-    // image.
-    // Physical postal address in the footer is required for commercial email
-    // (CAN-SPAM). Operator-configured; rendered only when set. HTML-escaped
-    // since it lands in markup.
-    const postal = (this.cfg.get<string>('CAMPAIGN_POSTAL_ADDRESS') ?? '').trim();
-    const postalHtml = postal
-      ? `<br><br>${postal
+  private wrap(
+    bodyHtml: string,
+    unsubUrl: string,
+    preheaderHtml = '',
+    headerHtml = renderBrandHeader({}),
+    postalAddress = '',
+  ): string {
+    // Physical postal address in the footer is expected for commercial email
+    // (CAN-SPAM). Rendered only when set; HTML-escaped since it lands in
+    // markup, with line breaks kept so a multi-line address reads naturally.
+    const postalHtml = postalAddress
+      ? `<br><br>${postalAddress
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')}`
+          .replace(/>/g, '&gt;')
+          .replace(/\r?\n/g, '<br>')}`
       : '';
     return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#F5F3FF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
@@ -445,9 +465,7 @@ ${preheaderHtml}
 <table width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td align="center" style="padding:32px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:16px;overflow:hidden;">
-<tr><td align="center" bgcolor="#5B21B6" style="background-color:#5B21B6;background:linear-gradient(180deg,#6D28D9 0%,#4C1D95 100%);padding:24px;">
-  <span style="display:inline-block;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.5px;color:#ffffff;">Orkora</span>
-</td></tr>
+${headerHtml}
 <tr><td style="padding:32px 28px 24px 28px;color:#0F172A;font-size:15px;line-height:1.6;">
 ${bodyHtml}
 </td></tr>

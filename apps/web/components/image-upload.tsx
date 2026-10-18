@@ -103,10 +103,11 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
 
   const aspectClass =
     ratio === 'square' ? 'aspect-square' : ratio === 'flyer' ? 'aspect-[3/4]' : 'aspect-[16/7]';
-  const radiusClass = ratio === 'square' ? 'rounded-full' : 'rounded-2xl';
-  // Flyers are shown whole (never cropped) so the organizer previews exactly
-  // what recipients will see.
-  const fitClass = ratio === 'flyer' ? 'object-contain' : 'object-cover';
+  // Only avatars are round; a logo in a circle would lose its corners.
+  const radiusClass = kind === 'avatar' ? 'rounded-full' : 'rounded-2xl';
+  // Flyers and logos are shown whole (never cropped) so the organizer previews
+  // exactly what recipients and visitors will see.
+  const fitClass = ratio === 'flyer' || kind === 'logo' ? 'object-contain' : 'object-cover';
 
   return (
     <div className={className}>
@@ -135,7 +136,13 @@ export function ImageUpload({ kind, value, onChange, aspect, className, label }:
           <div className="flex h-full w-full flex-col items-center justify-center text-slate-400">
             <ImagePlus className="h-6 w-6" />
             <span className="mt-2 text-xs">
-              {ratio === 'square' ? 'Add avatar' : ratio === 'flyer' ? 'Add flyer image' : 'Add banner image'}
+              {kind === 'logo'
+                ? 'Add logo'
+                : ratio === 'square'
+                  ? 'Add avatar'
+                  : ratio === 'flyer'
+                    ? 'Add flyer image'
+                    : 'Add banner image'}
             </span>
           </div>
         )}

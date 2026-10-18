@@ -310,7 +310,10 @@ describe('CampaignsService.testSend personalisation', () => {
     global.fetch = realFetch;
   });
 
-  async function build(actorName: string | null) {
+  async function build(
+    actorName: string | null,
+    opts: { orgPostal?: string | null; envPostal?: string } = {},
+  ) {
     const prisma = {
       campaign: {
         findFirst: jest.fn().mockResolvedValue({
@@ -326,6 +329,11 @@ describe('CampaignsService.testSend personalisation', () => {
           bodyHtml: '<p>Hi {{first_name}}</p>',
           previewText: '{{first_name}}, keep your QR code handy',
           flyerUrl: null,
+          organization: {
+            name: 'Dr. Emmanuel Aihevba',
+            logoUrl: 'https://example.com/pasted-logo.png',
+            postalAddress: opts.orgPostal ?? null,
+          },
           audience: { id: 'aud-1', name: 'All', cachedCount: 0 },
         }),
       },
@@ -335,7 +343,13 @@ describe('CampaignsService.testSend personalisation', () => {
       providers: [
         CampaignsService,
         { provide: PrismaService, useValue: prisma },
-        { provide: ConfigService, useValue: makeCfg({ POSTMARK_TOKEN: 'x' }) },
+        {
+          provide: ConfigService,
+          useValue: makeCfg({
+            POSTMARK_TOKEN: 'x',
+            ...(opts.envPostal ? { CAMPAIGN_POSTAL_ADDRESS: opts.envPostal } : {}),
+          }),
+        },
         { provide: AudienceMaterialiser, useValue: { materialise: jest.fn() } },
       ],
     }).compile();
@@ -359,6 +373,36 @@ describe('CampaignsService.testSend personalisation', () => {
     expect(p.Subject).toBe('[TEST] Temitope, your seat is booked');
     expect(p.HtmlBody).toContain('<p>Hi Temitope</p>');
     expect(p.HtmlBody).toContain('Temitope, keep your QR code handy');
+  });
+
+  it('brands the header with the organization; a pasted external logo falls back to the name', async () => {
+    const { svc, fetchMock } = await build('Temitope Felix Sodeinde');
+    await svc.testSend('camp-1', 'org-1', 'me@x.co', 'user-1');
+    const html = sentPayload(fetchMock).HtmlBody;
+    expect(html).toContain('>Dr. Emmanuel Aihevba</span>');
+    expect(html).not.toContain('pasted-logo.png');
+    expect(html).not.toContain('>Orkora</span>');
+  });
+
+  it("prints the organization's own mailing address over the platform fallback", async () => {
+    const { svc, fetchMock } = await build('Temi', {
+      orgPostal: '12 Admiralty Way\nLekki, Lagos',
+      envPostal: 'Orkora HQ, Abuja',
+    });
+    await svc.testSend('camp-1', 'org-1', 'me@x.co', 'user-1');
+    const html = sentPayload(fetchMock).HtmlBody;
+    expect(html).toContain('12 Admiralty Way<br>Lekki, Lagos');
+    expect(html).not.toContain('Orkora HQ, Abuja');
+  });
+
+  it('falls back to the platform address, and prints none when neither is set', async () => {
+    const withEnv = await build('Temi', { envPostal: 'Orkora HQ, Abuja' });
+    await withEnv.svc.testSend('camp-1', 'org-1', 'me@x.co', 'user-1');
+    expect(sentPayload(withEnv.fetchMock).HtmlBody).toContain('Orkora HQ, Abuja');
+
+    const neither = await build('Temi');
+    await neither.svc.testSend('camp-1', 'org-1', 'me@x.co', 'user-1');
+    expect(sentPayload(neither.fetchMock).HtmlBody).not.toContain('<br><br>');
   });
 
   it('falls back to empty values when the sender has no name on file', async () => {

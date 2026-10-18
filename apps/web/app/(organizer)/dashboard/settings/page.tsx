@@ -14,6 +14,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
+import { ImageUpload } from '@/components/image-upload';
 import { readActiveOrgId } from '@/lib/events';
 import { useToast } from '@/components/toast';
 
@@ -27,6 +28,7 @@ interface Organization {
   brandColor: string | null;
   plan: string;
   countryCode: string;
+  postalAddress?: string | null;
 }
 
 interface OrgMember {
@@ -255,6 +257,7 @@ function BrandingTab({ orgId }: { orgId: string }) {
   const [org, setOrg] = useState<Organization | null>(null);
   const [logoUrl, setLogoUrl] = useState('');
   const [brandColor, setBrandColor] = useState('#6D28D9');
+  const [postalAddress, setPostalAddress] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -262,6 +265,7 @@ function BrandingTab({ orgId }: { orgId: string }) {
       setOrg(o);
       setLogoUrl(o.logoUrl ?? '');
       setBrandColor(o.brandColor ?? '#6D28D9');
+      setPostalAddress(o.postalAddress ?? '');
     });
   }, [orgId]);
 
@@ -274,6 +278,7 @@ function BrandingTab({ orgId }: { orgId: string }) {
         json: {
           logoUrl: logoUrl.trim() === '' ? null : logoUrl.trim(),
           brandColor,
+          postalAddress: postalAddress.trim() === '' ? null : postalAddress.trim(),
         },
       });
       setOrg(updated);
@@ -290,17 +295,21 @@ function BrandingTab({ orgId }: { orgId: string }) {
   return (
     <Section
       title="Branding"
-      subtitle="Logo URL and primary colour. Applied to public event pages and emails."
+      subtitle="Logo and primary colour. Applied to public event pages and emails."
     >
       <form onSubmit={save} className="space-y-4">
-        <Field label="Logo URL" hint="HTTPS URL of a square logo (PNG or SVG).">
-          <input
-            type="url"
-            value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            placeholder="https://media.orkora.events/logo.png"
-            className="w-full rounded-lg border border-surface-border bg-surface/40 px-3 py-2 text-sm text-ink-primary outline-none focus:border-brand-500/60"
-          />
+        <Field
+          label="Logo"
+          hint="Upload a square logo (PNG, JPEG, or WEBP works best). It appears at the top of your campaign emails; only uploaded logos are shown there."
+        >
+          <div className="max-w-[160px]">
+            <ImageUpload
+              kind="logo"
+              aspect="square"
+              value={logoUrl || null}
+              onChange={(url) => setLogoUrl(url ?? '')}
+            />
+          </div>
         </Field>
         <Field label="Primary brand colour">
           <div className="flex items-center gap-3">
@@ -323,6 +332,19 @@ function BrandingTab({ orgId }: { orgId: string }) {
             />
           </div>
         </Field>
+        <Field
+          label="Mailing address"
+          hint="Printed at the bottom of your campaign emails, as marketing email rules expect. Use a business address or PO box, not a home address."
+        >
+          <textarea
+            value={postalAddress}
+            onChange={(e) => setPostalAddress(e.target.value)}
+            rows={3}
+            maxLength={300}
+            placeholder={'12 Admiralty Way\nLekki Phase 1, Lagos\nNigeria'}
+            className="w-full rounded-lg border border-surface-border bg-surface/40 px-3 py-2 text-sm text-ink-primary outline-none focus:border-brand-500/60"
+          />
+        </Field>
         <div className="flex justify-end">
           <button
             type="submit"
@@ -333,19 +355,6 @@ function BrandingTab({ orgId }: { orgId: string }) {
           </button>
         </div>
       </form>
-
-      {logoUrl && (
-        <div className="mt-6 rounded-2xl border border-dashed border-surface-border bg-surface-deep/40 p-6">
-          <p className="text-[10px] uppercase tracking-wider text-ink-muted">Preview</p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={logoUrl}
-            alt="Org logo preview"
-            className="mt-3 h-16 w-16 rounded-lg object-contain"
-            onError={(e) => ((e.currentTarget.style.display = 'none'))}
-          />
-        </div>
-      )}
     </Section>
   );
 }
