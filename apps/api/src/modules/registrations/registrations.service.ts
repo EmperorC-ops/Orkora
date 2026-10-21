@@ -36,6 +36,9 @@ const TICKET_CODE_LENGTH = 10;
  * crypto-random source. Uses an unambiguous alphabet (no 0/O/1/I/L) so the
  * code is safe to read aloud at a check-in desk.
  */
+/** Upper bound on one event's organizer roster query (see listForOrgEvent). */
+export const ROSTER_MAX_ROWS = 10_000;
+
 function generateTicketCode(): string {
   const bytes = randomBytes(TICKET_CODE_LENGTH);
   let out = '';
@@ -1622,7 +1625,12 @@ export class RegistrationsService {
         tickets: { include: { tier: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      // This list is the door roster, the header counts, and the CSV export, so
+      // it must hold every registration. It used to stop at 200, which silently
+      // hid the oldest registrants once an event passed 200 (WMXKED showed
+      // "200 registrations" against 267 live tickets). The ceiling now only
+      // guards against a runaway query; no real event approaches it.
+      take: ROSTER_MAX_ROWS,
     });
 
     const mapped = rows.map((r) => ({

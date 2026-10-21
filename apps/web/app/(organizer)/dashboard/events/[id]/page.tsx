@@ -414,6 +414,7 @@ export default function EventDetailPage() {
                     orgId={orgId}
                     eventId={id}
                     tier={tier}
+                    timeZone={event.timezone}
                     onSaved={async () => {
                       setEditingTierId(null);
                       await refresh();
@@ -427,6 +428,7 @@ export default function EventDetailPage() {
               <TierRow
                 key={tier.id}
                 tier={tier}
+                timeZone={event.timezone}
                 onEdit={() => setEditingTierId(tier.id)}
                 onDelete={async () => {
                   if (!orgId) return;
@@ -863,15 +865,30 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 
 function TierRow({
   tier,
+  timeZone,
   onEdit,
   onDelete,
 }: {
   tier: EventTier;
+  timeZone?: string;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const sold = tier.quantitySold;
   const total = tier.quantityTotal ?? null;
+  const closeAt = tier.saleEndsAt ? new Date(tier.saleEndsAt) : null;
+  const closed = closeAt !== null && closeAt.getTime() <= Date.now();
+  const closeLabel = closeAt
+    ? new Intl.DateTimeFormat('en-GB', {
+        ...(timeZone ? { timeZone } : {}),
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(closeAt)
+    : null;
   return (
     <li className="flex items-start justify-between gap-3 py-3">
       <div className="min-w-0">
@@ -883,6 +900,11 @@ function TierRow({
           {sold} sold{total !== null ? ` of ${total}` : ''}
           {tier.isGroup && tier.groupSize ? ` · group of ${tier.groupSize}` : ''}
         </p>
+        {closeLabel ? (
+          <p className={`mt-0.5 text-xs ${closed ? 'font-semibold text-rose-600' : 'text-amber-700'}`}>
+            {closed ? `Sales closed ${closeLabel}` : `Sales close ${closeLabel}`}
+          </p>
+        ) : null}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-sm font-semibold text-slate-900">
@@ -915,6 +937,7 @@ function EditTierForm({
   orgId,
   eventId,
   tier,
+  timeZone,
   onSaved,
   onCancel,
   onError,
@@ -922,6 +945,8 @@ function EditTierForm({
   orgId: string;
   eventId: string;
   tier: EventTier;
+  /** The event's own timezone; the sales-close time is entered in it. */
+  timeZone?: string;
   onSaved: () => Promise<void> | void;
   onCancel: () => void;
   onError: (msg: string) => void;
@@ -932,6 +957,11 @@ function EditTierForm({
   const [quantity, setQuantity] = useState(
     tier.quantityTotal != null ? String(tier.quantityTotal) : '',
   );
+  // When ticket sales for this tier stop. The API already enforces it (the
+  // register endpoint refuses with "Ticket sales have ended") and the public
+  // page stops offering the tier; this is the missing dashboard control.
+  const initialClose = utcISOToWallTime(tier.saleEndsAt ?? '', timeZone);
+  const [salesClose, setSalesClose] = useState(initialClose);
 
   async function save() {
     const trimmedName = name.trim();
@@ -948,11 +978,15 @@ function EditTierForm({
       }
       quantityTotal = q;
     }
+    // Only send the close time when it was set or changed, so editing a price
+    // never touches an existing sales window.
+    const closeChanged = salesClose !== '' && salesClose !== initialClose;
     await eventsApi(orgId).updateTier(eventId, tier.id, {
       name: trimmedName,
       priceMinor: Math.round(priceNum * 100),
       currency,
       ...(quantityTotal !== undefined ? { quantityTotal } : {}),
+      ...(closeChanged ? { saleEndsAt: wallTimeToUtcISO(salesClose, timeZone) } : {}),
     });
     await onSaved();
   }
@@ -993,7 +1027,16 @@ function EditTierForm({
         placeholder="Qty (blank = no change)"
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
       />
-      <div className="flex items-center justify-end gap-2">
+      <label className="flex flex-col gap-1 text-xs text-slate-500 sm:col-span-3">
+        Sales close ({timeZone ?? 'local time'})
+        <input
+          type="datetime-local"
+          value={salesClose}
+          onChange={(e) => setSalesClose(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+        />
+      </label>
+      <div className="flex items-center justify-end gap-2 sm:col-span-3">
         <button
           type="button"
           onClick={onCancel}
@@ -1012,6 +1055,8 @@ function EditTierForm({
       </div>
       <p className="text-xs text-slate-400 sm:col-span-6">
         Currency shown to new buyers is {currency}. {tier.quantitySold} already sold on this tier.
+        After the sales-close time, nobody can register on this tier; existing tickets stay valid.
+        To reopen, set a later time.
       </p>
     </div>
   );
