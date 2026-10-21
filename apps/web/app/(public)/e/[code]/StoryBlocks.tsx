@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { StoryBlock, CastPerson } from '@/lib/story';
+import { ticketingState } from '@/lib/events';
 import Moodboard from './Moodboard';
 
 /**
@@ -38,6 +39,9 @@ interface StoryTier {
   quantitySold: number;
   isGroup: boolean;
   groupSize: number | null;
+  // Sale window; the page shows "closed" / "opens on" from these.
+  saleStartsAt?: string | null;
+  saleEndsAt?: string | null;
 }
 
 export interface StoryEvent {
@@ -179,14 +183,22 @@ function HeroBlock({
   // to the event banner is always a still image.
   const isVideo = heroMedia !== null && data.mediaType === 'video';
 
+  // Once sales have closed the hero stops offering registration.
+  const salesClosed = ticketingState(event.tiers).state === 'closed';
   const ctas = (
     <div className="mt-8 flex flex-wrap gap-3">
-      <Link
-        href={registerHref}
-        className="inline-flex items-center rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:bg-white/90"
-      >
-        {data.ctaPrimaryText || 'Get tickets'}
-      </Link>
+      {salesClosed ? (
+        <span className="inline-flex items-center rounded-full bg-white/15 px-6 py-2.5 text-sm font-semibold text-white">
+          Registration closed
+        </span>
+      ) : (
+        <Link
+          href={registerHref}
+          className="inline-flex items-center rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:bg-white/90"
+        >
+          {data.ctaPrimaryText || 'Get tickets'}
+        </Link>
+      )}
       <a
         href="#tickets"
         className="inline-flex items-center rounded-full border border-white/40 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
@@ -405,11 +417,37 @@ function TicketsBlock({
   color: string;
   registerHref: string;
 }) {
-  const tiers = event.tiers ?? [];
+  // Only tiers inside their sale window are offered. When every tier's sales
+  // have ended the organizer has closed registration, which reads very
+  // differently from "not on sale yet".
+  const { state, onSale: tiers, opensAt } = ticketingState(event.tiers);
+  const opensLabel =
+    opensAt !== null
+      ? new Intl.DateTimeFormat('en-GB', {
+          timeZone: event.timezone,
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).format(new Date(opensAt))
+      : null;
   return (
     <section id="tickets" className="mx-auto max-w-3xl scroll-mt-16 px-6 py-14">
       <h2 className="mb-6 text-2xl font-bold">{block.data.heading || 'Tickets'}</h2>
-      {tiers.length === 0 ? (
+      {state === 'closed' ? (
+        <div className="rounded-2xl border border-surface-border bg-surface/40 p-5">
+          <p className="font-semibold text-ink-primary">Registration for this event has closed.</p>
+          <p className="mt-1 text-sm text-ink-secondary">
+            Already registered? Your ticket and QR code are in the confirmation email we sent you.
+          </p>
+        </div>
+      ) : state === 'upcoming' ? (
+        <p className="text-sm text-ink-secondary">
+          Tickets go on sale {opensLabel}. Check back then.
+        </p>
+      ) : tiers.length === 0 ? (
         <p className="text-sm text-ink-secondary">Tickets are not on sale yet. Check back soon.</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

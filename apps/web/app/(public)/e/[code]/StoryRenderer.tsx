@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { remainingSeats } from '@/lib/events';
+import { remainingSeats, ticketingState } from '@/lib/events';
 import StoryTicketsBar from './StoryTicketsBar';
 import StoryAnalytics from './StoryAnalytics';
 import { BlockView, type StoryEvent } from './StoryBlocks';
@@ -16,6 +16,9 @@ export default function StoryRenderer({ event }: { event: StoryEvent }) {
   const color = event.organization.brandColor || '#6C5CE7';
   const blocks = (event.storyBlocks ?? []).filter((b) => b && b.hidden !== true);
   const registerHref = `/e/${event.code}/register`;
+  // When every tier's sales have ended, no button on the page offers
+  // registration; the tickets section explains that it has closed.
+  const salesClosed = ticketingState(event.tiers).state === 'closed';
 
   return (
     <main className="min-h-screen bg-surface-deep text-ink-primary">
@@ -29,13 +32,19 @@ export default function StoryRenderer({ event }: { event: StoryEvent }) {
           ) : (
             <span className="text-sm font-semibold tracking-tight">{event.organization.name}</span>
           )}
-          <Link
-            href={registerHref}
-            className="ml-auto rounded-full px-4 py-1.5 text-xs font-semibold text-white"
-            style={{ backgroundColor: color }}
-          >
-            Register
-          </Link>
+          {salesClosed ? (
+            <span className="ml-auto rounded-full border border-surface-border px-4 py-1.5 text-xs font-semibold text-ink-muted">
+              Registration closed
+            </span>
+          ) : (
+            <Link
+              href={registerHref}
+              className="ml-auto rounded-full px-4 py-1.5 text-xs font-semibold text-white"
+              style={{ backgroundColor: color }}
+            >
+              Register
+            </Link>
+          )}
         </div>
       </header>
 
@@ -52,7 +61,9 @@ export default function StoryRenderer({ event }: { event: StoryEvent }) {
         </Link>
       </footer>
 
-      <StoryTicketsBar color={color} seatsLeft={remainingSeats(event.tiers)} />
+      {salesClosed ? null : (
+        <StoryTicketsBar color={color} seatsLeft={remainingSeats(event.tiers)} />
+      )}
       <StoryAnalytics code={event.code} />
     </main>
   );

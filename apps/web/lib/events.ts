@@ -427,6 +427,47 @@ export function remainingSeats(
   return capped.reduce((sum, t) => sum + Math.max(0, (t.quantityTotal ?? 0) - t.quantitySold), 0);
 }
 
+/**
+ * Where an event's ticketing stands right now, from its tiers' sale windows:
+ *   - 'open':     at least one tier is inside its sale window (onSale lists them);
+ *   - 'upcoming': none on sale yet, but a tier opens later (opensAt is the first);
+ *   - 'closed':   every tier's sale window has ended (organizer closed sales);
+ *   - 'none':     the event has no tiers at all.
+ * Sold-out tiers still count as 'open' here; pages show "Sold out" per tier.
+ * Shared by the classic page, Story Mode and the registration page so they
+ * always agree. Mirrors the API, which refuses registration once a tier's
+ * saleEndsAt has passed.
+ */
+export type TicketingState = 'open' | 'upcoming' | 'closed' | 'none';
+
+export function ticketingState<
+  T extends { saleStartsAt?: string | null; saleEndsAt?: string | null },
+>(
+  tiers: ReadonlyArray<T> | null | undefined,
+  nowMs: number = Date.now(),
+): { state: TicketingState; onSale: T[]; opensAt: number | null } {
+  const list = tiers ?? [];
+  if (list.length === 0) return { state: 'none', onSale: [], opensAt: null };
+  const at = (s?: string | null) => (s ? new Date(s).getTime() : null);
+  const onSale = list.filter((t) => {
+    const starts = at(t.saleStartsAt);
+    const ends = at(t.saleEndsAt);
+    return (starts === null || starts <= nowMs) && (ends === null || ends > nowMs);
+  });
+  if (onSale.length > 0) return { state: 'open', onSale, opensAt: null };
+  const opensAt =
+    list
+      .filter((t) => {
+        const ends = at(t.saleEndsAt);
+        return ends === null || ends > nowMs;
+      })
+      .map((t) => at(t.saleStartsAt))
+      .filter((v): v is number => v !== null && v > nowMs)
+      .sort((a, b) => a - b)[0] ?? null;
+  if (opensAt !== null) return { state: 'upcoming', onSale: [], opensAt };
+  return { state: 'closed', onSale: [], opensAt: null };
+}
+
 export function wallTimeToUtcISO(naive: string, timeZone?: string): string {
   if (!naive) return '';
   const m = naive.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);

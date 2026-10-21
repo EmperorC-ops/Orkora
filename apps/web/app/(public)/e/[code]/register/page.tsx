@@ -15,7 +15,13 @@ import {
 } from '@/lib/registration';
 import { validateDiscount } from '@/lib/discounts';
 import { ActionButton } from '@/components/action-button';
-import { remainingSeats, isFieldVisible, type RegistrationField } from '@/lib/events';
+import {
+  remainingSeats,
+  isFieldVisible,
+  ticketingState,
+  type RegistrationField,
+  type TicketingState,
+} from '@/lib/events';
 import { RegistrationQuestions } from './RegistrationQuestions';
 
 interface PublicTier {
@@ -69,6 +75,10 @@ export default function RegisterPage() {
   const [event, setEvent] = useState<PublicEventLite | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tierId, setTierId] = useState<string>('');
+  // Sales state of the event's tiers. Only tiers on sale are offered; when
+  // sales have closed (or not opened yet) the form is replaced by a notice
+  // instead of letting someone fill it in only to be refused on submit.
+  const [salesState, setSalesState] = useState<TicketingState>('open');
   const [attendees, setAttendees] = useState<AttendeeInput[]>([
     { fullName: '', email: '', phone: '' },
   ]);
@@ -92,9 +102,12 @@ export default function RegisterPage() {
       })
       .then((e) => {
         if (cancelled) return;
+        const sales = ticketingState(e.tiers ?? []);
+        setSalesState(sales.state);
         const safe: PublicEventLite = {
           ...e,
-          tiers: e.tiers ?? [],
+          // Offer only tiers inside their sale window.
+          tiers: sales.state === 'open' ? sales.onSale : [],
           registrationFields: e.registrationFields ?? [],
           registrationIntroHidden: e.registrationIntroHidden ?? false,
         };
@@ -318,6 +331,32 @@ export default function RegisterPage() {
       <Wrapper>
         <div className="rounded-2xl border border-surface-border bg-surface/40 p-10 text-center text-sm text-ink-secondary">
           Loading event...
+        </div>
+      </Wrapper>
+    );
+  }
+
+  if (salesState === 'closed' || salesState === 'upcoming') {
+    return (
+      <Wrapper>
+        <Link
+          href={`/e/${event.code}`}
+          className="mb-8 inline-flex items-center gap-2 text-sm text-ink-secondary transition hover:text-ink-primary"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to event
+        </Link>
+        <div className="rounded-2xl border border-surface-border bg-surface/40 p-10 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-primary">{event.title}</h1>
+          <p className="mt-3 text-base font-semibold text-ink-primary">
+            {salesState === 'closed'
+              ? 'Registration for this event has closed.'
+              : 'Tickets are not on sale yet.'}
+          </p>
+          <p className="mt-2 text-sm text-ink-secondary">
+            {salesState === 'closed'
+              ? 'Already registered? Your ticket and QR code are in the confirmation email we sent you.'
+              : 'Check the event page for when tickets open.'}
+          </p>
         </div>
       </Wrapper>
     );

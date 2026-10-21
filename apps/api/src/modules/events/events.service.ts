@@ -286,7 +286,12 @@ export class EventsService {
           },
         },
         tiers: {
-          where: { saleEndsAt: null },
+          // Return every tier, as the by-code read does. This used to keep only
+          // tiers with NO sale end set, so the moment an organizer scheduled a
+          // sales-close time the tier vanished from branded-link pages (before
+          // the close time), and once sales closed the page could not tell
+          // "closed" from "not on sale yet". Pages decide on-sale state from
+          // saleStartsAt / saleEndsAt; the register endpoint still enforces it.
           orderBy: { position: 'asc' },
           select: {
             id: true,

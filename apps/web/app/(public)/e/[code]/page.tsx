@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { dayKeyInTz, remainingSeats, sameCalendarDay } from '@/lib/events';
+import { dayKeyInTz, remainingSeats, sameCalendarDay, ticketingState } from '@/lib/events';
 import { usesStoryMode, type StoryBlock } from '@/lib/story';
 import { isFeatureEnabled } from '@/lib/flags';
 import StoryRenderer from './StoryRenderer';
@@ -208,7 +208,8 @@ function resolveUrgency(tiers: PublicTier[], nowMs: number): Urgency {
       }).format(new Date(upcoming));
       return { text: `Tickets open ${label}`, tone: 'info' };
     }
-    return null;
+    // Nothing on sale and nothing opening later: the organizer closed sales.
+    return { text: 'Registration closed', tone: 'info' };
   }
 
   const limited = onSale.filter((t) => t.quantityTotal !== null);
@@ -309,6 +310,10 @@ export default async function PublicEventPage({
     ? `${formatDay(start, event.timezone)}, ${formatTime(start, event.timezone)}`
     : `${formatDay(start, event.timezone)} to ${formatDay(end, event.timezone)}`;
   const urgency = resolveUrgency(event.tiers ?? [], Date.now());
+  // Sales state shared with Story Mode and the register page. Once every
+  // tier's sales have ended, nothing on the page offers registration.
+  const ticketing = ticketingState(event.tiers);
+  const salesClosed = ticketing.state === 'closed';
   // Every event has a live second screen (chat, polls, Q&A) attendees follow
   // from their phones, so surface it for all kinds, not just online ones. Ticket
   // holders enter straight from their ticket link; others hit the sign-in gate.
@@ -389,12 +394,18 @@ export default async function PublicEventPage({
           ) : null}
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link
-              href={`/e/${event.code}/register`}
-              className="rounded-full bg-white px-6 py-2.5 text-sm font-bold text-brand-700 shadow-lg transition hover:bg-brand-50"
-            >
-              {ctaLabel}
-            </Link>
+            {salesClosed ? (
+              <span className="rounded-full bg-white/15 px-6 py-2.5 text-sm font-bold text-white backdrop-blur">
+                Registration closed
+              </span>
+            ) : (
+              <Link
+                href={`/e/${event.code}/register`}
+                className="rounded-full bg-white px-6 py-2.5 text-sm font-bold text-brand-700 shadow-lg transition hover:bg-brand-50"
+              >
+                {ctaLabel}
+              </Link>
+            )}
             {fromLabel && (
               <span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
                 {fromLabel}
@@ -523,11 +534,23 @@ export default async function PublicEventPage({
           </section>
         )}
 
-        {event.tiers && event.tiers.length > 0 && (
+        {salesClosed && (
+          <section id="tickets">
+            <h2 className="mb-6 text-2xl font-bold text-ink-primary">Tickets</h2>
+            <div className="surface-card">
+              <p className="font-semibold text-ink-primary">Registration for this event has closed.</p>
+              <p className="mt-1 text-sm text-ink-secondary">
+                Already registered? Your ticket and QR code are in the confirmation email we sent you.
+              </p>
+            </div>
+          </section>
+        )}
+
+        {!salesClosed && ticketing.onSale.length > 0 && (
           <section id="tickets">
             <h2 className="mb-6 text-2xl font-bold text-ink-primary">Tickets</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {event.tiers.map((tier) => {
+              {ticketing.onSale.map((tier) => {
                 const remaining = tier.quantityTotal
                   ? Math.max(0, tier.quantityTotal - tier.quantitySold)
                   : null;
