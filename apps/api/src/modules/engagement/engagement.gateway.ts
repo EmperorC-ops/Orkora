@@ -231,7 +231,7 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
   @SubscribeMessage('qa:ask')
   async onAsk(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() data: { eventId: string; body: string },
+    @MessageBody() data: { eventId: string; body: string; anonymous?: boolean },
   ) {
     const userId = client.data.userId;
     if (!userId) return { ok: false };
@@ -244,6 +244,8 @@ export class EngagementGateway implements OnGatewayConnection, OnGatewayDisconne
         eventId: data.eventId,
         userId,
         body: data.body,
+        // Strictly boolean true: anything else (missing, "yes", 1) is attributed.
+        anonymous: data.anonymous === true,
       });
       const list = await this.engagement.listQuestions(data.eventId);
       this.server.to(`event:${data.eventId}`).emit('qa:list', list);

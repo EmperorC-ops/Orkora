@@ -30,6 +30,9 @@ export function redactDisplayName(name: string | null | undefined): string | nul
   return `${parts[0]} ${last[0].toUpperCase()}.`;
 }
 
+/** Shown in place of the author's name on an anonymous Q&A question. */
+export const ANONYMOUS_LABEL = 'Anonymous';
+
 @Injectable()
 export class EngagementService {
   constructor(private readonly prisma: PrismaService) {}
@@ -259,6 +262,7 @@ export class EngagementService {
     channelId: string;
     body: string;
     replyToId?: string;
+    anonymous?: boolean;
   }) {
     const body = input.body.trim();
     if (!body) throw new BadRequestException('Message cannot be empty');
@@ -275,9 +279,21 @@ export class EngagementService {
         userId: input.userId,
         body,
         replyToId: input.replyToId,
+        isAnonymous: input.anonymous === true,
       },
       include: { user: { select: { id: true, fullName: true, avatarUrl: true } } },
     });
+    if (message.isAnonymous) {
+      return {
+        id: message.id,
+        body: message.body,
+        createdAt: message.createdAt,
+        replyToId: message.replyToId,
+        eventId: channel.eventId,
+        channelId: channel.id,
+        user: { fullName: ANONYMOUS_LABEL, avatarUrl: null },
+      };
+    }
     return {
       id: message.id,
       body: message.body,
@@ -347,7 +363,11 @@ export class EngagementService {
       createdAt: q.createdAt,
       // Public read: redact the display name (first name + last initial) so the
       // open live feed cannot be scraped for a full attendee list.
-      user: { fullName: redactDisplayName(q.user?.fullName), avatarUrl: q.user?.avatarUrl ?? null },
+      // An anonymous question carries no name or avatar at all.
+      anonymous: q.isAnonymous,
+      user: q.isAnonymous
+        ? { fullName: ANONYMOUS_LABEL, avatarUrl: null }
+        : { fullName: redactDisplayName(q.user?.fullName), avatarUrl: q.user?.avatarUrl ?? null },
       upvotes: q._count.upvotes,
       hasUpvoted: viewerId ? q.upvotes.length > 0 : false,
       replies: q.replies.map((r) => ({
@@ -359,12 +379,18 @@ export class EngagementService {
     }));
   }
 
-  async askQuestion(input: { eventId: string; userId: string; body: string }) {
+  async askQuestion(input: {
+    eventId: string;
+    userId: string;
+    body: string;
+    anonymous?: boolean;
+  }) {
     const channel = await this.getOrCreateEventQa(input.eventId);
     return this.postMessage({
       userId: input.userId,
       channelId: channel.id,
       body: input.body,
+      anonymous: input.anonymous === true,
     });
   }
 
@@ -514,7 +540,10 @@ export class EngagementService {
       answeredAt: q.answeredAt,
       hidden: !!q.deletedAt,
       upvotes: q._count.upvotes,
-      authorName: q.user?.fullName ?? null,
+      // Anonymous means anonymous to organizers too: the console shows
+      // "Anonymous", never the name.
+      anonymous: q.isAnonymous,
+      authorName: q.isAnonymous ? ANONYMOUS_LABEL : (q.user?.fullName ?? null),
     }));
   }
 

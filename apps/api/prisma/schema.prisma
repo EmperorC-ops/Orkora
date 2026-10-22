@@ -625,6 +625,8 @@ model Message {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz
   // Q&A moderation: when an organizer marks a question answered.
   answeredAt DateTime? @map("answered_at") @db.Timestamptz
+  // Q&A: the attendee chose to ask anonymously. No screen shows the author.
+  isAnonymous Boolean @default(false) @map("is_anonymous")
 
   channel Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user    User            @relation(fields: [userId], references: [id])

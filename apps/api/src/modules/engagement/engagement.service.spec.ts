@@ -328,3 +328,69 @@ describe('redactDisplayName', () => {
     expect(redactDisplayName(undefined)).toBeNull();
   });
 });
+
+/**
+ * Anonymous Q&A: an attendee can tick "Ask anonymously". The question is then
+ * shown without any name or avatar in the public feed, and the flag is only
+ * stored when the caller passes a strict boolean true.
+ */
+describe('EngagementService anonymous questions', () => {
+  function makeQaService(rows: unknown[] = []) {
+    const create = jest.fn().mockImplementation(({ data }) =>
+      Promise.resolve({
+        id: 'q-new',
+        body: data.body,
+        createdAt: new Date('2026-10-24T10:00:00Z'),
+        replyToId: null,
+        isAnonymous: data.isAnonymous,
+        user: { id: 'u1', fullName: 'Ada Obi', avatarUrl: 'https://img/ada.png' },
+      }),
+    );
+    const prisma = {
+      channel: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'c1' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'c1', eventId: 'e1' }),
+      },
+      message: { findMany: jest.fn().mockResolvedValue(rows), create },
+    };
+    return { svc: new EngagementService(prisma as never), create };
+  }
+
+  const row = (id: string, isAnonymous: boolean) => ({
+    id,
+    body: `question ${id}`,
+    createdAt: new Date('2026-10-24T10:00:00Z'),
+    isAnonymous,
+    user: { fullName: 'Ada Obi', avatarUrl: 'https://img/ada.png' },
+    replies: [],
+    upvotes: [],
+    _count: { upvotes: 0 },
+  });
+
+  it('shows an anonymous question with no name or avatar', async () => {
+    const { svc } = makeQaService([row('q1', true)]);
+    const [q] = await svc.listQuestions('e1');
+    expect(q.anonymous).toBe(true);
+    expect(q.user).toEqual({ fullName: 'Anonymous', avatarUrl: null });
+  });
+
+  it('still shows the redacted name on an attributed question', async () => {
+    const { svc } = makeQaService([row('q2', false)]);
+    const [q] = await svc.listQuestions('e1');
+    expect(q.anonymous).toBe(false);
+    expect(q.user.fullName).toBe('Ada O.');
+  });
+
+  it('stores the flag when asked anonymously and returns no name', async () => {
+    const { svc, create } = makeQaService();
+    const out = await svc.askQuestion({ eventId: 'e1', userId: 'u1', body: 'Hi', anonymous: true });
+    expect(create.mock.calls[0][0].data.isAnonymous).toBe(true);
+    expect(out.user).toEqual({ fullName: 'Anonymous', avatarUrl: null });
+  });
+
+  it('defaults to attributed when the flag is missing', async () => {
+    const { svc, create } = makeQaService();
+    await svc.askQuestion({ eventId: 'e1', userId: 'u1', body: 'Hi' });
+    expect(create.mock.calls[0][0].data.isAnonymous).toBe(false);
+  });
+});

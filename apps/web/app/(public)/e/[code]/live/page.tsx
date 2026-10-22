@@ -52,7 +52,8 @@ interface QuestionView {
   createdAt: string;
   upvotes: number;
   hasUpvoted: boolean;
-  user: { fullName: string; avatarUrl: string | null };
+  anonymous?: boolean;
+  user: { fullName: string | null; avatarUrl: string | null };
   replies: Array<{
     id: string;
     body: string;
@@ -126,6 +127,7 @@ export default function LiveEngagementPage() {
   const [entryTicket, setEntryTicket] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [qDraft, setQDraft] = useState('');
+  const [qAnonymous, setQAnonymous] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -260,7 +262,9 @@ export default function LiveEngagementPage() {
   function askQuestion() {
     const body = qDraft.trim();
     if (!body || !event || !socketRef.current) return;
-    socketRef.current.emit('qa:ask', { eventId: event.id, body });
+    socketRef.current.emit('qa:ask', { eventId: event.id, body, anonymous: qAnonymous });
+    // The checkbox stays as the attendee left it, so several anonymous
+    // questions in a row do not need re-ticking.
     setQDraft('');
   }
 
@@ -452,6 +456,15 @@ export default function LiveEngagementPage() {
               Ask
             </button>
           </div>
+          <label className="mt-2 inline-flex cursor-pointer items-center gap-2 px-1 text-xs text-ink-secondary">
+            <input
+              type="checkbox"
+              checked={qAnonymous}
+              onChange={(e) => setQAnonymous(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-surface-border accent-brand-500"
+            />
+            Ask anonymously (your name is not shown to anyone, including the organizers)
+          </label>
           <ul className="mt-5 space-y-3">
             {questions.length === 0 ? (
               <li className="rounded-xl border border-dashed border-surface-border bg-surface-deep/40 p-6 text-center text-sm text-ink-muted">
@@ -505,7 +518,8 @@ function QuestionCard({
   q: QuestionView;
   onUpvote: () => void;
 }) {
-  const initial = q.user.fullName.trim().charAt(0).toUpperCase() || '?';
+  const displayName = q.anonymous ? 'Anonymous' : (q.user.fullName ?? 'Guest');
+  const initial = q.anonymous ? '?' : displayName.trim().charAt(0).toUpperCase() || '?';
   return (
     <li className="rounded-xl border border-surface-border bg-surface-deep/40 p-4">
       <div className="flex items-start gap-3">
@@ -526,8 +540,10 @@ function QuestionCard({
             <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-[10px] font-bold text-white">
               {initial}
             </span>
-            <span className="truncate text-xs font-semibold text-ink-primary">
-              {q.user.fullName}
+            <span
+              className={`truncate text-xs font-semibold ${q.anonymous ? 'italic text-ink-secondary' : 'text-ink-primary'}`}
+            >
+              {displayName}
             </span>
             <span className="text-[10px] text-ink-muted">
               {new Date(q.createdAt).toLocaleTimeString('en-GB', {

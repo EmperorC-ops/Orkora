@@ -729,6 +729,8 @@ create index if not exists recordings_session_idx on recordings (session_id);
 -- Q&A MODERATION (migration 0009, folded in for fresh installs)
 -- ============================================================
 alter table messages add column if not exists answered_at timestamptz;
+-- Anonymous Q&A questions (migration 0028, folded in for fresh installs).
+alter table messages add column if not exists is_anonymous boolean not null default false;
 
 -- ============================================================
 -- BRAND HOME (migration 0010, folded in for fresh installs)
