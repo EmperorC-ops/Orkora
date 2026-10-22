@@ -40,6 +40,18 @@ export interface AdminUser {
   lastLoginAt: string | null;
   membershipCount: number;
   registrationCount: number;
+  /** Derived label: platform staff, organizer, ticket holder, or inactive. */
+  kind?: 'platform' | 'organizer' | 'ticket_holder' | 'inactive';
+  /** Up to three organizations this user belongs to, with their role. */
+  organizations?: Array<{ name: string; role: string }>;
+}
+
+export type UserSegment = 'all' | 'organizers' | 'ticket_holders' | 'inactive' | 'platform';
+export type UserSort = 'newest' | 'oldest' | 'last_login' | 'name';
+
+export interface AdminUsersPage extends Paged<AdminUser> {
+  segment?: UserSegment;
+  counts?: Record<UserSegment, number>;
 }
 
 export interface AdminEvent {
@@ -96,7 +108,19 @@ export const adminApi = {
     apiFetch<{ id: string; status: string }>(`/v1/admin/organizations/${id}/restore`, {
       method: 'POST',
     }),
-  users: (q?: string) => apiFetch<Paged<AdminUser>>(`/v1/admin/users${qs({ q })}`),
+  users: (
+    q?: string,
+    opts: { segment?: UserSegment; sort?: UserSort; skip?: number; take?: number } = {},
+  ) =>
+    apiFetch<AdminUsersPage>(
+      `/v1/admin/users${qs({
+        q,
+        segment: opts.segment && opts.segment !== 'all' ? opts.segment : undefined,
+        sort: opts.sort && opts.sort !== 'newest' ? opts.sort : undefined,
+        skip: opts.skip ? String(opts.skip) : undefined,
+        take: opts.take ? String(opts.take) : undefined,
+      })}`,
+    ),
   setPlatformRole: (id: string, role: PlatformRole) =>
     apiFetch<{ id: string; platformRole: PlatformRole }>(`/v1/admin/users/${id}/platform-role`, {
       method: 'POST',

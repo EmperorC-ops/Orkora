@@ -5,6 +5,40 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 export const PLATFORM_ROLES = ['none', 'support', 'superadmin'] as const;
 export type PlatformRoleValue = (typeof PLATFORM_ROLES)[number];
 
+export const USER_SEGMENTS = [
+  'all',
+  'organizers',
+  'ticket_holders',
+  'inactive',
+  'platform',
+] as const;
+export type UserSegment = (typeof USER_SEGMENTS)[number];
+
+/** Prisma filter for each user segment on the platform Users page. */
+export const USER_SEGMENT_WHERE: Record<UserSegment, Prisma.UserWhereInput> = {
+  all: {},
+  organizers: { memberships: { some: {} } },
+  ticket_holders: { memberships: { none: {} }, registrations: { some: {} } },
+  inactive: { memberships: { none: {} }, registrations: { none: {} } },
+  platform: { platformRole: { not: 'none' } },
+};
+
+/**
+ * One label per user for the table. Platform staff first, then organizer
+ * (which wins over ticket holder, since an organizer who also bought a ticket
+ * is primarily an organizer), then ticket holder, then inactive.
+ */
+export function userKind(
+  platformRole: string,
+  membershipCount: number,
+  registrationCount: number,
+): 'platform' | 'organizer' | 'ticket_holder' | 'inactive' {
+  if (platformRole && platformRole !== 'none') return 'platform';
+  if (membershipCount > 0) return 'organizer';
+  if (registrationCount > 0) return 'ticket_holder';
+  return 'inactive';
+}
+
 /**
  * Platform-console service. Every query here is intentionally cross-org: it is
  * only reachable behind the PlatformGuard (super admin), so it bypasses the
@@ -196,10 +230,28 @@ export class AdminService {
     return { id: updated.id, status: updated.status };
   }
 
-  async listUsers(query: { q?: string; take?: number; skip?: number }) {
+  /**
+   * Platform user list, segmented so organizers, ticket holders and dormant
+   * accounts can be told apart. Segments are derived from what the account
+   * actually has, not from a stored type:
+   *   organizers     - belongs to at least one organization (may also hold tickets)
+   *   ticket_holders - holds registrations but belongs to no organization
+   *   inactive       - neither: no organization and no registration (often test
+   *                    or abandoned sign-ups)
+   *   platform       - Orkora platform staff (support or super admin)
+   * `counts` always reflects the search term, so the tabs show how many of the
+   * matching users fall in each segment.
+   */
+  async listUsers(query: {
+    q?: string;
+    take?: number;
+    skip?: number;
+    segment?: string;
+    sort?: string;
+  }) {
     const take = Math.min(Math.max(query.take ?? 50, 1), 200);
     const skip = Math.max(query.skip ?? 0, 0);
-    const where: Prisma.UserWhereInput = query.q
+    const search: Prisma.UserWhereInput = query.q
       ? {
           OR: [
             { email: { contains: query.q, mode: 'insensitive' } },
@@ -208,10 +260,27 @@ export class AdminService {
         }
       : {};
 
-    const [rows, total] = await this.prisma.$transaction([
+    const segment = USER_SEGMENTS.includes(query.segment as UserSegment)
+      ? (query.segment as UserSegment)
+      : 'all';
+    const where: Prisma.UserWhereInput = { AND: [search, USER_SEGMENT_WHERE[segment]] };
+
+    const orderBy: Prisma.UserOrderByWithRelationInput[] =
+      query.sort === 'oldest'
+        ? [{ createdAt: 'asc' }]
+        : query.sort === 'last_login'
+          ? [{ lastLoginAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }]
+          : query.sort === 'name'
+            ? [{ fullName: 'asc' }]
+            : [{ createdAt: 'desc' }];
+
+    const countFor = (s: UserSegment) =>
+      this.prisma.user.count({ where: { AND: [search, USER_SEGMENT_WHERE[s]] } });
+
+    const [rows, total, cAll, cOrg, cTix, cInactive, cPlatform] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         take,
         skip,
         select: {
@@ -222,15 +291,35 @@ export class AdminService {
           createdAt: true,
           lastLoginAt: true,
           _count: { select: { memberships: true, registrations: true } },
+          // A few organization names so the admin can see who someone is at a
+          // glance, without opening anything.
+          memberships: {
+            take: 3,
+            orderBy: { createdAt: 'asc' },
+            select: { role: true, organization: { select: { name: true } } },
+          },
         },
       }),
       this.prisma.user.count({ where }),
+      countFor('all'),
+      countFor('organizers'),
+      countFor('ticket_holders'),
+      countFor('inactive'),
+      countFor('platform'),
     ]);
 
     return {
       total,
       take,
       skip,
+      segment,
+      counts: {
+        all: cAll,
+        organizers: cOrg,
+        ticket_holders: cTix,
+        inactive: cInactive,
+        platform: cPlatform,
+      },
       rows: rows.map((u) => ({
         id: u.id,
         email: u.email,
@@ -240,6 +329,11 @@ export class AdminService {
         lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
         membershipCount: u._count.memberships,
         registrationCount: u._count.registrations,
+        kind: userKind(u.platformRole, u._count.memberships, u._count.registrations),
+        organizations: u.memberships.map((m) => ({
+          name: m.organization.name,
+          role: m.role,
+        })),
       })),
     };
   }

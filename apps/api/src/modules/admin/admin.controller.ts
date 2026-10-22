@@ -67,8 +67,14 @@ export class AdminController {
   }
 
   @Get('users')
-  users(@Query('q') q?: string, @Query('take') take?: string, @Query('skip') skip?: string) {
-    return this.admin.listUsers({ q, take: toNum(take), skip: toNum(skip) });
+  users(
+    @Query('q') q?: string,
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
+    @Query('segment') segment?: string,
+    @Query('sort') sort?: string,
+  ) {
+    return this.admin.listUsers({ q, take: toNum(take), skip: toNum(skip), segment, sort });
   }
 
   @Post('users/:id/platform-role')
