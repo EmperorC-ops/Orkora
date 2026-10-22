@@ -26,11 +26,16 @@ export default function LoginPage() {
   // still lands back on /invite/accept and joins the organization, instead of
   // arriving at the dashboard with no organization.
   const [signupHref, setSignupHref] = useState<string | null>(null);
+  // True when the person arrived here from an invitation link. Accepting an
+  // invite needs a signed-in account (the invite attaches to the account with
+  // the invited email), so we explain that instead of a generic "Welcome back".
+  const [fromInvite, setFromInvite] = useState(false);
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('next');
     if (!raw) return;
     const next = safeInternalPath(raw);
     setSignupHref(`/signup?next=${encodeURIComponent(next)}`);
+    setFromInvite(next.startsWith('/invite/accept'));
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -110,10 +115,27 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      eyebrow="Sign in"
-      title="Welcome back."
-      subtitle="Pick up where you left off."
+      eyebrow={fromInvite ? 'Accept your invitation' : 'Sign in'}
+      title={fromInvite ? 'Sign in to join the team.' : 'Welcome back.'}
+      subtitle={
+        fromInvite
+          ? 'Use the email address the invitation was sent to. You will be added to the organization as soon as you are in.'
+          : 'Pick up where you left off.'
+      }
     >
+      {fromInvite ? (
+        <div className="mb-5 rounded-xl border border-brand-500/30 bg-brand-500/10 px-4 py-3 text-sm text-ink-secondary">
+          <p>
+            <span className="font-semibold text-ink-primary">No password needed.</span> Enter the
+            email the invitation was sent to, then tap{' '}
+            <span className="font-medium text-ink-primary">Email me a sign-in code</span> and type
+            in the 6-digit code we send you. This works even if you have never used Orkora before.
+          </p>
+          <p className="mt-1 text-xs text-ink-muted">
+            Already have an Orkora password? You can sign in with it instead.
+          </p>
+        </div>
+      ) : null}
       {/* method="post" is a safety net: if this form ever submits natively
           (Enter pressed before hydration, or a JS error), the browser default
           is GET, which serializes email+password into the URL, browser
