@@ -18,7 +18,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { apiFetch, authApi, clearTokens } from '@/lib/auth';
+import { apiFetch, authApi, clearTokens, refreshSession } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { readActiveOrgId } from '@/lib/events';
 import { isSuperAdmin } from '@/lib/admin';
@@ -110,13 +110,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // there is an active org, fetch its name so the workspace header reads with
   // the tenant's brand instead of a generic "Organizer workspace".
   useEffect(() => {
+    let cancelled = false;
+    const settle = (id: string | null) => {
+      if (cancelled) return;
+      setOrgState(id ? 'has' : 'none');
+      if (id) {
+        apiFetch<{ name?: string }>(`/v1/organizations/${id}`)
+          .then((org) => setOrgName(org?.name ?? null))
+          .catch(() => setOrgName(null));
+      }
+    };
     const id = readActiveOrgId();
-    setOrgState(id ? 'has' : 'none');
     if (id) {
-      apiFetch<{ name?: string }>(`/v1/organizations/${id}`)
-        .then((org) => setOrgName(org?.name ?? null))
-        .catch(() => setOrgName(null));
+      settle(id);
+    } else {
+      // No organization in the current token. It may simply be stale: someone
+      // who just accepted an invitation still holds a token issued before the
+      // membership existed. Refresh once (memberships are re-read from the
+      // database) before falling back to the create-an-organization screen.
+      refreshSession()
+        .catch(() => false)
+        .then(() => settle(readActiveOrgId()));
     }
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Dismiss the drawer whenever the route changes, so tapping a nav link

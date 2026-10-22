@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { apiFetch, ApiError } from '@/lib/auth';
+import { apiFetch, ApiError, refreshSession } from '@/lib/auth';
 
 type State =
   | { kind: 'working' }
@@ -33,7 +33,17 @@ function AcceptInner() {
           '/v1/invitations/accept',
           { method: 'POST', json: { token } },
         );
-        if (!cancelled) setState({ kind: 'success', role: res?.role ?? 'member' });
+        // The access token in this tab was issued before the membership
+        // existed, so it does not list the new organization. Without a fresh
+        // token the dashboard sees "no organization" and shows the create-an-
+        // organization screen. Refreshing re-reads memberships from the
+        // database, then we take the person straight to the dashboard.
+        await refreshSession().catch(() => false);
+        if (cancelled) return;
+        setState({ kind: 'success', role: res?.role ?? 'member' });
+        setTimeout(() => {
+          if (!cancelled) router.replace('/dashboard');
+        }, 1200);
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError) {

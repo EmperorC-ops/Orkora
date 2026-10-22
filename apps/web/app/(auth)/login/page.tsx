@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
 import {
   ApiError,
@@ -22,6 +22,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  // Carry `next` into signup so a brand-new invitee who creates an account
+  // still lands back on /invite/accept and joins the organization, instead of
+  // arriving at the dashboard with no organization.
+  const [signupHref, setSignupHref] = useState<string | null>(null);
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('next');
+    if (!raw) return;
+    const next = safeInternalPath(raw);
+    setSignupHref(`/signup?next=${encodeURIComponent(next)}`);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -161,7 +171,10 @@ export default function LoginPage() {
 
       <p className="mt-8 text-center text-sm text-ink-secondary">
         New here?{' '}
-        <Link href="/signup" className="font-semibold text-brand-300 hover:text-brand-200">
+        <Link
+          href={(signupHref ?? '/signup') as Route}
+          className="font-semibold text-brand-300 hover:text-brand-200"
+        >
           Create an account
         </Link>
       </p>

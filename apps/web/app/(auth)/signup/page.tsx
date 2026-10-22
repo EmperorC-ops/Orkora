@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Phone, User } from 'lucide-react';
-import { ApiError, authApi } from '@/lib/auth';
+import { ApiError, authApi, safeInternalPath } from '@/lib/auth';
 import { Brand } from '@/components/brand';
 
 export default function SignupPage() {
@@ -42,6 +42,10 @@ export default function SignupPage() {
       // exchanging the OTP on /otp fixes it.
       await authApi.signup({ email, password, fullName, phone: phone || undefined });
       const params = new URLSearchParams({ destination: email, purpose: 'signup' });
+      // Pass `next` through to the code step (which already honours it), so an
+      // invitee signing up returns to their invitation and joins automatically.
+      const rawNext = new URLSearchParams(window.location.search).get('next');
+      if (rawNext) params.set('next', safeInternalPath(rawNext));
       router.push(`/otp?${params.toString()}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
