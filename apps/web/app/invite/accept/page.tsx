@@ -4,7 +4,22 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { apiFetch, ApiError, refreshSession } from '@/lib/auth';
+import { apiFetch, ApiError, authApi, clearTokens, refreshSession } from '@/lib/auth';
+
+/** Email of the account this tab is signed in as, read from the access token. */
+function readSignedInEmail(): string | null {
+  try {
+    const token = sessionStorage.getItem('access_token');
+    const body = token?.split('.')[1];
+    if (!body) return null;
+    const payload = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      email?: string;
+    };
+    return payload.email ?? null;
+  } catch {
+    return null;
+  }
+}
 
 type State =
   | { kind: 'working' }
@@ -19,6 +34,26 @@ function AcceptInner() {
   const router = useRouter();
   const token = params.get('token');
   const [state, setState] = useState<State>({ kind: 'working' });
+  const [signedInAs, setSignedInAs] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+
+  // The usual cause of a mismatch is opening the invite in a browser that is
+  // already signed in to another Orkora account (often the organizer's own).
+  // The old "Switch account" link went to /login without signing out and
+  // without the token, so the person never got back to the invitation. This
+  // signs out properly, then returns here via `next` once they sign in.
+  async function switchAccount() {
+    if (!token) return;
+    setSwitching(true);
+    try {
+      await authApi.logout();
+    } catch {
+      // Signing out server-side is best effort; local tokens are cleared below.
+    }
+    clearTokens();
+    const next = encodeURIComponent(`/invite/accept?token=${encodeURIComponent(token)}`);
+    router.replace(`/login?next=${next}`);
+  }
 
   useEffect(() => {
     if (!token) {
@@ -49,6 +84,7 @@ function AcceptInner() {
         if (err instanceof ApiError) {
           const detail = (err.message || '').toLowerCase();
           if (detail.includes('different email')) {
+            setSignedInAs(readSignedInEmail());
             setState({ kind: 'mismatch' });
             return;
           }
@@ -117,12 +153,23 @@ function AcceptInner() {
               You are signed in with an account that does not match the invited address. Sign in with the
               email the invitation was sent to, then open the link again.
             </p>
-            <Link
-              href="/login"
-              className="mt-6 inline-flex items-center justify-center rounded-full border border-surface-border px-5 py-2 text-sm font-medium text-ink-primary transition hover:bg-surface/60"
+            {signedInAs ? (
+              <p className="mt-3 text-sm text-ink-secondary">
+                Signed in as <span className="font-medium text-ink-primary">{signedInAs}</span>.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={switchAccount}
+              disabled={switching}
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-brand-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
             >
-              Switch account
-            </Link>
+              {switching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Sign out and use the invited email
+            </button>
+            <p className="mt-3 text-xs text-ink-muted">
+              You will come straight back here after signing in, and the invitation will be accepted.
+            </p>
           </>
         )}
 
