@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { apiFetch, ApiError, authApi, clearTokens, refreshSession } from '@/lib/auth';
+import { readActiveOrgId } from '@/lib/events';
 
 /** Email of the account this tab is signed in as, read from the access token. */
 function readSignedInEmail(): string | null {
@@ -25,6 +26,7 @@ type State =
   | { kind: 'working' }
   | { kind: 'success'; role: string }
   | { kind: 'mismatch' }
+  | { kind: 'already' }
   | { kind: 'expired' }
   | { kind: 'invalid' }
   | { kind: 'error'; message: string };
@@ -89,6 +91,19 @@ function AcceptInner() {
             return;
           }
           if (detail.includes('invalid or expired')) {
+            // Invites are single-use. The common case here is a team member
+            // who already accepted and is reusing the email link to sign in
+            // again. If they are signed in and already belong to an
+            // organization, just take them to the dashboard.
+            await refreshSession().catch(() => false);
+            if (cancelled) return;
+            if (readActiveOrgId()) {
+              setState({ kind: 'already' });
+              setTimeout(() => {
+                if (!cancelled) router.replace('/dashboard');
+              }, 1200);
+              return;
+            }
             setState({ kind: 'expired' });
             return;
           }
@@ -135,6 +150,23 @@ function AcceptInner() {
             <h1 className="mt-4 text-lg font-semibold">You&apos;re in.</h1>
             <p className="mt-1 text-sm text-ink-secondary">
               You joined the organisation as <span className="font-medium text-ink-primary">{state.role}</span>.
+            </p>
+            <Link
+              href="/dashboard"
+              className="mt-6 inline-flex items-center justify-center rounded-full bg-brand-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-800"
+            >
+              Go to dashboard
+            </Link>
+          </>
+        )}
+
+        {state.kind === 'already' && (
+          <>
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
+            <h1 className="mt-4 text-lg font-semibold">You&apos;re already on the team.</h1>
+            <p className="mt-1 text-sm text-ink-secondary">
+              This invitation was used when you joined. Taking you to your dashboard. Next time, sign
+              in at orkora.events instead of using the invitation email.
             </p>
             <Link
               href="/dashboard"
