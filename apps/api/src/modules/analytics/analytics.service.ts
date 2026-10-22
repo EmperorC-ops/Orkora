@@ -170,17 +170,31 @@ export class AnalyticsService {
     const monthly = await this.prisma.$queryRawUnsafe<
       Array<{ bucket: Date; registrations: bigint; paid_orders: bigint; revenue_minor: bigint }>
     >(
-      `select date_trunc('month', r.created_at) as bucket,
-              count(distinct r.id)::bigint as registrations,
-              count(distinct o.id) filter (where o.status = 'paid')::bigint as paid_orders,
-              coalesce(sum(o.total_minor) filter (where o.status = 'paid'), 0)::bigint as revenue_minor
-       from registrations r
-       join events e on e.id = r.event_id
-       left join orders o on o.event_id = r.event_id
-                          and o.user_id = r.user_id
-                          and date_trunc('month', o.created_at) = date_trunc('month', r.created_at)
-       where e.organization_id = $1::uuid and r.created_at >= $2::timestamptz
-       group by 1
+      // Registrations and paid orders are aggregated separately and then
+      // merged by month. Joining them row by row repeats an order once per
+      // matching registration, which inflated revenue.
+      `with reg as (
+         select date_trunc('month', r.created_at) as bucket, count(*)::bigint as registrations
+         from registrations r
+         join events e on e.id = r.event_id
+         where e.organization_id = $1::uuid and r.created_at >= $2::timestamptz
+         group by 1
+       ),
+       ord as (
+         select date_trunc('month', o.created_at) as bucket,
+                count(*)::bigint as paid_orders,
+                coalesce(sum(o.total_minor), 0)::bigint as revenue_minor
+         from orders o
+         join events e on e.id = o.event_id
+         where e.organization_id = $1::uuid and o.status = 'paid' and o.created_at >= $2::timestamptz
+         group by 1
+       )
+       select coalesce(reg.bucket, ord.bucket) as bucket,
+              coalesce(reg.registrations, 0)::bigint as registrations,
+              coalesce(ord.paid_orders, 0)::bigint as paid_orders,
+              coalesce(ord.revenue_minor, 0)::bigint as revenue_minor
+       from reg
+       full outer join ord on ord.bucket = reg.bucket
        order by 1 asc`,
       orgId,
       since.toISOString(),
@@ -201,18 +215,22 @@ export class AnalyticsService {
         checked_in: bigint;
       }>
     >(
+      // Each figure is its own subquery. Joining registrations, orders and
+      // tickets together multiplied every order by the event's ticket count,
+      // so revenue was overstated for paid events.
       `select e.id, e.title, e.code, e.status, e.start_at,
-              count(distinct r.id)::bigint as registrations,
-              count(distinct o.id) filter (where o.status = 'paid')::bigint as paid_orders,
-              coalesce(sum(o.total_minor) filter (where o.status = 'paid'), 0)::bigint as revenue_minor,
-              max(o.currency) as currency,
-              count(distinct t.id) filter (where t.status = 'checked_in')::bigint as checked_in
+              (select count(*) from registrations r where r.event_id = e.id)::bigint as registrations,
+              (select count(*) from orders o
+                 where o.event_id = e.id and o.status = 'paid')::bigint as paid_orders,
+              (select coalesce(sum(o.total_minor), 0) from orders o
+                 where o.event_id = e.id and o.status = 'paid')::bigint as revenue_minor,
+              (select max(o.currency) from orders o
+                 where o.event_id = e.id and o.status = 'paid') as currency,
+              (select count(*) from tickets t
+                 join registrations r on r.id = t.registration_id
+                 where r.event_id = e.id and t.status = 'checked_in')::bigint as checked_in
        from events e
-       left join registrations r on r.event_id = e.id
-       left join orders o on o.event_id = e.id
-       left join tickets t on t.registration_id = r.id
        where e.organization_id = $1::uuid
-       group by e.id, e.title, e.code, e.status, e.start_at
        order by e.start_at desc nulls last
        limit 50`,
       orgId,
