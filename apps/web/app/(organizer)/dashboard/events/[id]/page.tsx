@@ -551,7 +551,8 @@ export default function EventDetailPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      {/* Anchor target for Live Control: polls need at least one session. */}
+      <section id="sessions" className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold text-slate-900">Sessions</h3>
           <button

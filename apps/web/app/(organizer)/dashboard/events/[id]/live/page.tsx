@@ -425,9 +425,23 @@ function PollsSection({
               ))}
             </select>
           ) : (
-            <p className="text-sm text-ink-secondary">
-              Add a session to this event before creating a poll.
-            </p>
+            // Polls belong to an agenda session (the database and API require
+            // one), so with no sessions the Create poll button stays disabled.
+            // Say so plainly and link to where a session is added; the old faint
+            // note made the disabled button look broken.
+            <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-sm text-amber-200">
+              <p className="font-semibold">Polls need a session first.</p>
+              <p className="mt-0.5 text-amber-200/90">
+                This event has no agenda sessions yet. Add one (for a single-talk event, one session
+                covering the talk is enough), then come back here to create polls.
+              </p>
+              <a
+                href={`/dashboard/events/${eventId}#sessions`}
+                className="mt-2 inline-flex items-center gap-1 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
+              >
+                Add a session
+              </a>
+            </div>
           )}
         </div>
 
