@@ -125,7 +125,11 @@ if (html) {
 
   // -------------------- 3. chunk availability --------------------
 
-  const chunkSrcs = [...html.matchAll(/src="([^"]*\/_next\/static\/[^"]+\.js)"/g)]
+  // Vercel appends a deployment query to every asset URL
+  // (".../main-app-abc.js?dpl=dpl_XXXX") for skew protection. Allow an
+  // optional query string after ".js"; without this the regex matched no chunk
+  // at all and the check failed on every run with "No /_next/static script srcs".
+  const chunkSrcs = [...html.matchAll(/src="([^"]*\/_next\/static\/[^"?]+\.js(?:\?[^"]*)?)"/g)]
     .map((m) => m[1])
     .slice(0, 3);
   if (chunkSrcs.length === 0) {
@@ -143,7 +147,7 @@ if (html) {
       } else if (!/javascript|ecmascript/i.test(ct)) {
         fail(`chunk ${url} served with content-type "${ct}" (nosniff will block execution)`);
       } else {
-        ok(`chunk ${src.split('/').pop()} -> 200 ${ct}`);
+        ok(`chunk ${src.split('?')[0].split('/').pop()} -> 200 ${ct}`);
       }
     } catch (err) {
       fail(`chunk ${url} threw: ${err.message}`);
