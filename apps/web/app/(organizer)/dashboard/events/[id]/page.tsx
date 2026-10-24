@@ -551,7 +551,7 @@ export default function EventDetailPage() {
         )}
       </section>
 
-      {/* Anchor target for Live Control: polls need at least one session. */}
+      {/* Anchor target so other pages can link straight to the sessions list. */}
       <section id="sessions" className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold text-slate-900">Sessions</h3>

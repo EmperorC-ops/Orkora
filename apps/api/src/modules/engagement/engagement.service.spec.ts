@@ -263,16 +263,16 @@ describe('EngagementService.assertTargetInEvent', () => {
     );
   });
 
-  it('passes a poll whose session is in the event', async () => {
+  it('passes a poll in the event', async () => {
     const svc = svcWith({
-      poll: { findUnique: jest.fn().mockResolvedValue({ session: { eventId: 'e1' } }) },
+      poll: { findUnique: jest.fn().mockResolvedValue({ eventId: 'e1' }) },
     });
     await expect(svc.assertTargetInEvent({ pollId: 'p1' }, 'e1')).resolves.toBeUndefined();
   });
 
   it('rejects a poll from another event', async () => {
     const svc = svcWith({
-      poll: { findUnique: jest.fn().mockResolvedValue({ session: { eventId: 'other' } }) },
+      poll: { findUnique: jest.fn().mockResolvedValue({ eventId: 'other' }) },
     });
     await expect(svc.assertTargetInEvent({ pollId: 'p1' }, 'e1')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -392,5 +392,59 @@ describe('EngagementService anonymous questions', () => {
     const { svc, create } = makeQaService();
     await svc.askQuestion({ eventId: 'e1', userId: 'u1', body: 'Hi' });
     expect(create.mock.calls[0][0].data.isAnonymous).toBe(false);
+  });
+});
+
+/**
+ * Event-wide polls (migration 0030): a poll needs an event of this org, and a
+ * session only if one is given, which must belong to that event.
+ */
+describe('EngagementService.createPoll', () => {
+  function makePollService(opts: { event?: boolean; session?: boolean } = {}) {
+    const create = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'p1', ...data }));
+    const prisma = {
+      event: { findFirst: jest.fn().mockResolvedValue(opts.event === false ? null : { id: 'e1' }) },
+      session: { findFirst: jest.fn().mockResolvedValue(opts.session ? { id: 's1' } : null) },
+      poll: { create },
+    };
+    return { svc: new EngagementService(prisma as never), create };
+  }
+
+  it('creates an event-wide poll with no session', async () => {
+    const { svc, create } = makePollService();
+    await svc.createPoll({ orgId: 'o1', eventId: 'e1', question: ' Best talk? ', options: ['A', 'B'] });
+    const data = create.mock.calls[0][0].data;
+    expect(data.eventId).toBe('e1');
+    expect(data.sessionId).toBeNull();
+    expect(data.question).toBe('Best talk?');
+  });
+
+  it('attaches a session that belongs to the event', async () => {
+    const { svc, create } = makePollService({ session: true });
+    await svc.createPoll({ orgId: 'o1', eventId: 'e1', sessionId: 's1', question: 'Q', options: ['A', 'B'] });
+    expect(create.mock.calls[0][0].data.sessionId).toBe('s1');
+  });
+
+  it('refuses a session from another event', async () => {
+    const { svc, create } = makePollService({ session: false });
+    await expect(
+      svc.createPoll({ orgId: 'o1', eventId: 'e1', sessionId: 'sX', question: 'Q', options: ['A', 'B'] }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("refuses another organization's event", async () => {
+    const { svc, create } = makePollService({ event: false });
+    await expect(
+      svc.createPoll({ orgId: 'o1', eventId: 'eX', question: 'Q', options: ['A', 'B'] }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('needs between 2 and 8 non-empty options', async () => {
+    const { svc } = makePollService();
+    await expect(
+      svc.createPoll({ orgId: 'o1', eventId: 'e1', question: 'Q', options: ['A', '  '] }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

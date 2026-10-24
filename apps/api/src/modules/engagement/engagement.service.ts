@@ -244,9 +244,9 @@ export class EngagementService {
     if (target.pollId) {
       const poll = await this.prisma.poll.findUnique({
         where: { id: target.pollId },
-        select: { session: { select: { eventId: true } } },
+        select: { eventId: true },
       });
-      if (!poll || poll.session.eventId !== eventId) throw new ForbiddenException('Wrong event');
+      if (!poll || poll.eventId !== eventId) throw new ForbiddenException('Wrong event');
     }
     if (target.questionId) {
       const q = await this.prisma.message.findUnique({
@@ -552,31 +552,50 @@ export class EngagementService {
   async createPoll(input: {
     orgId: string;
     eventId: string;
-    sessionId: string;
+    /** Optional: attach the poll to one session. Omit for an event-wide poll. */
+    sessionId?: string | null;
     question: string;
     options: string[];
     multiSelect?: boolean;
   }) {
-    if (input.options.length < 2 || input.options.length > 8) {
+    const question = (input.question ?? '').trim();
+    if (!question) throw new BadRequestException('Add a question');
+    if (question.length > 300) throw new BadRequestException('The question is too long (max 300)');
+    const labels = (Array.isArray(input.options) ? input.options : [])
+      .map((o) => String(o ?? '').trim())
+      .filter(Boolean);
+    if (labels.length < 2 || labels.length > 8) {
       throw new BadRequestException('A poll needs 2 to 8 options');
     }
+    if (labels.some((l) => l.length > 120)) {
+      throw new BadRequestException('Each option can be at most 120 characters');
+    }
     // Tenancy: the org-scoped RolesGuard only proves membership in :orgId, not
-    // that the body's sessionId belongs there. Verify the session belongs to
-    // this event and this org before creating, so an organizer of one org
-    // cannot attach a poll to another org's session by id.
-    const session = await this.prisma.session.findFirst({
-      where: { id: input.sessionId, event: { id: input.eventId, organizationId: input.orgId } },
+    // that the body's event or session belongs there. Verify both before
+    // creating, so an organizer of one org cannot attach a poll to another
+    // org's event or session by id.
+    const event = await this.prisma.event.findFirst({
+      where: { id: input.eventId, organizationId: input.orgId },
       select: { id: true },
     });
-    if (!session) throw new NotFoundException('Session not found for this event');
-    const options: PollOption[] = input.options.map((label, i) => ({
+    if (!event) throw new NotFoundException('Event not found for this org');
+    const sessionId = input.sessionId ? input.sessionId : null;
+    if (sessionId) {
+      const session = await this.prisma.session.findFirst({
+        where: { id: sessionId, eventId: input.eventId },
+        select: { id: true },
+      });
+      if (!session) throw new NotFoundException('Session not found for this event');
+    }
+    const options: PollOption[] = labels.map((label, i) => ({
       id: String(i + 1),
-      label: label.trim(),
+      label,
     }));
     return this.prisma.poll.create({
       data: {
-        sessionId: input.sessionId,
-        question: input.question.trim(),
+        eventId: input.eventId,
+        sessionId,
+        question,
         options: options as unknown as Prisma.InputJsonValue,
         multiSelect: input.multiSelect ?? false,
         status: 'open',
@@ -586,9 +605,9 @@ export class EngagementService {
 
   async listPollsForEvent(eventId: string) {
     const polls = await this.prisma.poll.findMany({
-      where: { session: { eventId } },
+      where: { eventId },
       include: { votes: true, session: { select: { id: true, title: true } } },
-      orderBy: { sessionId: 'asc' },
+      orderBy: { id: 'asc' },
     });
     return polls.map((p) => this.shapePoll(p));
   }
@@ -605,9 +624,9 @@ export class EngagementService {
     });
     if (!event) throw new NotFoundException('Event not found for this org');
     const polls = await this.prisma.poll.findMany({
-      where: { session: { eventId } },
+      where: { eventId },
       include: { votes: true, session: { select: { id: true, title: true } } },
-      orderBy: { sessionId: 'asc' },
+      orderBy: { id: 'asc' },
     });
     return polls.map((p) => this.shapePoll(p));
   }
@@ -622,12 +641,12 @@ export class EngagementService {
   }
 
   async closePoll(input: { orgId: string; eventId: string; pollId: string }) {
-    // Tenancy: only close a poll whose session's event belongs to this org, so
-    // an organizer cannot close another org's poll by guessing its id.
+    // Tenancy: only close a poll whose event belongs to this org, so an
+    // organizer cannot close another org's poll by guessing its id.
     const owned = await this.prisma.poll.findFirst({
       where: {
         id: input.pollId,
-        session: { event: { id: input.eventId, organizationId: input.orgId } },
+        event: { id: input.eventId, organizationId: input.orgId },
       },
       select: { id: true },
     });
@@ -666,7 +685,7 @@ export class EngagementService {
     status: string;
     multiSelect: boolean;
     closedAt: Date | null;
-    sessionId: string;
+    sessionId: string | null;
     votes: { optionIds: string[] }[];
     session?: { id: string; title: string; eventId?: string } | null;
   }) {

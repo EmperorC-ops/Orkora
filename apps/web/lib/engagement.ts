@@ -8,7 +8,8 @@ export interface PollOption {
 
 export interface Poll {
   id: string;
-  sessionId: string;
+  /** Null for an event-wide poll (no session). */
+  sessionId: string | null;
   session: { id: string; title: string } | null;
   question: string;
   options: PollOption[];
@@ -30,7 +31,8 @@ export interface QaQuestion {
 }
 
 export interface CreatePollInput {
-  sessionId: string;
+  /** Omit or null for an event-wide poll. */
+  sessionId?: string | null;
   question: string;
   options: string[];
   multiSelect?: boolean;

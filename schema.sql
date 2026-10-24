@@ -915,3 +915,40 @@ create table if not exists live_spotlights (
 -- Optional mailing address printed in the footer of the organization's campaign
 -- emails; falls back to the platform CAMPAIGN_POSTAL_ADDRESS when unset.
 alter table organizations add column if not exists postal_address text;
+
+-- ============================================================
+-- LEGAL ACCEPTANCES (migration 0029, folded in for fresh installs)
+-- ============================================================
+-- Evidence of each acceptance of the Terms, Privacy Policy and Organizer
+-- Agreement: version, time, source, IP and user agent. Append-only.
+create table if not exists legal_acceptances (
+  id              uuid        primary key default uuidv7(),
+  user_id         uuid        not null references users(id) on delete cascade,
+  organization_id uuid        references organizations(id) on delete cascade,
+  document        text        not null check (document in ('terms', 'privacy', 'organizer')),
+  version         text        not null,
+  source          text        not null default 'prompt' check (source in ('signup', 'org_create', 'prompt')),
+  ip              text,
+  user_agent      text,
+  accepted_at     timestamptz not null default now(),
+  constraint legal_acceptances_org_doc check (
+    (document = 'organizer' and organization_id is not null)
+    or (document <> 'organizer' and organization_id is null)
+  )
+);
+create index if not exists legal_acceptances_user_doc_idx
+  on legal_acceptances (user_id, document, version);
+create index if not exists legal_acceptances_org_doc_idx
+  on legal_acceptances (organization_id, document, version)
+  where organization_id is not null;
+
+-- ============================================================
+-- EVENT-WIDE POLLS (migration 0030, folded in for fresh installs)
+-- ============================================================
+-- A poll belongs to an event and optionally to one of its sessions.
+alter table polls add column if not exists event_id uuid references events(id) on delete cascade;
+update polls p set event_id = s.event_id from sessions s where p.session_id = s.id and p.event_id is null;
+alter table polls alter column event_id set not null;
+alter table polls alter column session_id drop not null;
+create index if not exists polls_event_id_idx on polls (event_id);
+

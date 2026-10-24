@@ -358,14 +358,12 @@ function PollsSection({
   onChanged: () => Promise<void> | void;
   onError: (message: string) => void;
 }) {
+  // '' means an event-wide poll (no session). Polls no longer need an agenda
+  // session (migration 0030), so single-talk events can run them too.
   const [sessionId, setSessionId] = useState('');
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState<string[]>(['', '']);
   const [multiSelect, setMultiSelect] = useState(false);
-
-  useEffect(() => {
-    if (!sessionId && sessions.length > 0) setSessionId(sessions[0].id);
-  }, [sessions, sessionId]);
 
   const setOption = (i: number, value: string) =>
     setOptions((prev) => prev.map((o, idx) => (idx === i ? value : o)));
@@ -378,9 +376,8 @@ function PollsSection({
     const cleaned = options.map((o) => o.trim()).filter(Boolean);
     if (!question.trim()) throw new Error('Add a question');
     if (cleaned.length < 2) throw new Error('Add at least two options');
-    if (!sessionId) throw new Error('Pick a session');
     await engagementApi(orgId).createPoll(eventId, {
-      sessionId,
+      sessionId: sessionId || null,
       question: question.trim(),
       options: cleaned,
       multiSelect,
@@ -410,39 +407,20 @@ function PollsSection({
       <div className="mt-5 space-y-4 rounded-2xl border border-surface-border bg-surface-deep/30 p-4">
         <div>
           <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink-muted">
-            Session
+            Session (optional)
           </label>
-          {sessions.length > 0 ? (
-            <select
-              value={sessionId}
-              onChange={(e) => setSessionId(e.target.value)}
-              className={inputClass}
-            >
-              {sessions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
-          ) : (
-            // Polls belong to an agenda session (the database and API require
-            // one), so with no sessions the Create poll button stays disabled.
-            // Say so plainly and link to where a session is added; the old faint
-            // note made the disabled button look broken.
-            <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-sm text-amber-200">
-              <p className="font-semibold">Polls need a session first.</p>
-              <p className="mt-0.5 text-amber-200/90">
-                This event has no agenda sessions yet. Add one (for a single-talk event, one session
-                covering the talk is enough), then come back here to create polls.
-              </p>
-              <a
-                href={`/dashboard/events/${eventId}#sessions`}
-                className="mt-2 inline-flex items-center gap-1 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
-              >
-                Add a session
-              </a>
-            </div>
-          )}
+          <select
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Whole event</option>
+            {sessions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -510,7 +488,6 @@ function PollsSection({
           variant="primary"
           idleIcon={<Plus className="h-4 w-4" />}
           onError={onError}
-          disabled={sessions.length === 0}
         />
       </div>
 
@@ -527,7 +504,7 @@ function PollsSection({
                 <div>
                   <p className="text-sm font-semibold text-ink-primary">{poll.question}</p>
                   <p className="mt-1 text-xs text-ink-muted">
-                    {poll.session?.title ?? 'Session'} · {poll.totalVotes} vote
+                    {poll.session?.title ?? 'Whole event'} · {poll.totalVotes} vote
                     {poll.totalVotes === 1 ? '' : 's'}
                   </p>
                 </div>

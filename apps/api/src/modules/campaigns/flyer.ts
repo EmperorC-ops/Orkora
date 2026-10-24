@@ -36,7 +36,7 @@ export function acceptLogoUrl(
  * Shared "our media only" check: https, on the configured public media host,
  * no credentials, query or fragment, and exactly <folder>/<uploader>/<file>.
  */
-function acceptOwnMediaUrl(
+export function acceptOwnMediaUrl(
   raw: string | null | undefined,
   publicBaseUrl: string | null | undefined,
   folder: string,

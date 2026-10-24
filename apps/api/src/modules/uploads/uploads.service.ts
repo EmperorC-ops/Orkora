@@ -13,6 +13,12 @@ import type { UploadKind } from './dto/upload.dto';
 const FLYER_TYPES = /^image\/(png|jpeg|jpg|webp)$/i;
 /** Per-flyer ceiling, below the general MAX_UPLOAD_BYTES. */
 export const FLYER_MAX_BYTES = 5 * 1024 * 1024;
+/**
+ * Campaign documents (newsletters): PDF only, up to 10 MB. This cap applies to
+ * documents instead of MAX_UPLOAD_BYTES, so a deployment with a smaller general
+ * cap still accepts a typical newsletter PDF.
+ */
+export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 @Injectable()
 export class UploadsService {
@@ -47,7 +53,18 @@ export class UploadsService {
     if (!Number.isInteger(input.sizeBytes) || input.sizeBytes < 1) {
       throw new BadRequestException('sizeBytes must be a positive integer');
     }
-    if (input.sizeBytes > this.maxUploadBytes) {
+    const isPdf = input.contentType.toLowerCase() === 'application/pdf';
+    if (input.kind === 'campaign_document') {
+      if (!isPdf) throw new BadRequestException('A campaign document must be a PDF.');
+      if (input.sizeBytes > DOCUMENT_MAX_BYTES) {
+        throw new PayloadTooLargeException(
+          `A document can be at most ${formatBytes(DOCUMENT_MAX_BYTES)} ` +
+            `(this one is ${formatBytes(input.sizeBytes)}).`,
+        );
+      }
+    } else if (isPdf) {
+      throw new BadRequestException('PDFs can only be uploaded as campaign documents.');
+    } else if (input.sizeBytes > this.maxUploadBytes) {
       throw new PayloadTooLargeException(
         `Upload exceeds the ${formatBytes(this.maxUploadBytes)} limit ` +
           `(requested ${formatBytes(input.sizeBytes)}).`,
@@ -103,6 +120,7 @@ function inferExtension(filename: string, contentType: string): string | null {
     'image/jpg': 'jpg',
     'image/webp': 'webp',
     'image/gif': 'gif',
+    'application/pdf': 'pdf',
   };
   const mapped = map[contentType.toLowerCase()];
   if (mapped) return mapped;

@@ -95,6 +95,16 @@ function formatWhen(iso: string | null): string {
 
 /** Read-only view for a campaign that has already gone out (or is going). */
 function SentSummary({ campaign }: { campaign: CampaignDetail }) {
+  const [docStats, setDocStats] = useState<{ recipients: number; opens: number } | null>(null);
+  useEffect(() => {
+    const orgId = readActiveOrgId();
+    if (!orgId || !campaign.documentUrl) return;
+    campaignsApi(orgId)
+      .documentStats(campaign.id)
+      .then(setDocStats)
+      .catch(() => setDocStats(null));
+  }, [campaign.id, campaign.documentUrl]);
+
   return (
     <div>
       <BackLink />
@@ -122,6 +132,24 @@ function SentSummary({ campaign }: { campaign: CampaignDetail }) {
         <div className="mt-1 text-sm text-ink-secondary">
           {campaign.fromName} &lt;{campaign.fromEmail}&gt;
         </div>
+        {campaign.documentUrl ? (
+          <>
+            <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-ink-muted">Document</div>
+            <div className="mt-1 text-sm text-ink-secondary">
+              <a href={campaign.documentUrl} target="_blank" rel="noreferrer" className="font-semibold text-brand-300 underline">
+                {campaign.documentName ?? 'document.pdf'}
+              </a>
+              {docStats ? (
+                <span className="ml-2">
+                  Opened by {docStats.recipients.toLocaleString()}
+                  {campaign.recipientCount ? ` of ${campaign.recipientCount.toLocaleString()}` : ''} recipient
+                  {docStats.recipients === 1 ? '' : 's'} ({docStats.opens.toLocaleString()} download
+                  {docStats.opens === 1 ? '' : 's'} in total)
+                </span>
+              ) : null}
+            </div>
+          </>
+        ) : null}
         {campaign.flyerUrl ? (
           <>
             <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-ink-muted">Flyer</div>

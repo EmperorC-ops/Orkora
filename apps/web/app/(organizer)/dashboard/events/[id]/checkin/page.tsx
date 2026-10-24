@@ -11,9 +11,12 @@ import {
   Loader2,
   Users,
   XCircle,
+  Zap,
+  ZapOff,
 } from 'lucide-react';
 import { apiFetch, ApiError } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
+import { pickBestCamera, scanRegion, type CameraInfo } from '@/lib/scanner';
 
 interface CheckinResult {
   id: string;
@@ -53,7 +56,13 @@ export default function CheckinPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const scannerRef = useRef<{ destroy: () => void } | null>(null);
+  const scannerRef = useRef<{
+    destroy: () => void;
+    setCamera: (id: string) => Promise<void>;
+    hasFlash: () => Promise<boolean>;
+    toggleFlash: () => Promise<void>;
+    isFlashOn: () => boolean;
+  } | null>(null);
   const lastSeenRef = useRef<{ token: string; t: number }>({ token: '', t: 0 });
 
   const [scanning, setScanning] = useState(false);
@@ -62,6 +71,10 @@ export default function CheckinPage() {
   const [busy, setBusy] = useState(false);
   const [manualToken, setManualToken] = useState('');
   const [stats, setStats] = useState<CheckinStats | null>(null);
+  const [cameras, setCameras] = useState<CameraInfo[]>([]);
+  const [cameraId, setCameraId] = useState<string>('');
+  const [hasTorch, setHasTorch] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   useEffect(() => {
     setOrgId(readActiveOrgId());
@@ -152,13 +165,42 @@ export default function CheckinPage() {
         {
           highlightScanRegion: true,
           highlightCodeOutline: true,
-          maxScansPerSecond: 4,
+          // Faster sampling and a bigger, sharper decode area for our dense
+          // signed-token QR codes (the library decodes at 400 px by default).
+          maxScansPerSecond: 8,
+          calculateScanRegion: (v: HTMLVideoElement) => scanRegion(v.videoWidth, v.videoHeight),
           preferredCamera: deviceId ?? 'environment',
         },
       );
+      // Tickets shown on a phone in dark mode render light-on-dark.
+      scanner.setInversionMode('both');
       await scanner.start();
       scannerRef.current = scanner;
       setScanning(true);
+
+      // Now that permission is granted, camera labels are readable. Phones
+      // with several rear lenses often start on the ultra-wide or a depth
+      // lens, which focuses badly up close; switch to the main rear lens.
+      try {
+        const list = await QrScanner.listCameras(true);
+        setCameras(list);
+        const best = pickBestCamera(list);
+        const current = deviceId ?? '';
+        if (best && best.id && best.id !== current) {
+          await scanner.setCamera(best.id);
+          setCameraId(best.id);
+        } else {
+          setCameraId(current);
+        }
+      } catch {
+        // Keep whatever camera is running.
+      }
+      await tuneTrack(video);
+      try {
+        setHasTorch(await scanner.hasFlash());
+      } catch {
+        setHasTorch(false);
+      }
     } catch (err) {
       scannerRef.current?.destroy();
       scannerRef.current = null;
@@ -170,6 +212,50 @@ export default function CheckinPage() {
     scannerRef.current?.destroy();
     scannerRef.current = null;
     setScanning(false);
+    setTorchOn(false);
+    setHasTorch(false);
+  }
+
+  /**
+   * Best effort: ask the camera for continuous autofocus and a sharper
+   * stream. Browsers that do not support a constraint ignore it.
+   */
+  async function tuneTrack(video: HTMLVideoElement) {
+    const stream = video.srcObject as MediaStream | null;
+    const track = stream?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({
+        advanced: [{ focusMode: 'continuous' } as unknown as MediaTrackConstraintSet],
+      });
+    } catch {
+      // not supported
+    }
+  }
+
+  async function switchCamera(id: string) {
+    const scanner = scannerRef.current;
+    if (!scanner || !id) return;
+    try {
+      await scanner.setCamera(id);
+      setCameraId(id);
+      setTorchOn(false);
+      if (videoRef.current) await tuneTrack(videoRef.current);
+      setHasTorch(await scanner.hasFlash().catch(() => false));
+    } catch {
+      setScannerError('Could not switch to that camera. Try another one.');
+    }
+  }
+
+  async function toggleTorch() {
+    const scanner = scannerRef.current;
+    if (!scanner) return;
+    try {
+      await scanner.toggleFlash();
+      setTorchOn(scanner.isFlashOn());
+    } catch {
+      setHasTorch(false);
+    }
   }
 
   useEffect(() => () => stopScanner(), []);
@@ -323,6 +409,17 @@ export default function CheckinPage() {
                 <Camera className="h-4 w-4" /> Start scanner
               </button>
             )}
+            {scanning && hasTorch ? (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                aria-pressed={torchOn}
+                className="inline-flex items-center gap-2 rounded-full border border-surface-border px-4 py-2 text-sm font-semibold text-ink-primary transition hover:bg-white/5"
+              >
+                {torchOn ? <ZapOff className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                {torchOn ? 'Light off' : 'Light'}
+              </button>
+            ) : null}
             {scannerError ? (
               <p className="text-xs text-[#FF9090]">{scannerError}</p>
             ) : (
@@ -331,6 +428,27 @@ export default function CheckinPage() {
               </p>
             )}
           </div>
+          {scanning && cameras.length > 1 ? (
+            <label className="mt-3 flex items-center gap-2 text-xs text-ink-secondary">
+              Camera
+              <select
+                value={cameraId}
+                onChange={(e) => void switchCamera(e.target.value)}
+                className="max-w-[16rem] rounded-lg border border-surface-border bg-surface-deep/50 px-2 py-1 text-xs text-ink-primary focus:border-brand-500 focus:outline-none"
+              >
+                {cameras.map((c, i) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label || `Camera ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <p className="mt-3 text-xs text-ink-muted">
+            Tips: hold the ticket 15 to 25 cm from the camera and keep it still. If a phone screen
+            reflects, ask the attendee to turn up their brightness or tilt the screen. In a dark
+            venue, use Light.
+          </p>
 
           <details className="mt-6 rounded-xl border border-surface-border bg-surface-deep/40 p-4" open>
             <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-ink-muted">

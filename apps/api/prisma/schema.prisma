@@ -255,6 +255,7 @@ model Event {
   discountCodes DiscountCode[]
   recordings    Recording[]
   storyAnalytics StoryAnalytics[]
+  polls         Poll[]
   liveSpotlight LiveSpotlight?
 
   @@unique([organizationId, slug])
@@ -683,17 +684,22 @@ model MessageUpvote {
 
 model Poll {
   id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  sessionId   String    @map("session_id") @db.Uuid
+  // A poll belongs to an event, and optionally to one of its sessions
+  // (migration 0030). Event-wide polls have no session.
+  eventId     String    @map("event_id") @db.Uuid
+  sessionId   String?   @map("session_id") @db.Uuid
   question    String
   options     Json
   status      String    @default("draft")
   multiSelect Boolean   @default(false) @map("multi_select")
   closedAt    DateTime? @map("closed_at") @db.Timestamptz
 
-  session Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  event   Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  session Session?   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   votes   PollVote[]
 
   @@index([sessionId])
+  @@index([eventId])
   @@map("polls")
 }
 
@@ -788,6 +794,10 @@ model Campaign {
   replyTo         String?  @map("reply_to")
   // Optional inline flyer image (our media host only; see migration 0026).
   flyerUrl        String?  @map("flyer_url")
+  // Optional PDF linked from the email (migration 0031).
+  documentUrl       String? @map("document_url")
+  documentName      String? @map("document_name")
+  documentSizeBytes Int?    @map("document_size_bytes")
   status          String   @default("draft") // draft | scheduled | sending | sent | cancelled | failed
   sendMode        String   @default("now") @map("send_mode") // now | scheduled | triggered
   scheduledAt     DateTime? @map("scheduled_at") @db.Timestamptz

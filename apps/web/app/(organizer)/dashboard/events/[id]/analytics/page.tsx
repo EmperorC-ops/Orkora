@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/auth';
 import { readActiveOrgId } from '@/lib/events';
+import { InsightsPanel } from './InsightsPanel';
 
 interface EventOverview {
   event: {
@@ -235,6 +236,8 @@ export default function EventAnalyticsPage() {
           </div>
         </Panel>
       </section>
+
+      <InsightsPanel eventId={eventId} />
     </div>
   );
 }

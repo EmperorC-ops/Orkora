@@ -1,5 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import {
+  computeInsights,
+  csvCell,
+  sliceableFields,
+  answersFor,
+  matches,
+  type GroupBy,
+  type InsightField,
+  type InsightFilters,
+  type InsightRegistration,
+} from './insights';
+
+/** Upper bound on registrations loaded for one event's Insights. */
+const INSIGHTS_MAX_ROWS = 10_000;
+const REG_STATUSES = new Set(['confirmed', 'pending', 'cancelled']);
+const UUID = /^[0-9a-f-]{36}$/i;
+
+export interface InsightsQuery {
+  from?: string;
+  to?: string;
+  tier?: string;
+  status?: string;
+  vip?: string;
+  field?: string;
+  value?: string;
+  groupBy?: string;
+}
 
 @Injectable()
 export class AnalyticsService {
@@ -319,7 +346,7 @@ export class AnalyticsService {
           where: { channel: { eventId }, deletedAt: null },
         }),
         this.prisma.pollVote.count({
-          where: { poll: { session: { eventId } } },
+          where: { poll: { eventId } },
         }),
         this.prisma.$queryRawUnsafe<Array<{ day: Date; count: bigint }>>(
           `select date_trunc('day', created_at) as day, count(*)::bigint as count
@@ -361,5 +388,175 @@ export class AnalyticsService {
         count: Number(r.count),
       })),
     };
+  }
+
+  // ------------------- Insights (per-event slicing) -------------------
+
+  /** Validated filters from the query string; anything malformed is ignored. */
+  private parseInsightsQuery(q: InsightsQuery, fields: InsightField[]) {
+    const date = (v?: string) => {
+      if (!v) return null;
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const filters: InsightFilters = {
+      from: date(q.from),
+      to: date(q.to),
+      tierId: q.tier && UUID.test(q.tier) ? q.tier : null,
+      status: q.status && REG_STATUSES.has(q.status) ? q.status : null,
+      vip: q.vip === 'yes' || q.vip === 'no' ? q.vip : null,
+      fieldId: null,
+      fieldValue: null,
+    };
+    const sliceable = sliceableFields(fields);
+    if (q.field && sliceable.some((f) => f.id === q.field) && q.value) {
+      filters.fieldId = q.field;
+      filters.fieldValue = String(q.value).slice(0, 200);
+    }
+    let groupBy: GroupBy = 'tier';
+    if (q.groupBy === 'status' || q.groupBy === 'vip' || q.groupBy === 'tier') groupBy = q.groupBy;
+    else if (q.groupBy?.startsWith('field:') && sliceable.some((f) => `field:${f.id}` === q.groupBy)) {
+      groupBy = q.groupBy as GroupBy;
+    }
+    const hourly =
+      !!filters.from && !!filters.to && filters.to.getTime() - filters.from.getTime() <= 72 * 3600_000;
+    return { filters, groupBy, hourly };
+  }
+
+  private async loadInsightData(orgId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, organizationId: orgId },
+      select: {
+        id: true,
+        title: true,
+        timezone: true,
+        registrationFields: true,
+        tiers: { select: { id: true, name: true }, orderBy: { position: 'asc' } },
+      },
+    });
+    if (!event) return null;
+    const fields = (Array.isArray(event.registrationFields) ? event.registrationFields : []) as unknown as InsightField[];
+    const rows = await this.prisma.registration.findMany({
+      where: { eventId },
+      take: INSIGHTS_MAX_ROWS,
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
+        isVip: true,
+        formResponses: true,
+        user: { select: { fullName: true, email: true } },
+        tickets: {
+          select: { tierId: true, status: true, checkedInAt: true, holderName: true, tier: { select: { name: true } } },
+        },
+        orders: { where: { status: 'paid' }, select: { totalMinor: true, currency: true } },
+      },
+    });
+    const registrations: Array<InsightRegistration & { name: string; email: string }> = rows.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt,
+      status: r.status,
+      isVip: r.isVip,
+      formResponses: (r.formResponses ?? {}) as Record<string, unknown>,
+      tickets: r.tickets.map((t) => ({
+        tierId: t.tierId,
+        tierName: t.tier?.name ?? 'Ticket',
+        status: t.status,
+        checkedInAt: t.checkedInAt,
+      })),
+      paid: r.orders.map((o) => ({ totalMinor: Number(o.totalMinor), currency: o.currency })),
+      name: r.tickets[0]?.holderName || r.user?.fullName || '',
+      email: r.user?.email ?? '',
+    }));
+    return { event, fields, registrations, truncated: rows.length >= INSIGHTS_MAX_ROWS };
+  }
+
+  /** Sliced summary for the Insights panel. */
+  async eventInsights(orgId: string, eventId: string, q: InsightsQuery) {
+    const data = await this.loadInsightData(orgId, eventId);
+    if (!data) return null;
+    const { filters, groupBy, hourly } = this.parseInsightsQuery(q, data.fields);
+    const result = computeInsights({
+      registrations: data.registrations,
+      fields: data.fields,
+      filters,
+      groupBy,
+      timeZone: data.event.timezone || 'Africa/Lagos',
+      hourly,
+    });
+    return {
+      ...result,
+      timezone: data.event.timezone,
+      truncated: data.truncated,
+      // What the panel can slice by.
+      dimensions: {
+        tiers: data.event.tiers,
+        statuses: Array.from(REG_STATUSES),
+        fields: sliceableFields(data.fields).map((f) => ({
+          id: f.id,
+          label: f.label,
+          options: f.type === 'checkbox' ? ['Yes', 'No'] : (f.options ?? []),
+        })),
+      },
+    };
+  }
+
+  /** The filtered attendee list as CSV, one row per registration. */
+  async eventInsightsCsv(orgId: string, eventId: string, q: InsightsQuery): Promise<{ filename: string; csv: string } | null> {
+    const data = await this.loadInsightData(orgId, eventId);
+    if (!data) return null;
+    const { filters } = this.parseInsightsQuery(q, data.fields);
+    const tz = data.event.timezone || 'Africa/Lagos';
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    const answerFields = data.fields.filter((f) => f.type !== 'info');
+    const header = [
+      `Registered (${tz})`,
+      'Name',
+      'Email',
+      'Status',
+      'VIP',
+      'Tickets',
+      'Checked in',
+      'Paid',
+      ...answerFields.map((f) => f.label),
+    ];
+    const lines = [header.map(csvCell).join(',')];
+    for (const r of data.registrations) {
+      if (!matches(r, filters, data.fields)) continue;
+      const live = r.tickets.filter(
+        (t) => (t.status === 'issued' || t.status === 'checked_in') && (!filters.tierId || t.tierId === filters.tierId),
+      );
+      const paid = r.paid.map((p) => `${p.currency} ${(p.totalMinor / 100).toFixed(2)}`).join('; ');
+      lines.push(
+        [
+          fmt.format(r.createdAt),
+          r.name,
+          r.email,
+          r.status,
+          r.isVip ? 'Yes' : 'No',
+          live.map((t) => t.tierName).join('; '),
+          `${live.filter((t) => t.checkedInAt).length} of ${live.length}`,
+          paid,
+          ...answerFields.map((f) =>
+            f.type === 'select' || f.type === 'multiselect' || f.type === 'checkbox'
+              ? answersFor(r, f).join('; ')
+              : (r.formResponses?.[f.id] ?? ''),
+          ),
+        ]
+          .map(csvCell)
+          .join(','),
+      );
+    }
+    const slug = (data.event.title || 'event').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'event';
+    return { filename: `${slug}-attendees.csv`, csv: `\uFEFF${lines.join('\r\n')}\r\n` };
   }
 }

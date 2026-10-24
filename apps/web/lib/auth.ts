@@ -83,6 +83,36 @@ export async function apiFetch<T>(path: string, init?: FetchInit): Promise<T> {
 }
 
 /**
+ * Download a file from an authenticated API route (for example a CSV export)
+ * and save it in the browser. Retries once after a silent session refresh.
+ */
+export async function apiDownload(path: string, fallbackName: string): Promise<void> {
+  const go = () => {
+    const headers = new Headers();
+    const t = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') : null;
+    if (t) headers.set('Authorization', `Bearer ${t}`);
+    return fetch(`${API}${path}`, { headers, credentials: 'omit' });
+  };
+  let res = await go();
+  if (res.status === 401 && (await refreshAccessToken())) res = await go();
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new ApiError(res.status, detail || res.statusText, detail);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
  * Single-flight refresh: if multiple requests trigger refresh at the same
  * time, all of them await the same in-flight call so we never end up with
  * two refresh round-trips racing each other.

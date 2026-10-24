@@ -10,6 +10,7 @@ import { apiFetch } from '@/lib/auth';
 import { campaignsApi, type AudienceSummary, type CampaignDetail } from '@/lib/campaigns';
 import { eventsApi, type OrganizerEventSummary } from '@/lib/events';
 import { ImageUpload } from '@/components/image-upload';
+import { DocumentUpload, type UploadedDocument } from '@/components/document-upload';
 
 /**
  * Campaign composer, shared by "New campaign" and "Edit campaign".
@@ -38,6 +39,19 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
   // Optional flyer image, shown inline at the top of the email with a
   // "Download flyer" button. Images only; PDFs must be exported first.
   const [flyerUrl, setFlyerUrl] = useState<string | null>(initial?.flyerUrl ?? null);
+  // Optional PDF (newsletter), linked from the email with a Download button.
+  const [pdfDoc, setPdfDoc] = useState<UploadedDocument | null>(
+    initial?.documentUrl
+      ? {
+          url: initial.documentUrl,
+          name: initial.documentName ?? 'document.pdf',
+          sizeBytes: initial.documentSizeBytes ?? null,
+        }
+      : null,
+  );
+  // Only send the document on save when it changed, so the API does not
+  // re-read the stored file on every draft save.
+  const [documentDirty, setDocumentDirty] = useState(false);
   // Sender defaults so the Send-test / Send buttons are usable immediately.
   // fromEmail defaults to the platform's verified Postmark sender; fromName is
   // backfilled with the organisation's name once it loads.
@@ -105,7 +119,9 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
         audienceId: aid,
         eventId: eventId || undefined,
         flyerUrl: flyerUrl ?? undefined,
+        ...(pdfDoc ? { documentUrl: pdfDoc.url, documentName: pdfDoc.name } : {}),
       });
+      setDocumentDirty(false);
       setCampaignId(created.id);
       // Point the address bar at the draft without remounting the page.
       if (typeof window !== 'undefined') {
@@ -124,7 +140,14 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
       ...(eventId ? { eventId } : {}),
       // null clears a removed flyer.
       flyerUrl,
+      // null clears a removed document; only sent when it changed.
+      ...(documentDirty
+        ? pdfDoc
+          ? { documentUrl: pdfDoc.url, documentName: pdfDoc.name }
+          : { documentUrl: null }
+        : {}),
     });
+    setDocumentDirty(false);
     return campaignId;
   }
 
@@ -316,8 +339,25 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
                 <ImageUpload kind="campaign_flyer" value={flyerUrl} onChange={setFlyerUrl} />
               </div>
               <p className="mt-1 text-xs text-ink-muted">
-                Shown at the top of the email with a Download flyer button. Have a PDF? Export it as
-                an image first.
+                Shown at the top of the email with a Download flyer button.
+              </p>
+            </div>
+            <div className="mb-4">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                Document (optional)
+              </span>
+              <div className="max-w-md">
+                <DocumentUpload
+                  value={pdfDoc}
+                  onChange={(d) => {
+                    setPdfDoc(d);
+                    setDocumentDirty(true);
+                  }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">
+                A PDF such as a newsletter or programme, up to 10 MB. Recipients get a Download PDF
+                button, and you can see how many opened it after sending.
               </p>
             </div>
             <textarea

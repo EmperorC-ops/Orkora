@@ -19,7 +19,8 @@ import { EngagementGateway } from './engagement.gateway';
 import { EngagementService } from './engagement.service';
 
 interface CreatePollDto {
-  sessionId: string;
+  /** Optional since migration 0030: omit for an event-wide poll. */
+  sessionId?: string | null;
   question: string;
   options: string[];
   multiSelect?: boolean;

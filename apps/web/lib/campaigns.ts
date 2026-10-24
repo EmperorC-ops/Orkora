@@ -32,6 +32,10 @@ export interface CampaignDetail extends CampaignSummary {
   eventId: string | null;
   audienceId: string;
   flyerUrl: string | null;
+  /** Optional PDF linked from the email (newsletter). */
+  documentUrl: string | null;
+  documentName: string | null;
+  documentSizeBytes: number | null;
 }
 
 export interface AudienceSummary {
@@ -66,16 +70,22 @@ export function campaignsApi(orgId: string) {
       eventId?: string;
       /** Optional inline flyer image URL from the campaign_flyer upload flow. */
       flyerUrl?: string;
+      /** Optional PDF from the campaign_document upload flow. */
+      documentUrl?: string;
+      documentName?: string;
     }) =>
       apiFetch<CampaignSummary>(`${base}/campaigns`, {
         method: 'POST',
         json: input,
       }),
-    patch: (id: string, patch: Partial<{ name: string; subject: string; previewText: string; bodyMarkdown: string; fromName: string; fromEmail: string; replyTo: string; audienceId: string; eventId: string; flyerUrl: string | null }>) =>
+    patch: (id: string, patch: Partial<{ name: string; subject: string; previewText: string; bodyMarkdown: string; fromName: string; fromEmail: string; replyTo: string; audienceId: string; eventId: string; flyerUrl: string | null; documentUrl: string | null; documentName: string }>) =>
       apiFetch<CampaignSummary>(`${base}/campaigns/${id}`, {
         method: 'PATCH',
         json: patch,
       }),
+    /** How many recipients opened the campaign's PDF, and how many times. */
+    documentStats: (id: string) =>
+      apiFetch<{ recipients: number; opens: number }>(`${base}/campaigns/${id}/document-stats`),
     send: (id: string) =>
       apiFetch<{ recipientCount: number }>(`${base}/campaigns/${id}/send`, {
         method: 'POST',

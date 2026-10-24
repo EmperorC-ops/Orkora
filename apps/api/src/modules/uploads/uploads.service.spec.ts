@@ -115,4 +115,45 @@ describe('UploadsService.presign size enforcement', () => {
       ).rejects.toBeInstanceOf(PayloadTooLargeException);
     });
   });
+
+  describe('campaign_document', () => {
+    const doc = {
+      kind: 'campaign_document' as const,
+      filename: 'newsletter.pdf',
+      contentType: 'application/pdf',
+      userId: 'u-1',
+    };
+
+    it('accepts a PDF up to 10 MB even when the general limit is lower', async () => {
+      const presignUpload = jest.fn().mockResolvedValue({ uploadUrl: 'u', publicUrl: 'p' });
+      const storage = { enabled: true, presignUpload } as unknown as StorageService;
+      const cfg = { get: jest.fn().mockReturnValue(8 * 1024 * 1024) } as unknown as ConfigService;
+      const svc = new UploadsService(storage, cfg);
+      await svc.presign({ ...doc, sizeBytes: 9 * 1024 * 1024 });
+      expect(presignUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ key: expect.stringMatching(/^campaign_documents\/u-1\/.+\.pdf$/) }),
+      );
+    });
+
+    it('rejects a PDF over 10 MB', async () => {
+      const svc = makeService(50 * 1024 * 1024);
+      await expect(svc.presign({ ...doc, sizeBytes: 11 * 1024 * 1024 })).rejects.toBeInstanceOf(
+        PayloadTooLargeException,
+      );
+    });
+
+    it('rejects anything that is not a PDF as a document', async () => {
+      const svc = makeService(8 * 1024 * 1024);
+      await expect(
+        svc.presign({ ...doc, contentType: 'image/png', filename: 'a.png', sizeBytes: 1_000 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('refuses a PDF uploaded as any other kind', async () => {
+      const svc = makeService(8 * 1024 * 1024);
+      await expect(
+        svc.presign({ ...okInput, contentType: 'application/pdf', filename: 'x.pdf', sizeBytes: 1_000 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
 });

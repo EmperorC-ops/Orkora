@@ -40,6 +40,12 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { AudienceMaterialiser, type Recipient } from './audience.materialiser';
 import { applyTokens, applyTokensText, markdownToHtml, renderPreheader } from './markdown';
 import { acceptFlyerUrl, acceptLogoUrl, renderBrandHeader, renderFlyerBlock } from './flyer';
+import {
+  acceptDocumentUrl,
+  documentRecipientKey,
+  renderDocumentBlock,
+  sanitizeDocumentName,
+} from './document';
 
 const BATCH_SIZE = 500;
 const POSTMARK_API = 'https://api.postmarkapp.com';
@@ -149,6 +155,8 @@ export class CampaignsService {
       audienceId: string;
       eventId?: string;
       flyerUrl?: string;
+      documentUrl?: string;
+      documentName?: string;
     },
   ) {
     // Verify audience belongs to the same org
@@ -159,6 +167,9 @@ export class CampaignsService {
 
     const bodyHtml = markdownToHtml(input.bodyMarkdown);
     const flyerUrl = input.flyerUrl ? this.requireFlyerUrl(input.flyerUrl) : null;
+    const document = input.documentUrl
+      ? await this.requireDocument(input.documentUrl, input.documentName)
+      : null;
 
     return this.prisma.campaign.create({
       data: {
@@ -174,11 +185,114 @@ export class CampaignsService {
         replyTo: input.replyTo ?? null,
         audienceId: input.audienceId,
         flyerUrl,
+        documentUrl: document?.url ?? null,
+        documentName: document?.name ?? null,
+        documentSizeBytes: document?.sizeBytes ?? null,
         createdById,
       },
     });
   }
 
+  /**
+   * Accept a campaign document only if it is a PDF we host: the URL must be
+   * on our media host under campaign_documents/, and the stored file must
+   * really start with the PDF signature (the upload went straight to storage,
+   * so the bytes are checked here). Returns the URL, a safe display name and
+   * the size reported by storage.
+   */
+  private async requireDocument(
+    rawUrl: string,
+    rawName?: string | null,
+  ): Promise<{ url: string; name: string; sizeBytes: number | null }> {
+    const url = acceptDocumentUrl(rawUrl, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
+    if (!url) {
+      throw new BadRequestException(
+        'The document must be a PDF uploaded through Orkora. Upload it again from the campaign editor.',
+      );
+    }
+    let head = '';
+    let sizeBytes: number | null = null;
+    try {
+      const res = await fetch(url, {
+        headers: { Range: 'bytes=0-7' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      head = buf.subarray(0, 5).toString('latin1');
+      const range = res.headers.get('content-range');
+      const total = range ? Number(range.split('/')[1]) : Number(res.headers.get('content-length'));
+      sizeBytes = Number.isFinite(total) && total > 0 ? total : null;
+    } catch (err) {
+      this.logger.warn({ err }, 'Could not read the uploaded campaign document');
+      throw new BadRequestException('We could not read that document. Upload it again.');
+    }
+    if (head !== '%PDF-') {
+      throw new BadRequestException('That file is not a valid PDF. Export it as PDF and upload it again.');
+    }
+    return { url, name: sanitizeDocumentName(rawName), sizeBytes };
+  }
+
+  /**
+   * Download counts for a campaign's document: how many of the campaign's
+   * actual recipients opened it, and how many times in total. Keys that do
+   * not belong to a recipient (test sends, guessed links) are not counted.
+   */
+  async documentStats(id: string, organizationId: string) {
+    const campaign = await this.get(id, organizationId);
+    if (!campaign.documentUrl) return { recipients: 0, opens: 0 };
+    const pepper = this.cfg.getOrThrow<string>('REFRESH_TOKEN_PEPPER');
+    const sends = await this.prisma.campaignSend.findMany({
+      where: { campaignId: id },
+      select: { recipientEmail: true },
+    });
+    const valid = new Set(sends.map((r) => documentRecipientKey(pepper, id, r.recipientEmail)));
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ recipient_key: string; download_count: number }>>(
+      `select recipient_key, download_count from campaign_document_downloads where campaign_id = $1::uuid`,
+      id,
+    );
+    let recipients = 0;
+    let opens = 0;
+    for (const r of rows) {
+      if (!valid.has(r.recipient_key)) continue;
+      recipients += 1;
+      opens += Number(r.download_count);
+    }
+    return { recipients, opens };
+  }
+
+  /**
+   * Public download redirect behind the email's Download PDF button. Records
+   * the open against the recipient key when it is well formed, then forwards
+   * to the campaign's own stored document (never to a URL from the request).
+   * Returns null when the campaign has no valid document.
+   */
+  async documentRedirect(campaignId: string, recipientKey: string | undefined): Promise<string | null> {
+    if (!/^[0-9a-f-]{36}$/i.test(campaignId)) return null;
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { documentUrl: true, status: true },
+    });
+    const url = acceptDocumentUrl(campaign?.documentUrl, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
+    if (!url) return null;
+    if (recipientKey && /^[A-Za-z0-9_-]{22}$/.test(recipientKey)) {
+      try {
+        await this.prisma.$executeRawUnsafe(
+          `insert into campaign_document_downloads (campaign_id, recipient_key)
+           values ($1::uuid, $2)
+           on conflict (campaign_id, recipient_key)
+           do update set download_count = campaign_document_downloads.download_count + 1,
+                         last_at = now()`,
+          campaignId,
+          recipientKey,
+        );
+      } catch (err) {
+        // Counting must never block the download.
+        this.logger.warn({ err, campaignId }, 'Could not record a document download');
+      }
+    }
+    return url;
+  }
   /**
    * Accept a flyer URL only if it points at our own media host under
    * campaign_flyers/ (what the upload flow produces). Anything else is
@@ -208,6 +322,8 @@ export class CampaignsService {
       audienceId: string;
       eventId: string;
       flyerUrl: string | null;
+      documentUrl: string | null;
+      documentName: string;
     }>,
   ) {
     const existing = await this.get(id, organizationId);
@@ -223,6 +339,22 @@ export class CampaignsService {
       throw new ConflictException(`Cannot edit a campaign in status ${existing.status}`);
     }
     const data: Record<string, unknown> = { ...patch };
+    delete data.documentUrl;
+    delete data.documentName;
+    // null (or empty) removes the document; a new value must be one of our
+    // uploaded PDFs. A name alone renames the current document.
+    if (patch.documentUrl === null || patch.documentUrl === '') {
+      data.documentUrl = null;
+      data.documentName = null;
+      data.documentSizeBytes = null;
+    } else if (typeof patch.documentUrl === 'string') {
+      const doc = await this.requireDocument(patch.documentUrl, patch.documentName);
+      data.documentUrl = doc.url;
+      data.documentName = doc.name;
+      data.documentSizeBytes = doc.sizeBytes;
+    } else if (typeof patch.documentName === 'string' && existing.documentUrl) {
+      data.documentName = sanitizeDocumentName(patch.documentName);
+    }
     if (typeof patch.bodyMarkdown === 'string') {
       data.bodyHtml = markdownToHtml(patch.bodyMarkdown);
     }
@@ -421,6 +553,9 @@ export class CampaignsService {
       bodyMarkdown: string;
       fromName: string;
       flyerUrl?: string | null;
+      documentUrl?: string | null;
+      documentName?: string | null;
+      documentSizeBytes?: number | null;
       previewText?: string | null;
       organization?: { name: string; logoUrl: string | null; postalAddress?: string | null } | null;
     },
@@ -432,7 +567,18 @@ export class CampaignsService {
     // Re-check the stored flyer at send time: it is rendered only if it still
     // passes the same host rule enforced on save.
     const flyer = acceptFlyerUrl(campaign.flyerUrl, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
-    const body = flyer ? `${renderFlyerBlock(flyer)}\n${personalisedBody}` : personalisedBody;
+    // The document is linked through our download redirect with an opaque
+    // per-recipient key, so opens can be counted without personal data in
+    // the link. Re-checked at send time like the flyer.
+    const doc = acceptDocumentUrl(campaign.documentUrl, this.cfg.get<string>('S3_PUBLIC_BASE_URL'));
+    const docBlock = doc
+      ? renderDocumentBlock({
+          href: this.documentDownloadUrl(campaign.id, recipient.email),
+          name: sanitizeDocumentName(campaign.documentName),
+          sizeBytes: campaign.documentSizeBytes,
+        })
+      : '';
+    const body = `${flyer ? `${renderFlyerBlock(flyer)}\n` : ''}${docBlock ? `${docBlock}\n` : ''}${personalisedBody}`;
     const unsubUrl = this.unsubscribeUrl(campaign.id, recipient.email);
     // Header carries the organizer: their uploaded logo when it passes the
     // same "our media only" rule as flyers, otherwise their name.
@@ -489,6 +635,13 @@ You are receiving this because you registered for one of our events.
 </td></tr>
 </table>
 </body></html>`;
+  }
+
+  private documentDownloadUrl(campaignId: string, email: string): string {
+    const pepper = this.cfg.getOrThrow<string>('REFRESH_TOKEN_PEPPER');
+    const key = documentRecipientKey(pepper, campaignId, email);
+    const apiUrl = (this.cfg.get<string>('API_URL') ?? 'https://api.orkora.events').replace(/\/$/, '');
+    return `${apiUrl}/v1/c/doc/${campaignId}?r=${key}`;
   }
 
   private unsubscribeUrl(campaignId: string, email: string): string {

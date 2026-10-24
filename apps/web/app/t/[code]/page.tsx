@@ -200,8 +200,13 @@ function QrSvg({ value }: { value: string }) {
   return (
     <QRCodeSVG
       value={value}
-      level="H"
-      includeMargin={false}
+      // Level M (15% recovery) rather than H (30%): there is no logo over the
+      // code, and M makes the same signed token a visibly less dense QR that
+      // phone cameras decode more reliably, especially off another screen.
+      level="M"
+      // A quiet zone around the code helps scanners lock on when the ticket
+      // is shown on a dark phone screen.
+      includeMargin
       className="h-full w-full"
       // Explicit fg/bg keep the QR high-contrast on the white card even if
       // an ancestor sets `currentColor` from the dark theme.

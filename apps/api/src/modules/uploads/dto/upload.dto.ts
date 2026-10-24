@@ -1,12 +1,21 @@
 import { IsIn, IsInt, IsString, Min, MaxLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export const UPLOAD_KINDS = ['banner', 'avatar', 'logo', 'recording', 'campaign_flyer'] as const;
+export const UPLOAD_KINDS = [
+  'banner',
+  'avatar',
+  'logo',
+  'recording',
+  'campaign_flyer',
+  'campaign_document',
+] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
 
 // Images cover the branding kinds; video/* is allowed so the recording library
-// can presign direct-to-R2 uploads of session recordings (mp4/webm/etc).
-const ALLOWED_TYPES = /^(image\/(png|jpeg|jpg|webp|gif)|video\/[a-z0-9.+-]+)$/i;
+// can presign direct-to-R2 uploads of session recordings (mp4/webm/etc);
+// application/pdf is allowed for campaign documents only (enforced per kind in
+// UploadsService).
+const ALLOWED_TYPES = /^(image\/(png|jpeg|jpg|webp|gif)|video\/[a-z0-9.+-]+|application\/pdf)$/i;
 
 /**
  * Absolute lower bound. The upper bound is enforced server-side against
@@ -27,7 +36,7 @@ export class PresignUploadDto {
   @IsString()
   @Matches(ALLOWED_TYPES, {
     message:
-      'contentType must be an image (png, jpeg, webp, gif) or a video/* type',
+      'contentType must be an image (png, jpeg, webp, gif), a video/* type, or a PDF',
   })
   contentType!: string;
 

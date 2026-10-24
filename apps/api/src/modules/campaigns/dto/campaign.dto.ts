@@ -56,6 +56,18 @@ export class CreateCampaignDto {
   @IsString()
   @MaxLength(500)
   flyerUrl?: string;
+
+  // Optional PDF (newsletter). Must be one of our uploaded PDFs; checked in
+  // the service, including the file signature. See campaigns/document.ts.
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  documentUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  documentName?: string;
 }
 
 export class PatchCampaignDto {
@@ -71,6 +83,9 @@ export class PatchCampaignDto {
   @IsOptional() @IsUUID() eventId?: string;
   // null removes the flyer; a string replaces it (host-checked in the service).
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(500) flyerUrl?: string | null;
+  // null removes the PDF document; a string replaces it (checked in the service).
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(500) documentUrl?: string | null;
+  @IsOptional() @IsString() @MaxLength(300) documentName?: string;
 }
 
 export class ScheduleCampaignDto {

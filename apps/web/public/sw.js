@@ -61,7 +61,7 @@
 // the device. /app is cached like a ticket page so a cold offline launch at
 // the door still reaches the cached QR instead of /offline.html. Bumped so
 // installs refetch the manifest.
-const VERSION = 'orkora-v6-2026-10-05';
+const VERSION = 'orkora-v7-2026-10-24';
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGES_CACHE = `${VERSION}-pages`;

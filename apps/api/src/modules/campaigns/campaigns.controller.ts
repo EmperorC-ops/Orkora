@@ -22,8 +22,10 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  NotFoundException,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -111,6 +113,15 @@ export class CampaignsController {
     return this.campaigns.get(id, orgId);
   }
 
+  @Get('campaigns/:id/document-stats')
+  @Roles('owner', 'admin', 'organizer')
+  documentStats(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.campaigns.documentStats(id, orgId);
+  }
+
   @Patch('campaigns/:id')
   @Roles('owner', 'admin')
   @Throttle({ default: { ttl: 60_000, limit: 30 } })
@@ -184,5 +195,21 @@ export class CampaignsPublicController {
   @Get('me/unsubscribe')
   unsubscribe(@Query('c') c: string, @Query('e') e: string, @Query('s') s: string) {
     return this.campaigns.unsubscribe(c, e, s);
+  }
+
+  /**
+   * Download PDF button in campaign emails. Counts the open against the
+   * opaque recipient key, then redirects to the campaign's stored document.
+   * Never redirects anywhere taken from the request.
+   */
+  @Get('c/doc/:campaignId')
+  async documentDownload(
+    @Param('campaignId') campaignId: string,
+    @Query('r') r: string | undefined,
+    @Res() res: { redirect: (status: number, url: string) => void },
+  ) {
+    const url = await this.campaigns.documentRedirect(campaignId, r);
+    if (!url) throw new NotFoundException('This document is no longer available.');
+    res.redirect(302, url);
   }
 }
