@@ -1,8 +1,9 @@
 # Organizer Agreement
 
-**DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. This is the supplemental agreement that applies when you create an Organisation on Orkora and host paid events.
+**DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. This is the supplemental agreement that applies when you create an Organisation on Orkora. You accept it by ticking the box confirming your agreement when you create your Organisation, or when we ask you to accept an updated version.
 
-**Last updated:** 8 July 2026 (draft)
+**Version:** 2.0
+**Effective date:** [24-10-2026] (draft)
 
 This Organizer Agreement is between you (the Organiser) and **Orkora Technologies Limited** ("Orkora"), a registered Nigerian company (RC **9697234**). It supplements the Orkora Terms of Service. If there is any conflict between this Agreement and the Terms, this Agreement controls for matters relating to your organisation, your events, and your relationship with attendees.
 
@@ -22,15 +23,17 @@ You may invite team members to your Organisation with one of these roles:
 
 - **Owner**: full administrative control, can add or remove other owners.
 - **Admin**: manage events, tickets, payments, refunds, campaigns, billing.
-- **Organiser**: read-write on event content, registrations, attendees, sessions.
-- **Staff**: read-only plus check-in scanning rights.
-- **Vendor**: read-only on assigned events.
+- **Organiser**: read-write on event content, registrations, attendees, sessions, and the live room.
+- **Staff**: read-only plus check-in rights.
+- **Vendor**: reserved for future use; currently no access.
+
+Roles apply to every event in your Organisation.
 
 You are responsible for the actions of every member of your Organisation. Revoke access promptly when a team member leaves.
 
 ## 3. Platform fees
 
-During Orkora's private beta, **no platform fee is charged on ticket sales**. Payment-provider processing fees still apply and are deducted at settlement by the provider. Orkora will give you at least 60 days written notice before introducing any platform fee. Events created before a fee announcement keep their original fee structure until the event ends.
+Orkora charges a platform fee on paid tickets as set out in Section 7 of the Terms of Service: currently **3% of the ticket price plus a fixed amount per paid ticket** (US$0.99, or NGN 1,350 for Naira sales). Free tickets carry no platform fee. Each event keeps the fee in effect on the day it was created until it ends, and events created before the effective date of this version carry no platform fee. You choose per event whether to absorb the fee or pass it on to buyers. Payment-provider processing fees are separate and are deducted at settlement by the provider. We will give you at least 30 days' written notice of any change to the fee, and a change applies only to events created after it takes effect.
 
 ## 4. Payments
 
@@ -111,6 +114,8 @@ We will give you written notice and a reasonable opportunity to remediate before
 ## 11. Marketing communications by Organisers
 
 You may use Orkora's campaigns module to send email to your registered attendees about the event they registered for. You may **not** use it to send unsolicited marketing for other events or third-party offers unless the attendee opted in to that marketing at the time of registration.
+
+You are responsible for the images and documents you attach to campaigns. They must not contain malware, deceptive links or content you do not have the right to share. Orkora may remove an attachment, or stop a campaign, that breaks this rule.
 
 Every campaign sent from Orkora includes a one-click unsubscribe link. If a recipient unsubscribes, they go into your Organisation's suppression list and Orkora will refuse to send further campaigns to them on your behalf. You are not permitted to circumvent this suppression by re-importing the email through another channel.
 

@@ -151,7 +151,15 @@ export default function VipRegisterView({ code, token }: { code: string; token: 
             <ArrowRight className="h-4 w-4" />
           </button>
           <p className="text-center text-xs text-ink-muted">
-            Your ticket and receipt are emailed instantly.
+            Your ticket and receipt are emailed instantly. By confirming you agree to Orkora&apos;s{' '}
+            <Link href="/legal/terms" target="_blank" className="underline hover:text-ink-secondary">
+              Terms of Service
+            </Link>{' '}
+            and acknowledge the{' '}
+            <Link href="/legal/privacy" target="_blank" className="underline hover:text-ink-secondary">
+              Privacy Policy
+            </Link>
+            .
           </p>
         </form>
       </div>

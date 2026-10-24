@@ -48,6 +48,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { LegalModule } from './modules/legal/legal.module';
+import { HelpModule } from './modules/help/help.module';
 
 @Module({
   imports: [
@@ -110,6 +112,8 @@ import { AdminModule } from './modules/admin/admin.module';
     ApiKeysModule,
     ReportsModule,
     AdminModule,
+    LegalModule,
+    HelpModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: UserThrottlerGuard }],
 })

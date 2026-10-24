@@ -2,15 +2,26 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Phone, User } from 'lucide-react';
 import { ApiError, authApi, safeInternalPath } from '@/lib/auth';
+import { legalApi, rememberSignupConsent, type LegalVersions } from '@/lib/legal';
 import { Brand } from '@/components/brand';
 
 export default function SignupPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  // Current Terms and Privacy versions, so we record exactly what was agreed.
+  // If this fails (for example during a deploy), the dashboard asks instead.
+  const [legalVersions, setLegalVersions] = useState<LegalVersions | null>(null);
+  useEffect(() => {
+    legalApi
+      .versions()
+      .then(setLegalVersions)
+      .catch(() => setLegalVersions(null));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,6 +36,9 @@ export default function SignupPage() {
       return setError('Enter a valid email address.');
     }
     if (password.length < 8) return setError('Password must be at least 8 characters.');
+    if (!agreed) {
+      return setError('Please agree to the Terms of Service and Privacy Policy to continue.');
+    }
 
     setLoading(true);
     setError(null);
@@ -41,6 +55,7 @@ export default function SignupPage() {
       // no refresh cookie -> every request 401'd. Creating the account here and
       // exchanging the OTP on /otp fixes it.
       await authApi.signup({ email, password, fullName, phone: phone || undefined });
+      if (legalVersions) rememberSignupConsent(legalVersions);
       const params = new URLSearchParams({ destination: email, purpose: 'signup' });
       // Pass `next` through to the code step (which already honours it), so an
       // invitee signing up returns to their invitation and joins automatically.
@@ -124,6 +139,28 @@ export default function SignupPage() {
                 required
               />
 
+              <label className="flex items-start gap-3 text-sm text-ink-secondary">
+                <input
+                  type="checkbox"
+                  name="agree"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  required
+                  className="mt-0.5 h-4 w-4 flex-none rounded border-surface-border accent-brand-500"
+                />
+                <span>
+                  I agree to the{' '}
+                  <Link href="/legal/terms" target="_blank" className="font-semibold text-brand-300 underline hover:text-brand-200">
+                    Terms of Service
+                  </Link>{' '}
+                  and have read the{' '}
+                  <Link href="/legal/privacy" target="_blank" className="font-semibold text-brand-300 underline hover:text-brand-200">
+                    Privacy Policy
+                  </Link>
+                  .
+                </span>
+              </label>
+
               {error ? (
                 <p className="rounded-xl border border-[#FF7675]/30 bg-[#FF7675]/10 px-3 py-2 text-sm text-[#FF9090]">
                   {error}
@@ -132,7 +169,7 @@ export default function SignupPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !agreed}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-gradient py-3 text-sm font-semibold text-white shadow-glow transition hover:opacity-95 disabled:opacity-60"
               >
                 {loading ? 'Sending code...' : (

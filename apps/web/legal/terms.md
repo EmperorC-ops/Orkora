@@ -2,9 +2,12 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Wherever a default sits in a position that counsel should confirm, the inline note flags it.
 
-**Last updated:** 29 June 2026 (draft)
+**Version:** 2.0
+**Effective date:** [24-10-2026] (draft)
 
-These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Limited** ("Orkora", "we", "us"), a company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC 9697234**. By creating an account, registering for an event hosted on Orkora, or using any part of the platform you accept these Terms.
+[COUNSEL NOTE: version 2.0 retires the private-beta section and introduces the platform fee with immediate effect for events created on or after the effective date. Version 1 promised 60 days' written notice before any fee. Mitigations built into this version: (a) events created before the effective date keep a zero platform fee until they end (Section 7); (b) every existing user must actively accept version 2.0 before continuing to use the dashboard, recorded with a timestamp; (c) no fee has been charged to any organiser under version 1. Please confirm this is sufficient, or whether a notice period is still owed to organisers who accepted version 1.]
+
+These Terms govern your use of Orkora, an event management platform operated by **Orkora Technologies Limited** ("Orkora", "we", "us"), a company incorporated under the laws of the Federal Republic of Nigeria with registration number **RC 9697234**. You accept these Terms when you tick the box confirming your agreement while creating an account or when we ask you to accept an updated version. Attendees who register for an event hosted on Orkora accept these Terms by completing registration, as shown on the registration form. We record the version you accepted and when.
 
 ## 1. Eligibility and sanctions
 
@@ -18,16 +21,11 @@ You are responsible for the security of your account credentials and for every a
 
 Orkora is a software platform for organising paid and free events. You can create events, sell tickets, register attendees, scan tickets at the door, run live chat during sessions, issue receipts and refunds, and view analytics. Orkora does not host events itself; we provide the tooling that organisers use to host their own events.
 
-## 4. Beta service
-
-Orkora is currently in private beta. During the beta:
+## 4. Service availability
 
 - We do not promise any service-level agreement. We aim for high availability but make no contractual uptime commitment.
-- We may change, add, or remove features with reasonable notice.
-- We will give you at least 60 calendar days written notice before introducing any platform fee on ticket sales. Existing events will continue at the fee structure in effect at the time the event was created until that event ends.
-- We may end the beta or close your account with 60 days written notice. If we close your account during the beta we will preserve your event data in a recoverable format for a further 90 days.
-
-These beta provisions cease to apply once we announce general availability.
+- We may change, add, or remove features. Where a change materially reduces what you can do, we will tell you in advance.
+- If we decide to close your account for reasons other than a breach of these Terms, we will give you 60 days' written notice and preserve your event data in a recoverable format for a further 90 days.
 
 ## 5. Acceptable use
 
@@ -49,9 +47,19 @@ Orkora retains all rights in the platform itself, including the software, design
 
 ## 7. Payments and fees
 
-Tickets are sold by you, the organiser, to your attendees. Orkora is not a party to the ticket purchase contract between the organiser and the attendee. Payments are processed by the payment provider you connect (Stripe, Paystack, or Flutterwave). Funds settle directly to your connected account; Orkora does not hold customer funds.
+Tickets are sold by you, the organiser, to your attendees. Orkora is not a party to the ticket purchase contract between the organiser and the attendee. Payments are processed by the payment provider you connect (currently Paystack or Flutterwave). Funds settle directly to your connected account; Orkora does not hold customer funds.
 
-During the private beta, **Orkora does not charge a platform fee on ticket sales.** The payment provider's own processing fees still apply. We will give 60 days written notice before introducing any Orkora-side fee, per Section 4.
+**Platform fee.** Orkora charges a platform fee on each paid ticket sold through the platform. The current fee is **3% of the ticket price plus a fixed amount per paid ticket** (US$0.99, or NGN 1,350 for Naira sales), as published on our Pricing page. Free tickets carry no platform fee.
+
+- **Which events it applies to.** The fee applies to events created on or after the effective date of these Terms. Each event keeps the fee in effect on the day it was created until that event ends. Events created before the effective date carry no platform fee.
+- **Who pays.** For each event you choose to absorb the fee (it is deducted from your proceeds) or to pass it on to buyers (it is added to the ticket price and shown to the buyer before they pay).
+- **How it is collected.** The fee is deducted at settlement through your payment provider's split mechanism, so it never passes through your account first.
+- **Refunds.** When a ticket is refunded in full through the dashboard, the platform fee on that ticket is returned.
+- **Changes to the fee.** We will give you at least 30 days' written notice of any change to the fee. A changed fee applies only to events created after it takes effect.
+
+The payment provider's own processing fees are separate from the platform fee and are charged by the provider.
+
+[COUNSEL NOTE: confirm VAT treatment of the platform fee (inclusive or exclusive) and add the required wording.]
 
 ## 8. Refunds
 
@@ -90,7 +98,7 @@ We welcome good-faith security research. Submit findings to security@orkora.even
 
 - Acknowledge your report within 1 business day.
 - Triage and respond within 5 business days.
-- Not pursue legal action against you for testing carried out within the scope set out at `/legal/security` (when published; for the beta, the scope is "any endpoint of the platform, excluding social-engineering attacks against staff or attendees and excluding denial-of-service tests").
+- Not pursue legal action against you for testing carried out within the scope set out at `/legal/security` (when published; until it is published, the scope is "any endpoint of the platform, excluding social-engineering attacks against staff or attendees and excluding denial-of-service tests").
 - Give credit at your option in the security review document where the finding is recorded.
 
 ## 14. Governing law and venue
@@ -101,7 +109,7 @@ These Terms are governed by the laws of the **Federal Republic of Nigeria**. The
 
 ## 15. Changes to these Terms
 
-We may update these Terms from time to time. Material changes will be notified to the email on your account at least 30 days before they take effect. Continued use of the platform after the effective date constitutes acceptance.
+We may update these Terms from time to time. We will notify material changes to the email on your account at least 30 days before they take effect, except where a change is required by law. When we publish a new version we may ask you to accept it before you continue using the dashboard; if you do not accept it, you may close your account. Changes to the platform fee follow Section 7.
 
 ## 16. Contact
 

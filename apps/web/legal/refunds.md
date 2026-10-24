@@ -2,7 +2,8 @@
 
 **DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Reflects the actual refund mechanics shipped in the platform.
 
-**Last updated:** 8 July 2026 (draft)
+**Version:** 2.0
+**Effective date:** [24-10-2026] (draft)
 
 This Policy is issued by **Orkora Technologies Limited**, a registered Nigerian company (RC **9697234**). It applies to the Orkora event-management platform at `orkora.events`.
 
@@ -26,7 +27,7 @@ If the organiser has not published refund terms by the time of sale, the default
 When an organiser initiates a refund:
 
 1. Orkora marks the order `refund_initiated` and records a timestamp in the audit log.
-2. Orkora calls the payment provider (Stripe, Paystack, or Flutterwave) to refund the original payment. The provider returns one of three outcomes: settled, pending, or failed.
+2. Orkora calls the payment provider (Paystack or Flutterwave) to refund the original payment. The provider returns one of three outcomes: settled, pending, or failed.
 3. If settled, Orkora marks the order `refunded`, voids the attendee's tickets, sends a refund confirmation email to the attendee, and writes an audit row.
 4. If pending, Orkora retries verification through a scheduled reconciliation sweep that runs hourly. The order stays in `refund_initiated` until the provider confirms settle or definitively fails.
 5. If failed, Orkora marks the order `refund_failed`, surfaces the failure to the organiser in the dashboard, and offers a manual re-check button that re-queries the provider.
@@ -47,15 +48,14 @@ The platform does not currently support partial refunds. A refund is either for 
 
 ## 6. Platform fees on refunds
 
-During the private beta, **Orkora does not charge a platform fee on ticket sales**, so there is no Orkora platform fee to refund or retain on a refunded order. The payment provider's processing fees may or may not be returned by the provider depending on the provider's own policy; this is between the organiser and the provider.
+When an order is refunded in full through the dashboard, **the Orkora platform fee on that order is returned**, so Orkora keeps nothing on a refunded order. If the organiser passed the fee on to the buyer, the buyer is refunded everything they paid, including the fee. Orders for events that carry no platform fee have no platform fee to return.
 
-When Orkora introduces a platform fee at general availability, this Section will be updated to describe how the fee is treated on refunds, with at least 60 days' notice as per the Terms of Service.
+The payment provider's processing fees may or may not be returned by the provider depending on the provider's own policy; this is between the organiser and the provider.
 
 ## 7. Refund timing
 
 Once Orkora marks an order `refunded`, the funds typically reach the attendee's original payment method within:
 
-- **Stripe (card)**: 5 to 10 business days.
 - **Paystack (card or bank transfer)**: 1 to 14 business days depending on the issuing bank.
 - **Flutterwave (card, bank transfer, USSD)**: 1 to 14 business days depending on the rail.
 

@@ -583,7 +583,15 @@ export default function RegisterPage() {
               <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-center text-xs text-ink-muted">
-              By registering you agree to receive event communications from the organizer.
+              By registering you agree to Orkora&apos;s{' '}
+              <Link href="/legal/terms" target="_blank" className="underline hover:text-ink-secondary">
+                Terms of Service
+              </Link>{' '}
+              and acknowledge the{' '}
+              <Link href="/legal/privacy" target="_blank" className="underline hover:text-ink-secondary">
+                Privacy Policy
+              </Link>
+              , and agree to receive event communications from the organizer.
             </p>
           </form>
         </div>

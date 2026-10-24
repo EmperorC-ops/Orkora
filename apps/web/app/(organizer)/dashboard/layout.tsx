@@ -8,6 +8,7 @@ import {
   BarChart3,
   Calendar,
   Home,
+  LifeBuoy,
   LogOut,
   Mail,
   Menu,
@@ -23,6 +24,7 @@ import { useToast } from '@/components/toast';
 import { readActiveOrgId } from '@/lib/events';
 import { isSuperAdmin } from '@/lib/admin';
 import { Onboarding } from '@/components/onboarding';
+import { LegalGate } from '@/components/legal-gate';
 import { Brand } from '@/components/brand';
 
 const nav = [
@@ -35,6 +37,7 @@ const nav = [
   { href: '/dashboard/branding', label: 'Brand Home', Icon: Sparkles },
   { href: '/dashboard/billing', label: 'Billing', Icon: CreditCard },
   { href: '/dashboard/settings', label: 'Settings', Icon: Settings },
+  { href: '/dashboard/help', label: 'Help', Icon: LifeBuoy },
 ] as const;
 
 interface SessionUser {
@@ -347,7 +350,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
         <main className="flex-1 p-6">
-          {orgState === 'checking' ? null : orgState === 'none' ? <Onboarding /> : children}
+          {orgState === 'checking' ? null : (
+            <LegalGate>{orgState === 'none' ? <Onboarding /> : children}</LegalGate>
+          )}
         </main>
       </div>
     </div>

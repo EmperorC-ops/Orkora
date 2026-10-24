@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { CURRENT_LEGAL_VERSIONS } from '../../common/legal-versions';
 import {
   CreateEventDto,
   CreateSessionDto,
@@ -873,6 +874,21 @@ export class EventsService {
     }
     if (event.endAt <= new Date()) {
       throw new BadRequestException('Cannot publish: event has already ended');
+    }
+    // An organization must have accepted the current Organizer Agreement
+    // (through an owner or admin) before it can publish. The dashboard asks for
+    // it first; this is the server-side backstop.
+    const accepted = await this.prisma.$queryRawUnsafe<Array<{ ok: number }>>(
+      `select 1 as ok from legal_acceptances
+        where organization_id = $1::uuid and document = 'organizer' and version = $2
+        limit 1`,
+      orgId,
+      CURRENT_LEGAL_VERSIONS.organizer,
+    );
+    if (accepted.length === 0) {
+      throw new BadRequestException(
+        'Your organization needs to accept the Organizer Agreement before publishing. An owner or admin can accept it from the dashboard.',
+      );
     }
     return this.serializeEvent(
       await this.prisma.event.update({

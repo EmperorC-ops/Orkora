@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { apiFetch, refreshSession } from '@/lib/auth';
+import { legalApi } from '@/lib/legal';
 
 function slugify(name: string): string {
   return name
@@ -39,6 +40,7 @@ export function Onboarding({ onCreated }: { onCreated?: () => void }) {
   const [countryCode, setCountryCode] = useState('NG');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
 
   // Auto-derive slug from name until the user types their own.
   useEffect(() => {
@@ -56,9 +58,13 @@ export function Onboarding({ onCreated }: { onCreated?: () => void }) {
       setError('Slug must be lowercase letters, numbers, and dashes only.');
       return;
     }
+    if (!agreed) {
+      setError('Please accept the Organizer Agreement to create your organization.');
+      return;
+    }
     setSubmitting(true);
     try {
-      await apiFetch<CreateOrgResponse>('/v1/organizations', {
+      const org = await apiFetch<CreateOrgResponse>('/v1/organizations', {
         method: 'POST',
         json: { name: name.trim(), slug, countryCode },
       });
@@ -70,6 +76,19 @@ export function Onboarding({ onCreated }: { onCreated?: () => void }) {
       // reload below bounced the user straight back to this onboarding gate -
       // the org WAS created but the UI looped as if it were not.
       await refreshSession();
+      // Record the Organizer Agreement for the new organization. Sent as its
+      // own request (not a field on create) so a web deploy that lands before
+      // the API cannot break organization creation. Best effort: if it fails,
+      // the dashboard asks the owner to accept before continuing.
+      try {
+        const versions = await legalApi.versions();
+        await legalApi.accept(
+          [{ document: 'organizer', version: versions.organizer, organizationId: org.id }],
+          'org_create',
+        );
+      } catch {
+        // See above.
+      }
       if (onCreated) onCreated();
       // Hard reload so every hook reads the new membership claim fresh.
       window.location.assign('/dashboard');
@@ -168,6 +187,23 @@ export function Onboarding({ onCreated }: { onCreated?: () => void }) {
             </p>
           </div>
 
+          <label className="flex items-start gap-3 text-sm text-ink-secondary">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              required
+              className="mt-0.5 h-4 w-4 flex-none rounded border-surface-border accent-brand-500"
+            />
+            <span>
+              I accept the{' '}
+              <a href="/legal/organizer" target="_blank" rel="noreferrer" className="font-semibold text-brand-300 underline hover:text-brand-200">
+                Organizer Agreement
+              </a>{' '}
+              on behalf of this organization, including the platform fee on paid tickets.
+            </span>
+          </label>
+
           {error ? (
             <div className="rounded-xl border border-[#FF7675]/30 bg-[#FF7675]/10 px-4 py-3 text-sm text-[#FF9090]">
               {error}
@@ -176,7 +212,7 @@ export function Onboarding({ onCreated }: { onCreated?: () => void }) {
 
           <button
             type="submit"
-            disabled={submitting || name.trim().length < 2 || slug.length < 2}
+            disabled={submitting || !agreed || name.trim().length < 2 || slug.length < 2}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? (

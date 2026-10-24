@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, authApi, persistTokens, safeInternalPath } from '@/lib/auth';
+import { recordSignupConsent } from '@/lib/legal';
 import type { TokenBundle } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin';
 import { Brand } from '@/components/brand';
@@ -65,7 +66,7 @@ function OtpPageInner() {
       // the refresh + CSRF cookies in one round trip. The user record already
       // exists (created by POST /v1/auth/signup on the /signup page for the
       // signup flow, or from a prior registration for the login flow), so no
-      // password needs to travel here — which is why the old sessionStorage
+      // password needs to travel here, which is why the old sessionStorage
       // password stash is gone. The previous signup branch called
       // verifyOtp + /auth/signup, the latter of which returns no tokens, so
       // the session was never established and every later request 401'd.
@@ -75,6 +76,9 @@ function OtpPageInner() {
         auth: false,
       });
       persistTokens(tokens);
+      // Record the Terms consent given on the signup page, now that the
+      // account and session exist. Best effort; the dashboard asks otherwise.
+      if (purpose === 'signup') await recordSignupConsent();
       // Clean up any stale stash left by older builds of the signup page.
       try {
         sessionStorage.removeItem('orkora_pending_signup');
