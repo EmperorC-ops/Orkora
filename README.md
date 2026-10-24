@@ -143,6 +143,8 @@ orkora/
 | `notifications` | Email (Postmark) and SMS (Termii, Twilio) providers |
 | `admin` | Platform console: overview, orgs, users (segmented), events, settlement holds, deletion |
 | `audit` | Append-only `audit_events` writer (global module) |
+| `legal` | Clickwrap acceptance of the Terms, Privacy Policy and Organizer Agreement (`legal_acceptances`); current versions in `common/legal-versions.ts` |
+| `help` | Organizer help sections, filtered by the caller's role (`help-content.ts`) |
 | `api-keys` | Organization API keys (`ork_` prefix) with scopes |
 | `reports`, `health` | Reporting endpoints, and liveness plus readiness |
 
@@ -220,7 +222,7 @@ Values never go in the repository. Production values are set in the Render dashb
 **Read this section before changing the schema.**
 
 - **`schema.sql`** (repo root) is the canonical, complete schema for a fresh install: tables, the `uuidv7()` function, indexes, SQL-only objects and RLS statements.
-- **`apps/api/migrations/NNNN_name.sql`** are numbered, forward-only and idempotent (`IF NOT EXISTS`, wrapped in `BEGIN`/`COMMIT`). At the time of writing they run from `0001` to `0028`.
+- **`apps/api/migrations/NNNN_name.sql`** are numbered, forward-only and idempotent (`IF NOT EXISTS`, wrapped in `BEGIN`/`COMMIT`). At the time of writing they run from `0001` to `0031`.
 - **`apps/api/scripts/migrate.mjs`** applies pending migrations in order, each in its own transaction, under an advisory lock, and records them in `schema_migrations`. `--status` lists applied and pending migrations without changing anything.
 - **Migrations run automatically when the API boots** (`docker-entrypoint.sh`, `RUN_MIGRATIONS_ON_BOOT` defaults to true). Pushing a migration to `main` therefore applies it to production on the next Render deploy.
 - **`apps/api/prisma/schema.prisma`** mirrors the tables for typed access and must be kept in step by hand. Never run `prisma db push` or `prisma migrate` against a real database: Prisma does not know the SQL-only objects and will try to drop them.
@@ -321,12 +323,10 @@ In rough priority order. Details for each item are in BUILD_HISTORY.
 2. **Payment verification:** run the Paystack test-mode split and refund check, then the Flutterwave test-mode run, recording what happens to the wallet, the subaccount and the refund record.
 3. **Commit and push the admin deletion feature,** then try it on one test account first.
 4. **Rebuild staging:** Render API, Neon branch and DNS (`docs/staging/STAGING.md`, `render.staging.yaml`).
-5. **Per-event analytics "Insights":** slicers (date, tier, status, VIP, form answers), check-in arrival chart, CSV export. An optional later phase records the link each registrant came from.
-6. **Polls without sessions,** for single-talk events. Needs a schema change.
-7. **Event-scoped team access** with automatic expiry. Roles are organization-wide today.
-8. **Signup-abuse hardening, Phase 2:** the Phase 1 audit is done and three product questions are open (fixed versus sanitized subjects, limiting test sends to verified members, whether the Postmark server is dedicated).
-9. **Optional:** sign in directly from the invite link; push notifications (`PUSH_NOTIFICATIONS_DESIGN.md`); mobile parity with the web.
-10. **Tidy up:** promote ESLint warnings to errors; delete or update the unused Terraform and AWS workflow; decide what to do with Redis.
+5. **Event-scoped team access** with automatic expiry. Roles are organization-wide today.
+6. **Signup-abuse hardening, Phase 2:** Phase 1 audit done; decisions taken 24 Oct 2026: fixed subjects, verified-only test sends, Postmark server dedicated to Orkora.
+7. **Optional:** sign in directly from the invite link; push notifications (`PUSH_NOTIFICATIONS_DESIGN.md`); mobile parity with the web.
+8. **Tidy up:** promote ESLint warnings to errors; delete or update the unused Terraform and AWS workflow; decide what to do with Redis.
 
 ---
 

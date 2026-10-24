@@ -200,6 +200,12 @@ export default function LoginPage() {
           Create an account
         </Link>
       </p>
+      <p className="mt-3 text-center text-xs text-ink-muted">
+        Trouble signing in?{' '}
+        <Link href="/help" className="underline hover:text-ink-secondary">
+          Help
+        </Link>
+      </p>
     </AuthShell>
   );
 }
