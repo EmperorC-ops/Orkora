@@ -54,6 +54,34 @@ export interface AdminUsersPage extends Paged<AdminUser> {
   counts?: Record<UserSegment, number>;
 }
 
+export interface UserDeletionPreview {
+  user: { id: string; email: string; fullName: string };
+  deleteBlockers: string[];
+  eraseBlockers: string[];
+  willRemove: {
+    registrations: number;
+    ticketsReleased: number;
+    unpaidOrders: number;
+    messages: number;
+    pollVotes: number;
+    memberships: string[];
+  };
+  keptRecords: { paidOrders: number };
+}
+
+export interface OrgDeletionPreview {
+  organization: { id: string; name: string; slug: string };
+  deleteBlockers: string[];
+  willRemove: {
+    events: string[];
+    registrations: number;
+    tickets: number;
+    members: number;
+    campaigns: number;
+  };
+  keptRecords: { paidOrders: number };
+}
+
 export interface AdminEvent {
   id: string;
   code: string;
@@ -121,6 +149,25 @@ export const adminApi = {
         take: opts.take ? String(opts.take) : undefined,
       })}`,
     ),
+  userDeletionPreview: (id: string) =>
+    apiFetch<UserDeletionPreview>(`/v1/admin/users/${id}/deletion-preview`),
+  deleteUser: (id: string, confirm: string) =>
+    apiFetch<{ id: string; deleted: boolean }>(`/v1/admin/users/${id}/delete`, {
+      method: 'POST',
+      json: { confirm },
+    }),
+  eraseUser: (id: string, confirm: string) =>
+    apiFetch<{ id: string; erased: boolean }>(`/v1/admin/users/${id}/erase`, {
+      method: 'POST',
+      json: { confirm },
+    }),
+  orgDeletionPreview: (id: string) =>
+    apiFetch<OrgDeletionPreview>(`/v1/admin/organizations/${id}/deletion-preview`),
+  deleteOrg: (id: string, confirm: string) =>
+    apiFetch<{ id: string; deleted: boolean }>(`/v1/admin/organizations/${id}/delete`, {
+      method: 'POST',
+      json: { confirm },
+    }),
   setPlatformRole: (id: string, role: PlatformRole) =>
     apiFetch<{ id: string; platformRole: PlatformRole }>(`/v1/admin/users/${id}/platform-role`, {
       method: 'POST',

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi, type AdminOrg } from '@/lib/admin';
+import { DeletionDialog } from '../DeletionDialog';
 
 export default function AdminOrganizationsPage() {
   const [rows, setRows] = useState<AdminOrg[]>([]);
@@ -9,6 +10,8 @@ export default function AdminOrganizationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<{ kind: 'org'; id: string; label: string } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async (search?: string) => {
     setLoading(true);
@@ -65,6 +68,7 @@ export default function AdminOrganizationsPage() {
       </div>
 
       {error ? <p className="text-sm text-[#FF9090]">{error}</p> : null}
+      {notice ? <p className="text-sm text-[#34D399]">{notice}</p> : null}
 
       <div className="overflow-x-auto rounded-2xl border border-surface-border">
         <table className="w-full text-left text-sm">
@@ -125,6 +129,16 @@ export default function AdminOrganizationsPage() {
                     >
                       {busy === o.id ? '...' : o.status === 'suspended' ? 'Restore' : 'Suspend'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotice(null);
+                        setRemoving({ kind: 'org', id: o.id, label: `${o.name} (/${o.slug})` });
+                      }}
+                      className="ml-2 rounded-full border border-[#FF7675]/40 px-3 py-1.5 text-xs font-semibold text-[#FF9090] hover:bg-[#FF7675]/10"
+                    >
+                      Delete...
+                    </button>
                   </td>
                 </tr>
               ))
@@ -132,6 +146,18 @@ export default function AdminOrganizationsPage() {
           </tbody>
         </table>
       </div>
+
+      {removing ? (
+        <DeletionDialog
+          target={removing}
+          onClose={() => setRemoving(null)}
+          onDone={(message) => {
+            setRemoving(null);
+            setNotice(message);
+            load(q || undefined);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

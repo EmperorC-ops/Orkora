@@ -8,6 +8,7 @@ import {
   type UserSegment,
   type UserSort,
 } from '@/lib/admin';
+import { DeletionDialog } from '../DeletionDialog';
 
 const ROLE_OPTIONS: PlatformRole[] = ['none', 'support', 'superadmin'];
 const PAGE_SIZE = 50;
@@ -68,6 +69,8 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<{ kind: 'user'; id: string; label: string } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -185,6 +188,7 @@ export default function AdminUsersPage() {
 
       {activeHint ? <p className="-mt-2 text-xs text-ink-muted">{activeHint}</p> : null}
       {error ? <p className="text-sm text-[#FF9090]">{error}</p> : null}
+      {notice ? <p className="text-sm text-[#34D399]">{notice}</p> : null}
 
       <div className="overflow-x-auto rounded-2xl border border-surface-border">
         <table className="w-full text-left text-sm">
@@ -197,18 +201,19 @@ export default function AdminUsersPage() {
               <th className="px-4 py-3">Joined</th>
               <th className="px-4 py-3">Last sign-in</th>
               <th className="px-4 py-3">Platform role</th>
+              <th className="px-4 py-3 text-right">Remove</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-secondary">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-secondary">
                   Loading...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-secondary">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-secondary">
                   No users in this view.
                 </td>
               </tr>
@@ -272,6 +277,18 @@ export default function AdminUsersPage() {
                         ))}
                       </select>
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotice(null);
+                          setRemoving({ kind: 'user', id: u.id, label: `${u.fullName} (${u.email})` });
+                        }}
+                        className="rounded-full bg-[#FF7675]/15 px-3 py-1.5 text-xs font-semibold text-[#FF9090] hover:bg-[#FF7675]/25"
+                      >
+                        Delete...
+                      </button>
+                    </td>
                   </tr>
                 );
               })
@@ -279,6 +296,18 @@ export default function AdminUsersPage() {
           </tbody>
         </table>
       </div>
+
+      {removing ? (
+        <DeletionDialog
+          target={removing}
+          onClose={() => setRemoving(null)}
+          onDone={(message) => {
+            setRemoving(null);
+            setNotice(message);
+            load();
+          }}
+        />
+      ) : null}
 
       <div className="flex items-center justify-between text-sm text-ink-secondary">
         <span>
