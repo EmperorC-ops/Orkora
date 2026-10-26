@@ -24,6 +24,7 @@ import {
   PLANNED_PLATFORM_FEE_BPS,
   PLANNED_PLATFORM_FEE_FLAT_MINOR,
   PLANNED_PLATFORM_FEE_FLAT_CURRENCY,
+  PLATFORM_FEE_EFFECTIVE_AT,
 } from '../../common/platform-fee';
 
 // Single source of truth for the planned fee lives in common/platform-fee.ts.
@@ -83,11 +84,15 @@ export class BillingService {
         platformFeePercent: PLATFORM_FEE_BPS / 100,
         platformFeeFlatMinor: PLANNED_PLATFORM_FEE_FLAT_MINOR,
         platformFeeFlatCurrency: PLANNED_PLATFORM_FEE_FLAT_CURRENCY,
+        // Matches Section 7 of the Terms of Service (version 2.1).
         notes: [
-          'Platform fee is currently 0% during private beta; the figures shown are advisory only.',
-          `Planned pricing is ${PLATFORM_FEE_BPS / 100}% plus ${PLANNED_PLATFORM_FEE_FLAT_CURRENCY} ${(
+          `The platform fee on each paid ticket is ${PLATFORM_FEE_BPS / 100}% of the ticket price plus ${PLANNED_PLATFORM_FEE_FLAT_CURRENCY} ${(
             PLANNED_PLATFORM_FEE_FLAT_MINOR / 100
-          ).toFixed(2)} per paid ticket. The figure above reflects the percentage only.`,
+          ).toFixed(2)} per ticket, or its Naira equivalent for Naira sales. Free tickets carry no fee.`,
+          PLATFORM_FEE_EFFECTIVE_AT
+            ? `It applies to events created on or after ${PLATFORM_FEE_EFFECTIVE_AT.toISOString().slice(0, 10)}. Each event keeps the fee in effect when it was created.`
+            : 'The platform fee is not yet in effect.',
+          'The fee column above shows the percentage part only.',
           'Payment processing fees are charged separately by your payment provider, not by Orkora.',
         ],
       },

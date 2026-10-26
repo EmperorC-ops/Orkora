@@ -11,7 +11,7 @@ An event platform. Organizers create an event page, take registrations (free or 
 **Who runs my event?**
 The organizer named on the event page. Orkora provides the platform; questions about the event itself (programme, venue, refunds) go to the organizer.
 
-## For attendees
+## For Attendees
 
 **I registered but did not get my ticket email.**
 1. Check spam, junk or Promotions, and search your inbox for "Orkora".
@@ -36,7 +36,7 @@ Yes. Your ticket and the live room offer an **Install** option, or use your brow
 **I want a refund.**
 Refunds are decided by the organizer under their own refund terms. Contact the organizer of your event. See the [Refund Policy](/legal/refunds) for how refunds are processed.
 
-## For organizers
+## For Organizers
 
 **How do I start?**
 Choose **Get started** on the home page, enter your name and email, and type in the code we send you. Then create your organization and your first event.

@@ -20,7 +20,7 @@ import { LegalEntityLine } from '@/components/legal-entity';
 // layout.tsx (default, metadata, generateMetadata, viewport, ...). Anything
 // else trips a build-time type error in `.next/types`. Keep the display date
 // as a local const.
-const LAST_UPDATED = '24 October 2026';
+const LAST_UPDATED = '26 October 2026';
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (

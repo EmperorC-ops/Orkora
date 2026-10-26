@@ -25,7 +25,7 @@ export const HELP_SECTIONS: HelpSection[] = [
   // ---------------------------------------------------------------- staff
   {
     id: 'check-in',
-    title: 'Check-in on the day',
+    title: 'Check-In on the Day',
     minRole: 'staff',
     body: `**How do I check people in?**
 Open the event and choose **Run check-in**, then use any of these:
@@ -48,7 +48,7 @@ Yes. Each person checks in on their own phone and the checked-in count updates f
   },
   {
     id: 'attendees',
-    title: 'Registrations and attendees',
+    title: 'Registrations and Attendees',
     minRole: 'staff',
     body: `**Where do I see who has registered?**
 Open the event, then **Registrations**. The tabs are **All**, **Confirmed**, **Pending**, **Cancelled** and **VIP**. The header shows the totals and the live checked-in count.
@@ -82,7 +82,7 @@ Yes. **Export CSV** in Insights downloads the attendees in the current view, wit
   // ------------------------------------------------------------ organizer
   {
     id: 'events',
-    title: 'Creating and editing events',
+    title: 'Creating and Editing Events',
     minRole: 'organizer',
     body: `**How do I create an event?**
 **Events, then Create a new event.** Add a title, description, format (in person, virtual or hybrid), start and end times, timezone and location. You can change all of it later.
@@ -111,7 +111,7 @@ All three are optional. Polls can run for the whole event or for one session.
   },
   {
     id: 'tickets',
-    title: 'Tickets and registration',
+    title: 'Tickets and Registration',
     minRole: 'organizer',
     body: `**How do I add tickets?**
 Under **Ticket tiers**, choose **Add tier**. Set a name, price (0 for free), currency and quantity.
@@ -149,7 +149,7 @@ The Story tab shows views, how many visitors reached the tickets section, and wh
   },
   {
     id: 'live',
-    title: 'The live room: Q&A, polls, chat and spotlight',
+    title: 'The Live Room: Q&A, Polls, Chat and Spotlight',
     minRole: 'organizer',
     body: `**What is the live room?**
 A second screen for attendees during the event: ask and upvote questions, vote in polls, chat. Attendees open it from **Join live** on their ticket.
@@ -171,7 +171,7 @@ Yes. Hide it from Live control.`,
   },
   {
     id: 'extras',
-    title: 'Discounts, recordings and feedback',
+    title: 'Discounts, Recordings and Feedback',
     minRole: 'organizer',
     body: `**How do I create a discount code?**
 On the event, **Discounts, then New code**. Choose **Percentage off** (1 to 100) or **Fixed amount off**, and optionally a maximum number of uses, an expiry and a specific tier.
@@ -186,7 +186,7 @@ Attendees leave a rating, a 0 to 10 score and comments from the event page. See 
   // ---------------------------------------------------------------- admin
   {
     id: 'team',
-    title: 'Your team: roles and access',
+    title: 'Your Team: Roles and Access',
     minRole: 'admin',
     body: `**How do I add someone?**
 **Settings, then Invite a teammate.** Enter their email and choose a role. They receive an email with an accept link.
@@ -218,7 +218,7 @@ The browser is signed in to another account. Choose **Sign out and use the invit
   },
   {
     id: 'campaigns',
-    title: 'Email campaigns',
+    title: 'Email Campaigns',
     minRole: 'admin',
     body: `**How do I email attendees?**
 **Campaigns** in the menu. Choose an audience, then write the email.
@@ -246,7 +246,7 @@ Yes, a daily limit per organization. Contact us before emailing a very large aud
   },
   {
     id: 'payments',
-    title: 'Paid events, payouts and refunds',
+    title: 'Paid Events, Payouts and Refunds',
     minRole: 'admin',
     body: `**How do I sell paid tickets?**
 Set a price on the tier and connect a payout account under **Settings, then Payout accounts**: pick your bank, enter the account number, verify it and connect.
@@ -271,7 +271,7 @@ Open **Attendees**, choose the person, then **Refund** on the order. The buyer i
   },
   {
     id: 'brand',
-    title: 'Brand Home and branding',
+    title: 'Brand Home and Branding',
     minRole: 'admin',
     body: `**What is Brand Home?**
 A public page for your organization at **orkora.events/o/your-name**, listing upcoming and past events, where visitors can subscribe for new ones. Set it up under **Brand Home** in the menu.

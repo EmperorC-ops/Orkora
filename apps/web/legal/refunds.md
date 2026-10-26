@@ -1,79 +1,40 @@
 # Refund Policy
 
-**DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. Reflects the actual refund mechanics shipped in the platform.
+**Version:** 2.1
+**Effective date:** 26 October 2026
 
-**Version:** 2.0
-**Effective date:** [24-10-2026] (draft)
+This Policy is issued by **Orkora Technologies Limited**, a company registered in Nigeria (RC **9697234**), and applies to tickets sold on `orkora.events`.
 
-This Policy is issued by **Orkora Technologies Limited**, a registered Nigerian company (RC **9697234**). It applies to the Orkora event-management platform at `orkora.events`.
+## 1. Who Decides Refunds
 
-## 1. Scope
+Tickets are sold by the event organiser, so **the organiser decides whether a refund is due**, under the refund terms published on the event page. If an organiser has published no refund terms, refunds are at the organiser's discretion. Orkora does not set refund rules for events.
 
-This Policy describes how refunds work on the Orkora platform. Two refund flows exist:
+## 2. How to Ask for a Refund
 
-1. **Organiser-initiated refunds**: the event organiser refunds an attendee's order from the dashboard.
-2. **Attendee-initiated refund requests**: the attendee contacts the organiser to request a refund. The organiser then issues it from the dashboard.
+Contact the organiser of the event. If you cannot reach them after 5 business days, email hello@orkora.events with your order number and we will try to help, but the decision remains the organiser's.
 
-Orkora does not process refunds directly to attendees; refunds are initiated by the organiser and settled through the original payment provider. Orkora ensures the refund settles correctly, that the attendee receives a refund confirmation, and that the corresponding tickets are voided so they cannot be reused at the door.
+## 3. How a Refund Is Paid
 
-## 2. Eligibility
+The organiser issues the refund from the Orkora dashboard. The money goes back to the payment method you used, through the same payment provider. When the refund is complete, your ticket is cancelled and you receive a confirmation email.
 
-Eligibility for a refund depends on the organiser's own refund terms, which the organiser must publish on the event page before selling tickets. Orkora does not set a platform-wide eligibility rule.
+Refunds are for the full order. A partial refund has to be arranged directly between you and the organiser.
 
-If the organiser has not published refund terms by the time of sale, the default rule under this Policy applies: **refunds are at the organiser's discretion**.
+## 4. Platform Fee on Refunds
 
-## 3. How a refund settles
+When an order is refunded in full through Orkora, Orkora returns its platform fee. If the fee was added to your ticket price, you get it back as part of your refund. Payment providers may or may not return their own processing fees.
 
-When an organiser initiates a refund:
+## 5. Refund Timing
 
-1. Orkora marks the order `refund_initiated` and records a timestamp in the audit log.
-2. Orkora calls the payment provider (Paystack or Flutterwave) to refund the original payment. The provider returns one of three outcomes: settled, pending, or failed.
-3. If settled, Orkora marks the order `refunded`, voids the attendee's tickets, sends a refund confirmation email to the attendee, and writes an audit row.
-4. If pending, Orkora retries verification through a scheduled reconciliation sweep that runs hourly. The order stays in `refund_initiated` until the provider confirms settle or definitively fails.
-5. If failed, Orkora marks the order `refund_failed`, surfaces the failure to the organiser in the dashboard, and offers a manual re-check button that re-queries the provider.
+Once a refund is issued, it usually reaches your account within 1 to 14 business days, depending on your bank and payment method. This timing is set by the payment provider and your bank.
 
-The reconciliation sweep is the safety net: if the provider's webhook to Orkora is missed, the sweep catches the settled refund and runs the same finishing logic. Each finishing path uses a unique-constraint-backed lock so the refund confirmation email is sent exactly once and the audit row is written exactly once.
+## 6. Chargebacks
 
-## 4. Voiding of tickets
+Please contact the organiser before asking your bank to reverse a payment. A chargeback is handled by the payment provider under its own rules.
 
-When a refund settles, all tickets associated with the refunded order are voided. Voided tickets fail at the check-in scanner with a clear "this ticket was refunded" message. The signed QR token on a voided ticket remains valid as a token, but the server-side ticket record is in the `refunded` state and the scanner uses that state, not the token alone, to decide entry.
+## 7. Disputes
 
-If the attendee has already checked in before the refund is initiated, the check-in record remains but the ticket flips to `refunded`. The organiser sees both states in the attendee detail panel.
+A disagreement about whether a refund is owed is between you and the organiser. Orkora can share the order history to help, but is not a party to the dispute. You may also contact your payment provider or a consumer protection authority, such as the Federal Competition and Consumer Protection Commission in Nigeria.
 
-## 5. Partial refunds
+## 8. Contact
 
-The platform does not currently support partial refunds. A refund is either for the full original order amount or it is not issued at all. If an organiser needs to refund a fractional amount, they must do so out-of-band through the payment provider's dashboard; Orkora will not be aware of an out-of-band refund and the ticket state will not change.
-
-[COUNSEL NOTE: this is an explicit statement of a current limitation. We considered being silent on partial refunds, but transparency is better.]
-
-## 6. Platform fees on refunds
-
-When an order is refunded in full through the dashboard, **the Orkora platform fee on that order is returned**, so Orkora keeps nothing on a refunded order. If the organiser passed the fee on to the buyer, the buyer is refunded everything they paid, including the fee. Orders for events that carry no platform fee have no platform fee to return.
-
-The payment provider's processing fees may or may not be returned by the provider depending on the provider's own policy; this is between the organiser and the provider.
-
-## 7. Refund timing
-
-Once Orkora marks an order `refunded`, the funds typically reach the attendee's original payment method within:
-
-- **Paystack (card or bank transfer)**: 1 to 14 business days depending on the issuing bank.
-- **Flutterwave (card, bank transfer, USSD)**: 1 to 14 business days depending on the rail.
-
-These timings are set by the payment provider and the attendee's bank; Orkora has no control over them. The refund confirmation email Orkora sends includes this expected window.
-
-## 8. Chargebacks
-
-If you initiate a chargeback against an organiser through your bank instead of asking the organiser for a refund, the payment provider's chargeback process takes over and Orkora's refund mechanics are bypassed. Chargebacks impose a fee on the organiser, often reduce the organiser's standing with the payment provider, and may prevent the organiser from running future events on the platform.
-
-We respectfully encourage you to contact the organiser first. Their dashboard surfaces refund requests immediately. If the organiser does not respond within 5 business days, contact hello@orkora.events and we will help.
-
-[COUNSEL NOTE: confirm "discouraging" language above is permissible in our consumer-protection jurisdictions. Wording deliberately softer than "do not chargeback".]
-
-## 9. Disputes about a refund
-
-If you and the organiser disagree about whether a refund is owed, the dispute is between you and the organiser. Orkora can facilitate by surfacing the order and refund history in the dashboard but is not a party to the dispute. If you cannot reach agreement, you may contact your payment provider or your local consumer-protection authority.
-
-## 10. Contact
-
-- Refund mechanics, technical issues: hello@orkora.events
-- Disputes you cannot resolve with the organiser: hello@orkora.events (with the order id)
+- Refund questions: hello@orkora.events (include your order number)

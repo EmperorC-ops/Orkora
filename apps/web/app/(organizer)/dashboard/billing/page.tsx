@@ -60,11 +60,9 @@ export default function BillingPage() {
           <div className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Current plan</div>
           <div className="mt-2 text-xl font-semibold capitalize text-ink-primary">{overview.plan.name}</div>
           <div className="mt-1 text-xs text-ink-secondary">
-            {/* Not charged until PLATFORM_FEE_EFFECTIVE_AT, which the Terms require
-                to be at least 60 days after written notice to organizers. Update
-                this line to show the effective date once the notice is sent. */}
-            Platform fee: {overview.plan.platformFeePercent}%. Not yet charged; you will get at
-            least 60 days&apos; written notice before it takes effect.
+            {/* Matches Section 7 of the Terms of Service (version 2.1). */}
+            Platform fee on each paid ticket: {overview.plan.platformFeePercent}% of the ticket price plus a
+            fixed amount per ticket (US$0.99, or its Naira equivalent). Free tickets carry no fee.
           </div>
         </div>
         <div className="rounded-2xl border border-surface-border bg-surface/40 p-5">

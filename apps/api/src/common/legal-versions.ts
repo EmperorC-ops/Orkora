@@ -15,9 +15,9 @@ export const LEGAL_DOCUMENTS = ['terms', 'privacy', 'organizer'] as const;
 export type LegalDocument = (typeof LEGAL_DOCUMENTS)[number];
 
 export const CURRENT_LEGAL_VERSIONS: Record<LegalDocument, string> = {
-  terms: '2.0',
-  privacy: '1.0',
-  organizer: '2.0',
+  terms: '2.1',
+  privacy: '1.1',
+  organizer: '2.1',
 };
 
 /** Where an acceptance was given, kept as evidence alongside the timestamp. */

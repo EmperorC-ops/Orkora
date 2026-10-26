@@ -1,158 +1,100 @@
 # Organizer Agreement
 
-**DRAFT FOR COUNSEL REVIEW.** Defaults applied per LEGAL_REVIEW_PACKET.md §2. This is the supplemental agreement that applies when you create an Organisation on Orkora. You accept it by ticking the box confirming your agreement when you create your Organisation, or when we ask you to accept an updated version.
+**Version:** 2.1
+**Effective date:** 26 October 2026
 
-**Version:** 2.0
-**Effective date:** [24-10-2026] (draft)
+This Agreement is between you (the "Organiser") and **Orkora Technologies Limited** ("Orkora"), a company registered in Nigeria (RC **9697234**). It applies when you create an Organisation on Orkora and adds to the Orkora Terms of Service. If the two conflict on a matter about your Organisation or your events, this Agreement applies. You accept it by ticking the box when you create your Organisation, or when we ask you to accept an updated version.
 
-This Organizer Agreement is between you (the Organiser) and **Orkora Technologies Limited** ("Orkora"), a registered Nigerian company (RC **9697234**). It supplements the Orkora Terms of Service. If there is any conflict between this Agreement and the Terms, this Agreement controls for matters relating to your organisation, your events, and your relationship with attendees.
+## 1. Who You Are
 
-## 1. Who you are
+You confirm that:
 
-You ("Organiser", "you") create an Orkora Organisation, set it up with payment provider connections, and use the platform to sell tickets, register attendees, run events, and collect data about attendance. You confirm that:
+- You are authorised to act for the person or business hosting the event.
+- The contact and payout details you give us are accurate and belong to that person or business.
+- You hold any licence or permit your events need.
 
-- You are authorised to enter into binding contracts on behalf of the legal entity hosting the event.
-- The contact, billing, and bank-account details you give us are accurate, current, and belong to your entity.
-- You comply with any licensing, permitting, or regulatory requirement applicable to the events you host.
+We may ask for verification documents at any time, in addition to the checks your payment provider runs.
 
-For higher-value organisers, **once your settled volume exceeds the equivalent of US$5,000 in any rolling 30-day window**, Orkora may request additional verification documents (proof of address, beneficial-ownership filing, bank-account ownership). This is in addition to whatever verification your payment provider runs at onboarding.
+## 2. Your Account and Your Team
 
-## 2. Your account and your team
+You may invite team members as Owner, Admin, Organiser or Staff. Each role's access is described in the dashboard help. You are responsible for what your team members do. Remove access when someone leaves.
 
-You may invite team members to your Organisation with one of these roles:
+## 3. Platform Fees
 
-- **Owner**: full administrative control, can add or remove other owners.
-- **Admin**: manage events, tickets, payments, refunds, campaigns, billing.
-- **Organiser**: read-write on event content, registrations, attendees, sessions, and the live room.
-- **Staff**: read-only plus check-in rights.
-- **Vendor**: reserved for future use; currently no access.
+The platform fee is set out in Section 7 of the Terms of Service. In short, for **each paid ticket** Orkora charges:
 
-Roles apply to every event in your Organisation.
+- **3% of that ticket's price**, plus
+- **a fixed amount per ticket**: US$0.99, or its Naira equivalent for Naira sales (currently NGN 1,350, which follows the exchange rate and may change).
 
-You are responsible for the actions of every member of your Organisation. Revoke access promptly when a team member leaves.
+The percentage is worked out on each ticket, not on your total sales. For example, a NGN 10,000 ticket carries a fee of NGN 300 + NGN 1,350 = NGN 1,650. An order of two such tickets carries NGN 3,300.
 
-## 3. Platform fees
-
-Orkora charges a platform fee on paid tickets as set out in Section 7 of the Terms of Service: currently **3% of the ticket price plus a fixed amount per paid ticket** (US$0.99, or NGN 1,350 for Naira sales). Free tickets carry no platform fee. Each event keeps the fee in effect on the day it was created until it ends, and events created before the effective date of this version carry no platform fee. You choose per event whether to absorb the fee or pass it on to buyers. Payment-provider processing fees are separate and are deducted at settlement by the provider. We will give you at least 30 days' written notice of any change to the fee, and a change applies only to events created after it takes effect.
+Free tickets carry no fee. You choose for each event whether to absorb the fee or pass it on to buyers. Your payment provider's processing fees are separate.
 
 ## 4. Payments
 
-Funds from paid tickets settle to your connected payment account at the provider you have configured for the buyer's currency. Orkora does not hold customer funds and is not a payment processor. You are solely responsible for:
+Ticket payments are processed by your payment provider. Your share settles from the provider to your own account; Orkora's platform fee is split out by the provider at the same time. **Orkora never receives or holds your ticket revenue.** You are responsible for:
 
-- Connecting and maintaining the payment provider account.
-- Complying with the payment provider's terms of service.
-- Tax obligations on revenue earned through ticket sales.
-- Issuing invoices or VAT documents required in your jurisdiction.
+- Keeping your payment provider account in good standing and following its terms.
+- Taxes on your ticket revenue, and any invoices or tax documents your attendees need.
 
 ## 5. Refunds
 
-You are responsible for publishing your own refund terms on each event page before selling tickets. The platform-level refund mechanics are described in `/legal/refunds`. You agree to:
+You must publish your refund terms on each event page before selling tickets, and handle refund requests from your attendees promptly. Issue refunds through the Orkora dashboard so the ticket is cancelled and the attendee is notified. See the Refund Policy at `/legal/refunds`.
 
-- Process eligible refund requests within 5 business days of receiving the request.
-- Use the dashboard refund flow (which voids the ticket QR) rather than refunding through the payment provider's dashboard out of band.
-- Reply within 5 business days to a refund dispute escalated by an attendee to Orkora.
+## 6. Content and Conduct
 
-## 6. Content and conduct
+You must not host unlawful events or publish content that is misleading, infringing, defamatory or that incites violence, hatred or discrimination. If we receive a substantiated complaint, we may remove the content or suspend the event. We will tell you why and give you a chance to respond, unless the law or the risk to attendees requires us to act at once.
 
-You agree not to host events that are illegal in the jurisdiction where the event takes place. You agree not to publish content on the event page that is defamatory, infringing, deceptive, or that incites violence, hatred, or discrimination.
+## 7. Data Protection
 
-Orkora maintains an abuse-takedown process:
+For the personal data your attendees give when they register:
 
-- Acknowledge receipt of a complaint within 1 business day.
-- Complete review within 3 business days.
-- Suspend or take down the offending event or content if the complaint is substantiated.
+- **You** are the controller. You decide how you use it, and you must give your attendees any privacy information the law requires.
+- **Orkora** processes it for you, to run your events on the platform, and keeps it secure.
 
-If we suspend or take down your event we will tell you why, give you an opportunity to respond, and (where the event continues to be live) preserve attendee data and refund obligations.
-
-## 7. Data protection
-
-For the personal data your attendees give us when registering for your event:
-
-- **You** are the controller. You decide why the data is collected, what it is used for, and how long it is kept.
-- **Orkora** is the processor. We process the data on your written instructions (those instructions are encoded in your dashboard configuration, in the Privacy Policy, and in this Agreement).
-
-You agree to:
-
-- Provide attendees with a privacy notice that meets the standard of the data-protection law applicable to your event (NDPR, GDPR, UK GDPR, or the equivalent).
-- Honour data-subject rights requests from your attendees within the period required by applicable law.
-- Notify Orkora at dpo@orkora.events within 24 hours if you become aware of a data breach affecting attendee data, and cooperate with our investigation.
-
-Orkora will:
-
-- Process attendance data only on your behalf for the purpose of operating the event on the platform.
-- Maintain the sub-processor list in the Privacy Policy and give you 30 days' notice before changing it.
-- Notify you within 72 hours if Orkora becomes aware of a breach affecting your attendees' data.
-
-[COUNSEL NOTE: this section is our DPA-by-reference until a standalone DPA template is drafted. Per LEGAL_REVIEW_PACKET §2 we asked whether the Privacy Policy sub-processor table plus this clause is sufficient or whether we need a separate DPA the Organiser signs. Decision pending counsel.]
+You must respond to your attendees' data requests as the law requires and tell us promptly at dpo@orkora.events about any security incident involving attendee data. We will tell you without undue delay if we become aware of one.
 
 ## 8. Confidentiality
 
-Each party will keep confidential any non-public information shared by the other in the course of the relationship. This does not apply to: information that becomes publicly known through no fault of the receiving party, information already known to the receiving party before disclosure, or information disclosed pursuant to a legal obligation.
+Each of us will keep the other's non-public information confidential, except where it is already public, already known, or must be disclosed by law.
 
-## 9. Term and termination
+## 9. Term and Termination
 
-This Agreement starts when you create your Organisation and continues until either party terminates with 30 days' written notice. Either party may terminate immediately for material breach if the breach is not cured within 14 days of written notice.
+This Agreement continues until either of us ends it with 30 days' written notice. Either of us may end it sooner if the other commits a serious breach that is not put right within 14 days of notice. When it ends, your dashboard access ends, but your obligations to your attendees, including refunds, continue.
 
-On termination:
+## 10. Chargebacks and Risk
 
-- Your access to the dashboard ends.
-- Live events continue to be honoured to existing attendees through their scheduled end date.
-- Attendee data is preserved per the retention schedule in the Privacy Policy.
-- Outstanding refund obligations to attendees survive termination.
+A chargeback is a buyer asking their bank to reverse a payment. Chargebacks are handled by your payment provider, which may recover the amount and its charges from you under its own terms. Orkora does not hold your funds, so it does not keep reserves.
 
-## 10. Chargebacks and risk
+If chargebacks on your events become excessive (more than 1% of your transactions over 30 days), or we see signs of fraud, Orkora may ask for more information, pause paid ticket sales on your Organisation, or end this Agreement. We will tell you first and give you a reasonable chance to fix the problem, unless we must act at once to protect buyers or the platform.
 
-You acknowledge that excessive chargebacks pose a risk to Orkora's payment-provider relationships. If your chargeback rate exceeds **1% of net transactions over any rolling 30-day window** (the Visa and Mastercard "Excessive Chargeback Threshold"), Orkora may:
+## 11. Email Campaigns
 
-- Require additional KYC or business documentation.
-- Hold a percentage of settled funds as a chargeback reserve for up to 180 days.
-- Suspend payment processing on your Organisation.
-- Terminate this Agreement for cause.
-
-We will give you written notice and a reasonable opportunity to remediate before taking any of these steps, unless the chargeback rate or the underlying conduct is so severe that we must act immediately to protect the platform.
-
-## 11. Marketing communications by Organisers
-
-You may use Orkora's campaigns module to send email to your registered attendees about the event they registered for. You may **not** use it to send unsolicited marketing for other events or third-party offers unless the attendee opted in to that marketing at the time of registration.
-
-You are responsible for the images and documents you attach to campaigns. They must not contain malware, deceptive links or content you do not have the right to share. Orkora may remove an attachment, or stop a campaign, that breaks this rule.
-
-Every campaign sent from Orkora includes a one-click unsubscribe link. If a recipient unsubscribes, they go into your Organisation's suppression list and Orkora will refuse to send further campaigns to them on your behalf. You are not permitted to circumvent this suppression by re-importing the email through another channel.
-
-You agree to comply with the marketing-communications law in the jurisdiction of your attendees (CAN-SPAM in the US, CASL in Canada, GDPR Art. 13 plus PECR in the EU and UK, NDPR plus the NCC SMS guidelines in Nigeria).
+You may email your registered attendees about the event they registered for. You may not send unrelated marketing unless the attendee agreed to it. Every campaign carries an unsubscribe link; do not email people who have unsubscribed through any other route. You are responsible for the images and documents you attach. You must follow the marketing law that applies to your attendees.
 
 ## 12. Branding
 
-You retain ownership of your brand assets you upload. You grant Orkora a non-exclusive licence to display your logo, name, and event images on the platform for the purpose of operating your events.
-
-Orkora may, with your permission, list your Organisation or event on a public customer page. We will ask before doing so.
+You keep ownership of your brand assets and allow Orkora to display them to run your events. We will ask before naming you as a customer.
 
 ## 13. Indemnity
 
-You agree to indemnify and hold harmless Orkora against any claim, loss, damage, or expense arising from:
+You agree to compensate Orkora for claims, losses and costs arising from your events (including injury, refused entry or cancelled content), the content you publish, your use of attendee data, or your breach of this Agreement or the Terms of Service.
 
-- An event you host, including injury to attendees, refusal of entry, or non-delivery of promised content.
-- Content you publish on the platform.
-- Your breach of this Agreement or the Orkora Terms of Service.
-- Your processing of attendee personal data outside the controller-processor framing in Section 7.
+## 14. Limitation of Liability
 
-## 14. Limitation of liability
-
-Orkora's total aggregate liability to you under this Agreement is subject to the cap in the Orkora Terms of Service. Nothing in this Agreement limits liability that cannot be excluded under applicable law.
+Orkora's liability under this Agreement is limited as set out in the Terms of Service.
 
 ## 15. Notices
 
-- To Orkora: hello@orkora.events for operational matters, legal@orkora.events for legal notices.
-- To you: the contact email on the Organisation's billing record.
+We send notices to the email address on your Organisation. Send notices to us at legal@orkora.events.
 
-## 16. Governing law and venue
+## 16. Governing Law and Venue
 
-This Agreement is governed by the laws of the **Federal Republic of Nigeria**. Disputes are subject to the exclusive jurisdiction of the courts of **Lagos State, Nigeria**, with the equity-and-injunction carve-out described in the Terms of Service.
+This Agreement is governed by the laws of the Federal Republic of Nigeria. The courts of Lagos State, Nigeria have jurisdiction over any dispute.
 
 ## 17. Contact
 
-- General: hello@orkora.events
+- Support: hello@orkora.events
 - Billing: billing@orkora.events
-- Legal: legal@orkora.events
-- Security: security@orkora.events
+- Legal notices: legal@orkora.events
 - Data protection: dpo@orkora.events
