@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
 import {
   ApiError,
+  apiErrorMessage,
   authApi,
   EMAIL_VERIFICATION_REQUIRED,
   persistTokens,
@@ -15,6 +16,7 @@ import {
 import { isSuperAdmin } from '@/lib/admin';
 import { useToast } from '@/components/toast';
 import { Brand } from '@/components/brand';
+import { useBotCheck } from '@/components/bot-check';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,6 +24,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  // Bot check for the "email me a code" button, which sends an email.
+  const bot = useBotCheck();
   // Carry `next` into signup so a brand-new invitee who creates an account
   // still lands back on /invite/accept and joins the organization, instead of
   // arriving at the dashboard with no organization.
@@ -95,10 +99,15 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
+      if (!bot.ready) {
+        setError('Please complete the security check, then ask for the code again.');
+        return;
+      }
       await authApi.sendOtp({
         channel: 'email',
         destination: email.trim().toLowerCase(),
         purpose: 'login',
+        ...bot.payload(),
       });
       const next = safeInternalPath(
         new URLSearchParams(window.location.search).get('next'),
@@ -106,8 +115,13 @@ export default function LoginPage() {
       router.push(
         `/otp?destination=${encodeURIComponent(email.trim().toLowerCase())}&purpose=login&next=${encodeURIComponent(next)}`,
       );
-    } catch {
-      setError('Could not send a sign-in code.');
+    } catch (err) {
+      bot.reset();
+      setError(
+        err instanceof ApiError && err.status === 429
+          ? 'Too many codes requested. Please wait a few minutes and try again.'
+          : apiErrorMessage(err) ?? 'Could not send a sign-in code.',
+      );
     } finally {
       setLoading(false);
     }
@@ -167,6 +181,8 @@ export default function LoginPage() {
             {error}
           </p>
         ) : null}
+
+        {bot.fields}
 
         <button
           type="submit"

@@ -4,15 +4,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Lock, Mail, Phone, User } from 'lucide-react';
-import { ApiError, authApi, safeInternalPath } from '@/lib/auth';
+import { ApiError, apiErrorMessage, authApi, safeInternalPath } from '@/lib/auth';
 import { legalApi, rememberSignupConsent, type LegalVersions } from '@/lib/legal';
 import { Brand } from '@/components/brand';
+import { useBotCheck } from '@/components/bot-check';
 
 export default function SignupPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
+  const bot = useBotCheck();
   // Current Terms and Privacy versions, so we record exactly what was agreed.
   // If this fails (for example during a deploy), the dashboard asks instead.
   const [legalVersions, setLegalVersions] = useState<LegalVersions | null>(null);
@@ -39,6 +41,7 @@ export default function SignupPage() {
     if (!agreed) {
       return setError('Please agree to the Terms of Service and Privacy Policy to continue.');
     }
+    if (!bot.ready) return setError('Please complete the security check.');
 
     setLoading(true);
     setError(null);
@@ -54,7 +57,7 @@ export default function SignupPage() {
       // users reached the dashboard with a poisoned "Bearer undefined" token and
       // no refresh cookie -> every request 401'd. Creating the account here and
       // exchanging the OTP on /otp fixes it.
-      await authApi.signup({ email, password, fullName, phone: phone || undefined });
+      await authApi.signup({ email, password, fullName, phone: phone || undefined, ...bot.payload() });
       if (legalVersions) rememberSignupConsent(legalVersions);
       const params = new URLSearchParams({ destination: email, purpose: 'signup' });
       // Pass `next` through to the code step (which already honours it), so an
@@ -63,8 +66,13 @@ export default function SignupPage() {
       if (rawNext) params.set('next', safeInternalPath(rawNext));
       router.push(`/otp?${params.toString()}`);
     } catch (err) {
+      // Security check tokens are single-use: get a fresh one for a retry.
+      bot.reset();
       if (err instanceof ApiError && err.status === 429) {
         setError('Please wait a moment before trying again.');
+      } else if (err instanceof ApiError && (err.status === 400 || err.status === 403) && apiErrorMessage(err)) {
+        // Name rules and the security check explain themselves.
+        setError(apiErrorMessage(err));
       } else if (err instanceof ApiError && err.status === 409) {
         setError('That email is already registered. Try signing in instead.');
       } else {
@@ -160,6 +168,8 @@ export default function SignupPage() {
                   .
                 </span>
               </label>
+
+              {bot.fields}
 
               {error ? (
                 <p className="rounded-xl border border-[#FF7675]/30 bg-[#FF7675]/10 px-3 py-2 text-sm text-[#FF9090]">

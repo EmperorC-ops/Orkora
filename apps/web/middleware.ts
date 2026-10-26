@@ -55,7 +55,10 @@ function buildCsp(nonce: string): string {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // challenges.cloudflare.com: the Turnstile bot check on public forms
+    // (components/bot-check.tsx). 'strict-dynamic' already trusts the script
+    // our nonced bundle inserts; the host is listed for browsers without it.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://challenges.cloudflare.com`,
     // The QR check-in scanner (qr-scanner) decodes frames in a Web Worker it
     // spins up from a blob: URL. Without worker-src allowing blob:, the worker
     // is blocked by default-src 'self' and the scanner fails to start with a
@@ -75,14 +78,14 @@ function buildCsp(nonce: string): string {
     // frame-src covers Story Mode embeds: playlist providers (Spotify, Apple
     // Music, SoundCloud, YouTube) and optional map embeds. Preset providers
     // only; there is no arbitrary-iframe block in R1.
-    "frame-src 'self' https://open.spotify.com https://embed.music.apple.com https://w.soundcloud.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com https://maps.google.com https://www.openstreetmap.org",
+    "frame-src 'self' https://challenges.cloudflare.com https://open.spotify.com https://embed.music.apple.com https://w.soundcloud.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com https://maps.google.com https://www.openstreetmap.org",
     // connect-src must include the R2 storage hosts. Uploads go straight from
     // the browser to a presigned PUT URL on the S3 endpoint
     // (*.r2.cloudflarestorage.com); without it here the fetch is blocked by CSP
     // ("Refused to connect...") and the banner/hero upload silently fails with
     // no image ever produced. *.r2.dev is included so any direct fetch of a
     // public object (not just <img>) is also allowed.
-    `connect-src 'self' ${apiOrigin} ${apiWsOrigin} https://*.r2.cloudflarestorage.com https://*.r2.dev https://*.amazonaws.com https://cdn.orkora.events`,
+    `connect-src 'self' ${apiOrigin} ${apiWsOrigin} https://challenges.cloudflare.com https://*.r2.cloudflarestorage.com https://*.r2.dev https://*.amazonaws.com https://cdn.orkora.events`,
     `report-uri ${apiOrigin}/v1/csp-reports`,
   ].join('; ');
 }

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Calendar, Sparkles } from 'lucide-react';
-import { ApiError } from '@/lib/auth';
+import { ApiError, apiErrorMessage } from '@/lib/auth';
+import { useBotCheck } from '@/components/bot-check';
 import { registrationApi, formatEventDates, type VipContext } from '@/lib/registration';
 
 /**
@@ -25,6 +26,8 @@ export default function VipRegisterView({ code, token }: { code: string; token: 
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // VIP registration emails a ticket, so it carries the bot check.
+  const bot = useBotCheck();
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +54,10 @@ export default function VipRegisterView({ code, token }: { code: string; token: 
       setSubmitError('Please enter your name and email.');
       return;
     }
+    if (!bot.ready) {
+      setSubmitError('Please complete the security check.');
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -58,6 +65,7 @@ export default function VipRegisterView({ code, token }: { code: string; token: 
         token,
         fullName: fullName.trim(),
         email: email.trim(),
+        ...bot.payload(),
       });
       const ticketCode = result.tickets[0]?.code;
       if (ticketCode) {
@@ -66,6 +74,7 @@ export default function VipRegisterView({ code, token }: { code: string; token: 
       }
       setSubmitError('Registered, but no ticket was returned. Please contact the organizer.');
     } catch (err) {
+      bot.reset();
       if (err instanceof ApiError) {
         setSubmitError(prettifyApiError(err));
       } else {
@@ -80,7 +89,7 @@ export default function VipRegisterView({ code, token }: { code: string; token: 
     return (
       <Wrapper>
         <div className="rounded-2xl border border-surface-border bg-surface/40 p-10 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">VIP link not valid</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">VIP Link Not Valid</h1>
           <p className="mt-3 text-sm text-ink-secondary">{loadError}</p>
           <Link
             href={`/e/${code}`}
@@ -134,6 +143,8 @@ export default function VipRegisterView({ code, token }: { code: string; token: 
         >
           <Field label="Full name" value={fullName} onChange={setFullName} required />
           <Field label="Email" type="email" value={email} onChange={setEmail} required />
+
+          {bot.fields}
 
           {submitError && (
             <p className="rounded-xl border border-[#FF7675]/30 bg-[#FF7675]/10 px-4 py-3 text-sm text-[#FF9090]">
@@ -214,6 +225,10 @@ function prettifyApiError(err: ApiError): string {
   }
   if (err.status === 409) return 'This event is fully booked.';
   if (err.status === 404) return 'This VIP link is not valid or has expired.';
+  if (err.status === 429) return 'Too many registrations from your network. Please wait a while and try again.';
+  // Name rules and the security check explain themselves.
+  const message = apiErrorMessage(err);
+  if ((err.status === 400 || err.status === 403) && message) return message;
   if (err.status === 400) return 'Please check your details and try again.';
   return err.message || 'Something went wrong.';
 }

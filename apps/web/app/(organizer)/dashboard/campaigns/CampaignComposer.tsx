@@ -6,7 +6,7 @@ import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Mail, Save, Send, Trash2 } from 'lucide-react';
 import { readActiveOrgId } from '@/lib/events';
-import { apiFetch } from '@/lib/auth';
+import { apiErrorMessage, apiFetch } from '@/lib/auth';
 import { campaignsApi, type AudienceSummary, type CampaignDetail } from '@/lib/campaigns';
 import { eventsApi, type OrganizerEventSummary } from '@/lib/events';
 import { ImageUpload } from '@/components/image-upload';
@@ -56,7 +56,10 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
   // fromEmail defaults to the platform's verified Postmark sender; fromName is
   // backfilled with the organisation's name once it loads.
   const [fromName, setFromName] = useState(initial?.fromName ?? '');
-  const [fromEmail, setFromEmail] = useState(initial?.fromEmail ?? 'no-reply@orkora.events');
+  // Campaigns are always sent From Orkora's own address (the API enforces it);
+  // replies go to the organizer's Reply-to address when one is set.
+  const [fromEmail] = useState(initial?.fromEmail ?? 'no-reply@orkora.events');
+  const [replyTo, setReplyTo] = useState(initial?.replyTo ?? '');
   const [testEmail, setTestEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +119,7 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
         bodyMarkdown,
         fromName,
         fromEmail,
+        ...(replyTo.trim() ? { replyTo: replyTo.trim() } : {}),
         audienceId: aid,
         eventId: eventId || undefined,
         flyerUrl: flyerUrl ?? undefined,
@@ -136,6 +140,7 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
       bodyMarkdown,
       fromName,
       fromEmail,
+      ...(replyTo.trim() ? { replyTo: replyTo.trim() } : {}),
       audienceId: aid,
       ...(eventId ? { eventId } : {}),
       // null clears a removed flyer.
@@ -158,7 +163,7 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : fallback);
+      setError(apiErrorMessage(err) ?? (err instanceof Error ? err.message : fallback));
     } finally {
       setBusy(false);
     }
@@ -280,12 +285,19 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
             <input
               type="email"
               value={fromEmail}
-              onChange={(e) => setFromEmail(e.target.value)}
-              placeholder="hello@yourdomain.com"
+              readOnly
+              aria-readonly="true"
+              className="mb-2 w-full cursor-not-allowed rounded-xl border border-surface-border bg-surface-deep/30 px-3 py-2 text-sm text-ink-secondary"
+            />
+            <input
+              type="email"
+              value={replyTo}
+              onChange={(e) => setReplyTo(e.target.value)}
+              placeholder="Reply-to (optional), e.g. hello@yourdomain.com"
               className="w-full rounded-xl border border-surface-border bg-surface-deep/60 px-3 py-2 text-sm text-ink-primary placeholder-ink-muted"
             />
             <p className="mt-1 text-xs text-ink-muted">
-              The sender domain must be authenticated on Postmark (SPF + DKIM).
+              Campaigns are sent from Orkora&apos;s address. Replies go to your Reply-to address.
             </p>
           </div>
 
@@ -297,7 +309,7 @@ export default function CampaignComposer({ initial }: { initial?: CampaignDetail
               type="email"
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
-              placeholder="you@your-org.com"
+              placeholder="A verified member of your team"
               className="mb-2 w-full rounded-xl border border-surface-border bg-surface-deep/60 px-3 py-2 text-sm text-ink-primary placeholder-ink-muted"
             />
             <button

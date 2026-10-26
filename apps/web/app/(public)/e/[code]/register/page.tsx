@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Plus, Trash2, Calendar, Ticket, Tag, MapPin } from 'lucide-react';
-import { ApiError } from '@/lib/auth';
+import { ApiError, apiErrorMessage } from '@/lib/auth';
+import { useBotCheck } from '@/components/bot-check';
 import {
   type AttendeeInput,
   type PaymentMethod,
@@ -84,6 +85,8 @@ export default function RegisterPage() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Registration emails a ticket, so it carries the bot check.
+  const bot = useBotCheck();
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
   const [discountInput, setDiscountInput] = useState('');
@@ -230,6 +233,10 @@ export default function RegisterPage() {
     }
     setAnswerErrors({});
     const formResponses = buildFormResponses(questionFields, answers);
+    if (!bot.ready) {
+      setSubmitError('Please complete the security check.');
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -266,6 +273,7 @@ export default function RegisterPage() {
         paymentMethod,
         ...(appliedDiscount ? { discountCode: appliedDiscount.code } : {}),
         ...(Object.keys(formResponses).length > 0 ? { formResponses } : {}),
+        ...bot.payload(),
       });
 
       if (isFree) {
@@ -297,6 +305,8 @@ export default function RegisterPage() {
         }
       }
     } catch (err) {
+      // Security check tokens are single-use: get a fresh one for a retry.
+      bot.reset();
       if (err instanceof ApiError) {
         setSubmitError(prettifyApiError(err));
       } else {
@@ -311,7 +321,7 @@ export default function RegisterPage() {
     return (
       <Wrapper>
         <div className="rounded-2xl border border-surface-border bg-surface/40 p-10 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Event not found</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Event Not Found</h1>
           <p className="mt-3 text-sm text-ink-secondary">
             The code <span className="font-mono">{code}</span> does not match a published event.
           </p>
@@ -401,7 +411,7 @@ export default function RegisterPage() {
 
           <section>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
-              Choose a ticket
+              Choose a Ticket
             </h2>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[...(event.tiers ?? [])]
@@ -465,7 +475,7 @@ export default function RegisterPage() {
             <section>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
-                  Attendee details
+                  Attendee Details
                 </h2>
                 {tier && attendees.length < tier.maxPerOrder && (
                   <button
@@ -534,7 +544,7 @@ export default function RegisterPage() {
                 {!event.registrationIntroHidden && (
                   <>
                     <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
-                      A few questions
+                      A Few Questions
                     </h2>
                     <p className="mt-1 text-xs text-ink-muted">
                       The organizer asked for these details.
@@ -550,6 +560,8 @@ export default function RegisterPage() {
                 />
               </section>
             )}
+
+            {bot.fields}
 
             {submitError && (
               <p className="rounded-xl border border-[#FF7675]/30 bg-[#FF7675]/10 px-4 py-3 text-sm text-[#FF9090]">
@@ -599,7 +611,7 @@ export default function RegisterPage() {
         <aside className="lg:sticky lg:top-8 lg:self-start">
           <div className="rounded-2xl border border-surface-border bg-surface/40 p-6">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-              Order summary
+              Order Summary
             </h3>
             {tier ? (
               <>
@@ -798,6 +810,10 @@ function prettifyApiError(err: ApiError): string {
     // Not JSON, fall through.
   }
   if (err.status === 409) return 'Not enough tickets remaining in this tier.';
+  if (err.status === 429) return 'Too many registrations from your network. Please wait a while and try again.';
+  // Name rules and the security check explain themselves.
+  const message = apiErrorMessage(err);
+  if ((err.status === 400 || err.status === 403) && message) return message;
   if (err.status === 400) return 'Some details are invalid. Please check the form and try again.';
   if (err.status === 404) return 'Event or tier not found.';
   return err.message || 'Something went wrong.';

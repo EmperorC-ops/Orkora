@@ -17,6 +17,9 @@ export interface RegisterAttendeesInput {
   attendees: AttendeeInput[];
   paymentMethod?: PaymentMethod;
   formResponses?: Record<string, unknown>;
+  /** Bot check fields (components/bot-check.tsx); sent only when present. */
+  captchaToken?: string;
+  hpField?: string;
 }
 
 export interface IssuedTicket {
@@ -95,6 +98,9 @@ export interface VipRegisterInput {
   token: string;
   fullName: string;
   email: string;
+  /** Bot check fields (components/bot-check.tsx); sent only when present. */
+  captchaToken?: string;
+  hpField?: string;
 }
 
 export const registrationApi = {

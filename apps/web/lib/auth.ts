@@ -227,6 +227,22 @@ export class ApiError extends Error {
 }
 
 /**
+ * The human-readable message from an API error body (Nest sends
+ * { statusCode, message, error }, where message may be a string or a list).
+ * Null when there is none, so callers can fall back to their own wording.
+ */
+export function apiErrorMessage(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  try {
+    const body = JSON.parse(err.message) as { message?: unknown };
+    const m = Array.isArray(body.message) ? body.message[0] : body.message;
+    return typeof m === 'string' && m.trim() ? m.trim().slice(0, 300) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Nest wraps a thrown exception's object payload as the response body, so a
  * `ForbiddenException({ code, destination, message })` arrives as that object
  * verbatim. Anything unparseable, or a plain-string body, yields no code and
@@ -306,16 +322,26 @@ export function clearTokens(): void {
 }
 
 export const authApi = {
-  signup: (input: { email: string; password: string; fullName: string; phone?: string }) =>
+  signup: (input: {
+    email: string;
+    password: string;
+    fullName: string;
+    phone?: string;
+    captchaToken?: string;
+    hpField?: string;
+  }) =>
     apiFetch<TokenBundle>('/v1/auth/signup', { method: 'POST', json: input, auth: false }),
   login: (input: { email: string; password: string }) =>
     apiFetch<TokenBundle>('/v1/auth/login', { method: 'POST', json: input, auth: false }),
   social: (input: { provider: 'google' | 'apple'; idToken: string }) =>
     apiFetch<TokenBundle>('/v1/auth/social', { method: 'POST', json: input, auth: false }),
+  // Codes go to email only, for signup and login only.
   sendOtp: (input: {
-    channel: 'email' | 'sms';
+    channel: 'email';
     destination: string;
-    purpose: 'signup' | 'login' | 'payment_confirm' | 'phone_verify';
+    purpose: 'signup' | 'login';
+    captchaToken?: string;
+    hpField?: string;
   }) =>
     apiFetch<{ expiresAt: string }>('/v1/auth/otp/send', {
       method: 'POST',

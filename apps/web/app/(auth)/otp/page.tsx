@@ -8,6 +8,7 @@ import { recordSignupConsent } from '@/lib/legal';
 import type { TokenBundle } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin';
 import { Brand } from '@/components/brand';
+import { useBotCheck } from '@/components/bot-check';
 
 const RESEND_SECONDS = 30;
 
@@ -22,6 +23,8 @@ function OtpPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
+  // A resend sends an email, so it carries the same bot check as sign-in.
+  const bot = useBotCheck();
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
 
   useEffect(() => {
@@ -106,13 +109,20 @@ function OtpPageInner() {
     setLoading(true);
     setError(null);
     try {
+      if (!bot.ready) {
+        setError('Please complete the security check, then resend.');
+        return;
+      }
       await authApi.sendOtp({
         channel: 'email',
         destination,
         purpose: purpose === 'signup' ? 'signup' : 'login',
+        ...bot.payload(),
       });
+      bot.reset();
       setResendIn(RESEND_SECONDS);
     } catch {
+      bot.reset();
       setError('Could not resend code. Try again in a moment.');
     } finally {
       setLoading(false);
@@ -124,7 +134,7 @@ function OtpPageInner() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand-gradient px-6">
         <Brand variant="lockup" width={320} priority className="h-20 w-auto" />
         <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
-          <h1 className="text-xl font-bold text-slate-900">Missing context</h1>
+          <h1 className="text-xl font-bold text-slate-900">Missing Context</h1>
           <p className="mt-2 text-sm text-slate-500">
             Open this page from the sign in or sign up flow.
           </p>
@@ -137,7 +147,7 @@ function OtpPageInner() {
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand-gradient px-6">
       <Brand variant="lockup" width={320} priority className="h-20 w-auto" />
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
-        <h1 className="mb-1 text-2xl font-bold text-slate-900">Check your email</h1>
+        <h1 className="mb-1 text-2xl font-bold text-slate-900">Check Your Email</h1>
         <p className="mb-6 text-sm text-slate-500">
           We sent a 6-digit code to <span className="font-semibold text-slate-700">{destination}</span>.
         </p>
@@ -172,6 +182,8 @@ function OtpPageInner() {
         {loading && (
           <p className="mt-4 text-center text-sm text-slate-500">Verifying...</p>
         )}
+
+        {resendIn === 0 ? <div className="mt-6">{bot.fields}</div> : null}
 
         <button
           type="button"
