@@ -22,6 +22,8 @@ import { RefreshDto } from './dto/refresh.dto';
 import { SendOtpDto, VerifyOtpDto } from './dto/otp.dto';
 import { SocialLoginDto } from './dto/social.dto';
 import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
+import { TurnstileService, honeypotTripped } from '../../common/outbound/turnstile';
+import { requestIp } from '../../common/outbound/ip';
 
 /**
  * OTP purposes that may be exchanged for a session at /auth/otp/exchange.
@@ -238,6 +240,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly otp: OtpService,
+    private readonly turnstile?: TurnstileService,
   ) {}
 
   /**
@@ -258,8 +261,16 @@ export class AuthController {
   @Post('signup')
   @HttpCode(202)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
-  async signup(@Body() dto: SignupDto) {
-    return this.auth.signupRequest(dto);
+  async signup(@Body() dto: SignupDto, @Req() req?: Request) {
+    const ip = requestIp(req);
+    // A filled honeypot gets the normal answer and nothing else happens, so
+    // the bot learns nothing.
+    if (honeypotTripped(dto.hpField, 'signup')) {
+      return { status: 'verification_sent' as const, destination: dto.email.trim().toLowerCase() };
+    }
+    await this.turnstile?.enforce(dto.captchaToken, ip);
+    const { captchaToken: _t, hpField: _w, ...rest } = dto;
+    return this.auth.signupRequest(rest as SignupDto, { ip });
   }
 
   @Post('login')
@@ -269,8 +280,9 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req?: Request,
   ) {
-    return shapeWithCookie(await this.auth.login(dto), res);
+    return shapeWithCookie(await this.auth.login(dto, { ip: requestIp(req) }), res);
   }
 
   /**
@@ -354,8 +366,16 @@ export class AuthController {
   @Post('otp/send')
   @HttpCode(202)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
-  sendOtp(@Body() dto: SendOtpDto) {
-    return this.otp.send(dto);
+  async sendOtp(@Body() dto: SendOtpDto, @Req() req?: Request) {
+    const ip = requestIp(req);
+    if (honeypotTripped(dto.hpField, 'otp/send')) {
+      return { expiresAt: new Date(Date.now() + 10 * 60 * 1000) };
+    }
+    await this.turnstile?.enforce(dto.captchaToken, ip);
+    return this.otp.send(
+      { channel: dto.channel, destination: dto.destination, purpose: dto.purpose },
+      { ip },
+    );
   }
 
   @Post('otp/verify')

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { validateDisplayText } from '../../common/outbound/text-safety';
 import { Prisma } from '@prisma/client';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
@@ -73,6 +74,32 @@ const SAFE_STATUS: EventStatus[] = ['draft', 'published', 'live', 'ended', 'arch
 const STORY_PREVIEW_SECRET =
   process.env.STORY_PREVIEW_SECRET || process.env.JWT_PRIVATE_KEY || 'orkora-dev-preview-secret';
 const STORY_PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Event titles appear in ticket emails: no links, phone numbers or handles. */
+function assertEventTitle(title: string) {
+  const problem = validateDisplayText(title, 'event');
+  if (problem) throw new BadRequestException(problem);
+}
+
+/**
+ * Venue name and address appear in ticket emails sent to whatever address a
+ * registrant typed, so they follow the same rule. Each address line is
+ * checked on its own. Only values that changed are passed in.
+ */
+function assertVenueText(name: string | null | undefined, address: string | null | undefined) {
+  for (const v of [name, ...String(address ?? '').split(/\r?\n/)]) {
+    if (!v || !v.trim()) continue;
+    const problem = validateDisplayText(v, 'venue');
+    if (problem) throw new BadRequestException(problem);
+  }
+}
+
+/** Ticket type names appear in ticket emails too. */
+function assertTierName(name: string | null | undefined) {
+  if (!name) return;
+  const problem = validateDisplayText(name, 'ticket');
+  if (problem) throw new BadRequestException(problem);
+}
 
 @Injectable()
 export class EventsService {
@@ -449,6 +476,8 @@ export class EventsService {
 
   async createForOrg(orgId: string, dto: CreateEventDto) {
     this.assertDateRange(dto.startAt, dto.endAt);
+    assertEventTitle(dto.title);
+    assertVenueText(dto.venueName, dto.venueAddress);
     const code = await this.generateUniqueCode();
     const slug = await this.generateUniqueSlug(orgId, dto.title);
     const currentFee = platformFeeAt();
@@ -539,6 +568,13 @@ export class EventsService {
     if (endAt <= startAt) {
       throw new BadRequestException('endAt must be after startAt');
     }
+
+    // Only a changed title is checked, so an older title never blocks other edits.
+    if (dto.title && dto.title !== existing.title) assertEventTitle(dto.title);
+    assertVenueText(
+      dto.venueName !== undefined && dto.venueName !== existing.venueName ? dto.venueName : null,
+      dto.venueAddress !== undefined && dto.venueAddress !== existing.venueAddress ? dto.venueAddress : null,
+    );
 
     let slug = existing.slug;
     if (dto.title && dto.title !== existing.title) {
@@ -1119,6 +1155,7 @@ export class EventsService {
 
   async createTier(orgId: string, eventId: string, dto: CreateTicketTierDto) {
     await this.assertEventInOrg(orgId, eventId);
+    assertTierName(dto.name);
     if (dto.maxPerOrder && dto.minPerOrder && dto.maxPerOrder < dto.minPerOrder) {
       throw new BadRequestException('maxPerOrder must be >= minPerOrder');
     }
@@ -1181,6 +1218,7 @@ export class EventsService {
       where: { id: tierId, eventId },
     });
     if (!existing) throw new NotFoundException('Ticket tier not found');
+    if (dto.name !== undefined && dto.name !== existing.name) assertTierName(dto.name);
 
     // Re-validate the group floor against the effective (post-patch) values.
     const effIsGroup = dto.isGroup ?? existing.isGroup;

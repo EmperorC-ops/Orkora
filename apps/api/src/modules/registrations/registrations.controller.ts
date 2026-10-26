@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,8 +7,12 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { TurnstileService, honeypotTripped } from '../../common/outbound/turnstile';
+import { requestIp } from '../../common/outbound/ip';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -31,13 +36,27 @@ import { RegistrationsService } from './registrations.service';
 @ApiTags('registrations')
 @Controller('events')
 export class PublicRegistrationsController {
-  constructor(private readonly service: RegistrationsService) {}
+  constructor(
+    private readonly service: RegistrationsService,
+    private readonly turnstile?: TurnstileService,
+  ) {}
+
+  /** Honeypot and CAPTCHA in front of both public registration paths. */
+  private async botCheck(dto: { captchaToken?: string; hpField?: string }, ip: string, where: string) {
+    if (honeypotTripped(dto.hpField, where)) {
+      throw new BadRequestException('Registration could not be completed. Please try again.');
+    }
+    await this.turnstile?.enforce(dto.captchaToken, ip);
+  }
 
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('by-code/:code/register')
   @HttpCode(201)
-  register(@Param('code') code: string, @Body() dto: RegisterAttendeesDto) {
-    return this.service.register(code, dto);
+  async register(@Param('code') code: string, @Body() dto: RegisterAttendeesDto, @Req() req?: Request) {
+    const ip = requestIp(req);
+    await this.botCheck(dto, ip, 'register');
+    const { captchaToken: _t, hpField: _w, ...rest } = dto;
+    return this.service.register(code, rest as RegisterAttendeesDto, { ip });
   }
 
   /**
@@ -47,8 +66,11 @@ export class PublicRegistrationsController {
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('by-code/:code/vip-register')
   @HttpCode(201)
-  registerVip(@Param('code') code: string, @Body() dto: VipRegisterDto) {
-    return this.service.registerVip(code, dto);
+  async registerVip(@Param('code') code: string, @Body() dto: VipRegisterDto, @Req() req?: Request) {
+    const ip = requestIp(req);
+    await this.botCheck(dto, ip, 'vip-register');
+    const { captchaToken: _t, hpField: _w, ...rest } = dto;
+    return this.service.registerVip(code, rest as VipRegisterDto, { ip });
   }
 }
 

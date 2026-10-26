@@ -85,8 +85,12 @@ export class AudienceMaterialiser {
       // Join through Event so a stolen eventId from a different org cannot
       // leak its registrations.
       const regs = await this.prisma.registration.findMany({
+        // Confirmed registrations only. A pending paid registration (no
+        // payment yet) is just an address someone typed, so it must not
+        // become a campaign recipient.
         where: {
           event: { id: eventId, organizationId },
+          status: 'confirmed',
         },
         select: {
           user: { select: { id: true, email: true, fullName: true } },

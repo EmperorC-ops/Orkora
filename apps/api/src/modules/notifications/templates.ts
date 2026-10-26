@@ -13,6 +13,31 @@
  */
 
 import { statutoryLines, statutoryText } from '../../common/company';
+import { safeHttpsUrl, sanitizeForEmail } from '../../common/outbound/text-safety';
+
+/*
+ * Abuse rules (docs/SIGNUP_ABUSE_2026-10.md):
+ *   - Subjects are fixed strings. No user-typed text (event title, org name,
+ *     holder name) ever reaches a subject line, so a spammer cannot use one of
+ *     our emails as a headline for their own message.
+ *   - Every user-typed value in a body goes through `clean()` (invisible
+ *     characters dropped, links removed, length capped) and then escapeHtml.
+ *   - Every href is built by us or passed through safeHttpsUrl and escaped.
+ */
+const clean = (s: string | null | undefined, max = 120) => sanitizeForEmail(s, max);
+/** Multi-line value (venue address): clean each line, keep the line breaks. */
+const cleanLines = (s: string | null | undefined, max = 200) =>
+  String(s ?? '')
+    .split(/\r?\n/)
+    .map((l) => clean(l, max))
+    .filter(Boolean)
+    .slice(0, 6)
+    .join('\n');
+/** An https href, escaped for an attribute, or null when it is not safe. */
+const href = (u: string | null | undefined) => {
+  const ok = safeHttpsUrl(u);
+  return ok ? escapeHtml(ok) : null;
+};
 
 const APP_URL = (process.env.APP_URL ?? 'https://orkora.events').replace(/\/$/, '');
 
@@ -49,11 +74,11 @@ const wrap = (body: string) => `
 
 export function otpEmailTemplate(code: string) {
   const html = wrap(`
-    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Verify your email</h1>
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Verify Your Email</h1>
     <p style="margin:0 0 24px 0;color:#64748B;">Use this code to finish signing in. It expires in 10 minutes.</p>
     <div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:20px;text-align:center;">
       <div style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:36px;letter-spacing:8px;font-weight:700;color:#6D28D9;">
-        ${code}
+        ${escapeHtml(code)}
       </div>
     </div>
     <p style="margin:24px 0 0 0;color:#94A3B8;font-size:13px;">
@@ -67,9 +92,11 @@ export function otpEmailTemplate(code: string) {
   };
 }
 
-export function inviteEmailTemplate(orgName: string, acceptUrl: string) {
+export function inviteEmailTemplate(orgNameRaw: string, acceptUrlRaw: string) {
+  const orgName = clean(orgNameRaw, 80) || 'A team';
+  const acceptUrl = escapeHtml(acceptUrlRaw);
   const html = wrap(`
-    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">You have been invited</h1>
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">You Have Been Invited</h1>
     <p style="margin:0 0 24px 0;color:#334155;">
       <strong>${escapeHtml(orgName)}</strong> has invited you to collaborate on Orkora.
     </p>
@@ -82,9 +109,9 @@ export function inviteEmailTemplate(orgName: string, acceptUrl: string) {
     </p>
   `);
   return {
-    subject: `Join ${orgName} on Orkora`,
+    subject: 'You have been invited to a team on Orkora',
     html,
-    text: withStatutory(`${orgName} invited you to Orkora. Accept here: ${acceptUrl}`),
+    text: withStatutory(`${orgName} invited you to Orkora. Accept here: ${acceptUrlRaw}`),
   };
 }
 
@@ -100,7 +127,7 @@ export function inviteEmailTemplate(orgName: string, acceptUrl: string) {
  */
 export function signupCollisionNoticeTemplate() {
   const html = wrap(`
-    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Heads up about your account</h1>
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Heads Up About Your Account</h1>
     <p style="margin:0 0 16px 0;color:#0F172A;">
       Someone just tried to sign up for Orkora using this email address. Because you already have an Orkora account, we did not create a new one.
     </p>
@@ -139,7 +166,17 @@ export function ticketConfirmationTemplate(input: {
   // page withholds when locationOnTicketOnly is set.
   venue?: { name?: string | null; address?: string | null; joinUrl?: string | null };
 }) {
-  const { eventTitle, eventDateLine, eventCode, tickets, venue } = input;
+  const eventTitle = clean(input.eventTitle, 140);
+  const eventDateLine = clean(input.eventDateLine, 120);
+  const { eventCode } = input;
+  const tickets = input.tickets.map((t) => ({
+    code: t.code,
+    holderName: clean(t.holderName, 80),
+    tierName: clean(t.tierName, 60),
+    ticketUrl: t.ticketUrl,
+    ticketHref: escapeHtml(t.ticketUrl),
+  }));
+  const venue = input.venue;
 
   // "Follow the event live" opens the second screen (chat, polls, Q&A) keyed by
   // the holder's ticket code, so no login is needed. Uses the lead ticket.
@@ -155,9 +192,16 @@ export function ticketConfirmationTemplate(input: {
     </table>`
       : '';
 
-  const venueName = venue?.name?.trim();
-  const venueAddress = venue?.address?.trim();
-  const joinUrl = venue?.joinUrl?.trim();
+  const venueName = clean(venue?.name, 120) || undefined;
+  const venueAddress = cleanLines(venue?.address) || undefined;
+  // The organizer's join link is never placed in the email: anyone can type a
+  // stranger's address into a registration form, so an organizer-chosen URL
+  // in our email would be a phishing channel. "Join online" opens the
+  // attendee's own ticket page, which shows the link.
+  const hasJoin = Boolean(safeHttpsUrl(venue?.joinUrl?.trim()));
+  const ticketPage = tickets[0]?.ticketUrl;
+  const joinHref = hasJoin && ticketPage ? href(ticketPage) : null;
+  const joinUrl = joinHref ? ticketPage : undefined;
   const venueBlock =
     venueName || venueAddress || joinUrl
       ? `
@@ -166,7 +210,7 @@ export function ticketConfirmationTemplate(input: {
         <div style="font-size:12px;color:#7C3AED;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">Where</div>
         ${venueName ? `<div style="font-size:16px;color:#0F172A;font-weight:600;margin-top:6px;">${escapeHtml(venueName)}</div>` : ''}
         ${venueAddress ? `<div style="font-size:14px;color:#475569;margin-top:4px;white-space:pre-line;">${escapeHtml(venueAddress)}</div>` : ''}
-        ${joinUrl ? `<a href="${joinUrl}" style="display:inline-block;margin-top:12px;background:#6D28D9;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13px;">Join online</a>` : ''}
+        ${joinHref ? `<a href="${joinHref}" style="display:inline-block;margin-top:12px;background:#6D28D9;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13px;">Join online</a>` : ''}
       </td></tr>
     </table>`
       : '';
@@ -179,7 +223,7 @@ export function ticketConfirmationTemplate(input: {
           <div style="font-size:13px;color:#7C3AED;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">${escapeHtml(t.tierName)}</div>
           <div style="font-size:16px;color:#0F172A;font-weight:600;margin-top:4px;">${escapeHtml(t.holderName)}</div>
           <div style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:13px;color:#64748B;margin-top:6px;">${escapeHtml(t.code)}</div>
-          <a href="${t.ticketUrl}" style="display:inline-block;margin-top:12px;background:#6D28D9;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13px;">View ticket</a>
+          <a href="${t.ticketHref}" style="display:inline-block;margin-top:12px;background:#6D28D9;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13px;">View ticket</a>
         </td></tr>
       </table>
     </td></tr>`,
@@ -203,7 +247,7 @@ export function ticketConfirmationTemplate(input: {
     : '';
 
   const html = wrap(`
-    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">You are registered</h1>
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">You Are Registered</h1>
     <p style="margin:0 0 6px 0;color:#0F172A;font-size:16px;font-weight:600;">${escapeHtml(eventTitle)}</p>
     <p style="margin:0 0 24px 0;color:#64748B;">${escapeHtml(eventDateLine)}</p>
     ${venueBlock}
@@ -217,11 +261,11 @@ export function ticketConfirmationTemplate(input: {
     </p>
   `);
   return {
-    subject: `You are registered for ${eventTitle}`,
+    subject: 'Your ticket is confirmed',
     html,
     text: withStatutory(`You are registered for ${eventTitle}. ${eventDateLine}.${
       venueName || venueAddress || joinUrl
-        ? ` Where: ${[venueName, venueAddress, joinUrl].filter(Boolean).join(' - ')}.`
+        ? ` Where: ${[venueName, venueAddress, joinUrl ? `join online from your ticket page ${joinUrl}` : null].filter(Boolean).join(' - ')}.`
         : ''
     } Tickets: ${tickets.map((t) => `${t.tierName} (${t.code}) - ${t.ticketUrl}`).join(', ')}`),
   };
@@ -242,7 +286,10 @@ export function receiptTemplate(input: {
   totalFormatted: string;
   lines: ReceiptLine[];
 }) {
-  const { orderId, eventTitle, orgName, paidAtLine, provider, totalFormatted, lines } = input;
+  const { orderId, paidAtLine, provider, totalFormatted } = input;
+  const eventTitle = clean(input.eventTitle, 140);
+  const orgName = clean(input.orgName, 80);
+  const lines = input.lines.map((l) => ({ ...l, description: clean(l.description, 80) }));
   const lineRows = lines
     .map(
       (l) => `
@@ -253,7 +300,7 @@ export function receiptTemplate(input: {
     )
     .join('');
   const html = wrap(`
-    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Payment receipt</h1>
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Payment Receipt</h1>
     <p style="margin:0 0 4px 0;color:#0F172A;font-size:16px;font-weight:600;">${escapeHtml(eventTitle)}</p>
     <p style="margin:0 0 20px 0;color:#64748B;">Paid to ${escapeHtml(orgName)} on ${escapeHtml(paidAtLine)}</p>
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0;margin-bottom:16px;">
@@ -270,7 +317,7 @@ export function receiptTemplate(input: {
     </p>
   `);
   return {
-    subject: `Your Orkora receipt - ${eventTitle}`,
+    subject: 'Your Orkora payment receipt',
     html,
     text: withStatutory(`Receipt for ${eventTitle} (paid to ${orgName} on ${paidAtLine}). ${lines
       .map((l) => `${l.description} x${l.quantity} ${l.amount}`)
@@ -294,9 +341,11 @@ export function refundTemplate(input: {
   provider: string;
   totalFormatted: string;
 }) {
-  const { orderId, eventTitle, orgName, refundedAtLine, provider, totalFormatted } = input;
+  const { orderId, refundedAtLine, provider, totalFormatted } = input;
+  const eventTitle = clean(input.eventTitle, 140);
+  const orgName = clean(input.orgName, 80);
   const html = wrap(`
-    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Your refund has been issued</h1>
+    <h1 style="margin:0 0 8px 0;font-size:22px;color:#0F172A;">Your Refund Has Been Issued</h1>
     <p style="margin:0 0 4px 0;color:#0F172A;font-size:16px;font-weight:600;">${escapeHtml(eventTitle)}</p>
     <p style="margin:0 0 20px 0;color:#64748B;">${escapeHtml(orgName)} refunded your purchase on ${escapeHtml(refundedAtLine)}.</p>
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;margin-bottom:16px;">
@@ -314,7 +363,7 @@ export function refundTemplate(input: {
     </p>
   `);
   return {
-    subject: `Refund issued - ${eventTitle}`,
+    subject: 'Your refund has been issued',
     html,
     text: withStatutory(`${orgName} refunded your purchase for ${eventTitle} on ${refundedAtLine}. Amount refunded: ${totalFormatted}, back to your ${provider} payment method. Funds typically arrive in 5 to 10 business days. Your ticket QR codes have been voided. Reference: ${orderId}.`),
   };

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -9,9 +10,22 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OutboundGuardService, OutboundLimitError } from '../../common/outbound/outbound-guard.service';
+import { emailCapKey, ipCapKeys } from '../../common/outbound/ip';
+import { isPlainEmailAddress } from '../../common/outbound/text-safety';
 
-export type OtpChannel = 'email' | 'sms';
-export type OtpPurpose = 'signup' | 'login' | 'payment_confirm' | 'phone_verify';
+/** Email only since October 2026 (see SendOtpDto). */
+export type OtpChannel = 'email';
+export type OtpPurpose = 'signup' | 'login';
+
+// Per client network: generous for a shared office, campus or mobile carrier
+// NAT, far below what a script needs to be useful as a mail cannon.
+const MAX_SENDS_PER_IP_PER_HOUR = 60;
+// Per inbox across both purposes, counted atomically in the shared counter
+// (the database checks above are a read then a write, so parallel requests
+// could slip past them).
+const MAX_SENDS_PER_INBOX_PER_HOUR = 8;
+const MAX_SENDS_PER_INBOX_PER_DAY = 20;
 
 const CODE_LENGTH = 6;
 const CODE_TTL_MINUTES = 10;
@@ -36,14 +50,26 @@ export class OtpService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly cfg: ConfigService,
+    private readonly guard?: OutboundGuardService,
   ) {}
 
-  async send(input: {
-    channel: OtpChannel;
-    destination: string;
-    purpose: OtpPurpose;
-  }): Promise<{ expiresAt: Date }> {
-    const destination = normalize(input.destination, input.channel);
+  async send(
+    input: {
+      channel: OtpChannel;
+      destination: string;
+      purpose: OtpPurpose;
+    },
+    ctx: { ip?: string } = {},
+  ): Promise<{ expiresAt: Date }> {
+    // Belt and braces behind the DTO: internal callers bypass it.
+    if (input.channel !== 'email') throw new BadRequestException('Codes are sent by email only');
+    if (input.purpose !== 'signup' && input.purpose !== 'login') {
+      throw new BadRequestException('Unsupported code purpose');
+    }
+    const destination = normalize(input.destination);
+    if (!isPlainEmailAddress(destination)) {
+      throw new BadRequestException('Enter a valid email address.');
+    }
 
     // Cooldown: do not allow another send within 30 seconds for the same destination + purpose.
     const recent = await this.prisma.otpCode.findFirst({
@@ -70,6 +96,19 @@ export class OtpService {
       );
     }
 
+    // Shared caps: this client network, plus the platform-wide hourly budget
+    // and kill switch. Checked after the per-address rules above so a
+    // cooldown hit never spends the budget.
+    if (this.guard) {
+      const inbox = emailCapKey(destination);
+      const ok = await this.guard.allow('otp', [
+        ...ipCapKeys(ctx.ip, MAX_SENDS_PER_IP_PER_HOUR, 3600),
+        { name: 'email', value: inbox, limit: MAX_SENDS_PER_INBOX_PER_HOUR, windowSeconds: 3600 },
+        { name: 'email_day', value: inbox, limit: MAX_SENDS_PER_INBOX_PER_DAY, windowSeconds: 86_400 },
+      ]);
+      if (!ok) throw new OutboundLimitError('Too many codes requested. Please try again later.');
+    }
+
     const code = generateCode(CODE_LENGTH);
     const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
 
@@ -93,11 +132,7 @@ export class OtpService {
     }
 
     try {
-      if (input.channel === 'email') {
-        await this.notifications.sendOtpEmail(destination, code);
-      } else {
-        await this.notifications.sendOtpSms(destination, code);
-      }
+      await this.notifications.sendOtpEmail(destination, code);
     } catch (err) {
       // If the provider rejects (Postmark account in review, SMS provider
       // down, etc.) we never want signup to silently break. Never log the
@@ -121,8 +156,7 @@ export class OtpService {
     code: string;
     purpose: OtpPurpose;
   }): Promise<void> {
-    const channel: OtpChannel = input.destination.includes('@') ? 'email' : 'sms';
-    const destination = normalize(input.destination, channel);
+    const destination = normalize(input.destination);
 
     const otp = await this.prisma.otpCode.findFirst({
       where: {
@@ -174,8 +208,6 @@ function generateCode(length: number): string {
   return s;
 }
 
-function normalize(destination: string, channel: OtpChannel): string {
-  if (channel === 'email') return destination.trim().toLowerCase();
-  // SMS: strip spaces, hyphens, parens. Caller should send E.164 like +2348012345678.
-  return destination.replace(/[\s\-()]/g, '');
+function normalize(destination: string): string {
+  return String(destination ?? '').trim().toLowerCase();
 }

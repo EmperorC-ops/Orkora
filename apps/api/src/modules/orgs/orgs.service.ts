@@ -6,6 +6,13 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { validateDisplayText } from '../../common/outbound/text-safety';
+
+/** Organization names appear in invites and campaign headers: no adverts. */
+function assertOrgName(name: string) {
+  const problem = validateDisplayText(name, 'organization');
+  if (problem) throw new BadRequestException(problem);
+}
 
 interface CreateOrgInput {
   name: string;
@@ -90,6 +97,7 @@ export class OrgsService {
   ) {}
 
   async create(userId: string, input: CreateOrgInput) {
+    assertOrgName(input.name);
     // Cheap pre-flight: if a row with this slug already exists and the
     // caller is already an owner of it, return that row instead of trying
     // a doomed insert. This handles the "client retried after a network
@@ -381,6 +389,8 @@ export class OrgsService {
   ) {
     const before = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!before) throw new NotFoundException('Organization not found');
+    // Only a changed name is checked, so an older name never blocks other edits.
+    if (input.name !== undefined && input.name !== before.name) assertOrgName(input.name);
 
     if (input.slug && input.slug !== before.slug) {
       const conflict = await this.prisma.organization.findUnique({

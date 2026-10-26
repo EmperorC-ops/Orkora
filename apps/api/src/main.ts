@@ -81,6 +81,16 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
+  // Behind Render's load balancer every request arrives from the proxy, so
+  // without this req.ip is the proxy and every anonymous client shares one
+  // rate-limit bucket. Trust exactly the configured number of proxy hops
+  // (default 1, Render's balancer). If a CDN is ever put in front, raise it.
+  const rawHops = (process.env.TRUST_PROXY_HOPS ?? '').trim();
+  const hops = rawHops === '' ? 1 : Number(rawHops);
+  (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(
+    'trust proxy',
+    Number.isInteger(hops) && hops >= 0 && hops <= 5 ? hops : 1,
+  );
   app.enableShutdownHooks();
 
   // Liveness (/health) and readiness (/health/ready) stay unprefixed so the

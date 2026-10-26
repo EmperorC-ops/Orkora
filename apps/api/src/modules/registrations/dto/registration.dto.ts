@@ -58,6 +58,18 @@ export class RegisterAttendeesDto {
   @IsString()
   @MaxLength(40)
   discountCode?: string;
+
+  /** Cloudflare Turnstile token, required once Turnstile keys are set. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
+
+  /** Honeypot. Hidden from people; a filled value marks a bot. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  hpField?: string;
 }
 
 /**
@@ -79,6 +91,18 @@ export class VipRegisterDto {
   @IsEmail()
   @MaxLength(180)
   email!: string;
+
+  /** Cloudflare Turnstile token, required once Turnstile keys are set. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
+
+  /** Honeypot. Hidden from people; a filled value marks a bot. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  hpField?: string;
 }
 
 export class RegistrationListQueryDto {

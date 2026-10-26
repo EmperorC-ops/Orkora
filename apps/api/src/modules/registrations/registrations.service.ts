@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,6 +17,9 @@ import {
 import { computePlatformFeeMinor } from '../../common/platform-fee';
 import { connectedAccountsEnabled } from '../../common/payments-flags';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OutboundGuardService, OutboundLimitError } from '../../common/outbound/outbound-guard.service';
+import { emailCapKey, ipCapKeys } from '../../common/outbound/ip';
+import { validateDisplayText } from '../../common/outbound/text-safety';
 import {
   DiscountsService,
   type DiscountCheckInput,
@@ -129,14 +133,67 @@ function formatDateRange(start: Date, end: Date, timeZone: string): string {
   return `${start.toLocaleDateString('en-GB', dayFmt)} - ${end.toLocaleDateString('en-GB', dayFmt)}`;
 }
 
+// Public registration caps (docs/SIGNUP_ABUSE_2026-10.md). A registration
+// emails a ticket to whatever address is typed, so these are the outsider's
+// cost for using us to mail strangers.
+// Generous: a door or launch registration over one venue Wi-Fi or a mobile
+// carrier NAT shares one address. Turnstile is the main bot gate.
+const REGISTRATIONS_PER_IP_PER_HOUR = 120;
+const TICKET_EMAILS_PER_ADDRESS_PER_HOUR = 5;
+const RESEND_CONFIRMATIONS_PER_EVENT_PER_DAY = 3;
+const RESEND_CONFIRMATIONS_PER_ORG_PER_DAY = 10;
+
 @Injectable()
 export class RegistrationsService {
+  private readonly logger = new Logger(RegistrationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cfg: ConfigService,
     private readonly notifications: NotificationsService,
     private readonly signer: TicketSigner,
+    private readonly guard?: OutboundGuardService,
   ) {}
+
+  /**
+   * Door checks shared by free and VIP registration: every holder name must
+   * be a name (no links, phone numbers, handles), and one client network may
+   * register at most REGISTRATIONS_PER_IP_PER_HOUR times an hour.
+   */
+  private async publicRegistrationGate(names: string[], ip?: string) {
+    for (const n of names) {
+      const problem = validateDisplayText(n, 'person');
+      if (problem) throw new BadRequestException(problem);
+    }
+    if (this.guard && ip) {
+      const ok = await this.guard.withinKeys(
+        'registration',
+        ipCapKeys(ip, REGISTRATIONS_PER_IP_PER_HOUR, 3600),
+      );
+      if (!ok) throw new OutboundLimitError('Too many registrations from your network. Please try again later.');
+    }
+  }
+
+  /**
+   * Ticket email from a public registration, under the per-address and global
+   * caps. A capped email is skipped, not an error: the registration stands
+   * and the attendee can still open the ticket from the confirmation screen.
+   */
+  private async sendTicketEmailCapped(
+    to: string,
+    input: Parameters<NotificationsService['sendTicketConfirmationEmail']>[1],
+  ): Promise<void> {
+    if (this.guard) {
+      const ok = await this.guard.allow('ticket_email', [
+        { name: 'email', value: emailCapKey(to), limit: TICKET_EMAILS_PER_ADDRESS_PER_HOUR, windowSeconds: 3600 },
+      ]);
+      if (!ok) {
+        this.logger.warn('Ticket email skipped by outbound caps');
+        return;
+      }
+    }
+    await this.notifications.sendTicketConfirmationEmail(to, input);
+  }
 
   /**
    * Public registration entry point. Creates (or reuses) a user by email,
@@ -162,7 +219,11 @@ export class RegistrationsService {
     return result.cleaned as unknown as Prisma.InputJsonValue;
   }
 
-  async register(eventCode: string, dto: RegisterAttendeesDto) {
+  async register(eventCode: string, dto: RegisterAttendeesDto, ctx: { ip?: string } = {}) {
+    await this.publicRegistrationGate(
+      (dto.attendees ?? []).map((a) => a.fullName),
+      ctx.ip,
+    );
     const event = await this.prisma.event.findUnique({
       where: { code: eventCode },
       include: { organization: { select: { status: true } } },
@@ -343,8 +404,8 @@ export class RegistrationsService {
           attendeesToIssue = attendeesNotYetTicketed(dto.attendees, prior.tickets);
           if (attendeesToIssue.length === 0) {
             const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
-            await this.notifications
-              .sendTicketConfirmationEmail(user.email, {
+            await this
+              .sendTicketEmailCapped(user.email, {
                 eventTitle: event.title,
                 eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
                 eventCode: event.code,
@@ -575,8 +636,8 @@ export class RegistrationsService {
       // success in 3.2.
       if (isFree) {
         const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
-        await this.notifications
-          .sendTicketConfirmationEmail(user.email, {
+        await this
+          .sendTicketEmailCapped(user.email, {
             eventTitle: event.title,
             eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
             eventCode: event.code,
@@ -631,7 +692,8 @@ export class RegistrationsService {
    * from a non-existent event. VIP registration always uses a free tier: if the
    * event has none, we reject rather than silently charging anyone.
    */
-  async registerVip(eventCode: string, dto: VipRegisterDto) {
+  async registerVip(eventCode: string, dto: VipRegisterDto, ctx: { ip?: string } = {}) {
+    await this.publicRegistrationGate([dto.fullName], ctx.ip);
     const event = await this.prisma.event.findUnique({
       where: { code: eventCode },
       include: { organization: { select: { status: true } } },
@@ -719,8 +781,8 @@ export class RegistrationsService {
       });
 
       const appUrl = this.cfg.get<string>('APP_URL') ?? 'http://localhost:3000';
-      await this.notifications
-        .sendTicketConfirmationEmail(user.email, {
+      await this
+        .sendTicketEmailCapped(user.email, {
           eventTitle: event.title,
           eventDateLine: formatDateRange(event.startAt, event.endAt, event.timezone),
           eventCode: event.code,
@@ -1121,8 +1183,34 @@ export class RegistrationsService {
     let sent = 0;
     const failures: Array<{ registrationId: string; email: string; error: string }> = [];
 
+    if (!dryRun && targets.length > 0 && this.guard) {
+      // A real resend fans out to every attendee: at most three a day per
+      // event, and never while the outbound kill switch is on.
+      if (this.guard.disabled) {
+        throw new OutboundLimitError('Sending is paused on Orkora right now. Please try again later.');
+      }
+      const ok = await this.guard.withinKeys('resend_confirmations', [
+        { name: 'event', value: event.id, limit: RESEND_CONFIRMATIONS_PER_EVENT_PER_DAY, windowSeconds: 86_400 },
+        { name: 'org', value: orgId, limit: RESEND_CONFIRMATIONS_PER_ORG_PER_DAY, windowSeconds: 86_400 },
+      ]);
+      if (!ok) {
+        throw new OutboundLimitError('Confirmations have already been resent the maximum number of times today. Please try again tomorrow.');
+      }
+    }
+
     if (!dryRun) {
       for (const r of targets) {
+        // Each resent email counts against the global budget and a per-inbox
+        // daily cap, like any other ticket email.
+        if (this.guard) {
+          const ok = await this.guard.allow('resend_confirmations', [
+            { name: 'email', value: emailCapKey(r.user.email), limit: 3, windowSeconds: 86_400 },
+          ]);
+          if (!ok) {
+            failures.push({ registrationId: r.id, email: r.user.email, error: 'Skipped: sending limit reached' });
+            continue;
+          }
+        }
         try {
           await this.notifications.sendTicketConfirmationEmail(r.user.email, {
             eventTitle: event.title,

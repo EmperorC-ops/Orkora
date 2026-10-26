@@ -158,8 +158,12 @@ export class CampaignsController {
   // for legitimate use and an aggressive ceiling against accidental
   // double-fires from a click-happy organizer.
   @Throttle({ default: { ttl: 60_000, limit: 2 } })
-  send(@Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string) {
-    return this.campaigns.sendNow(id, orgId);
+  send(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.campaigns.sendNow(id, orgId, user?.userId);
   }
 }
 

@@ -143,7 +143,7 @@ describe('CampaignsService.sendNow daily cap', () => {
   // test also mocks fetch so Postmark doesn't fire against the network.
   let service: CampaignsService;
   let prisma: {
-    campaign: { findFirst: jest.Mock; update: jest.Mock };
+    campaign: { findFirst: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
     campaignSend: { count: jest.Mock; createMany: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
   };
   let audiences: { materialise: jest.Mock };
@@ -168,6 +168,7 @@ describe('CampaignsService.sendNow daily cap', () => {
       campaign: {
         findFirst: jest.fn().mockResolvedValue(campaignRow()),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       campaignSend: {
         count: jest.fn(),
@@ -388,7 +389,13 @@ describe('CampaignsService.testSend personalisation', () => {
           audience: { id: 'aud-1', name: 'All', cachedCount: 0 },
         }),
       },
-      user: { findUnique: jest.fn().mockResolvedValue(actorName === null ? null : { fullName: actorName }) },
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ fullName: actorName, emailVerified: true }),
+        // The test address is a verified member of the org.
+        findFirst: jest.fn().mockResolvedValue({ id: 'member-1' }),
+      },
     };
     const mod: TestingModule = await Test.createTestingModule({
       providers: [

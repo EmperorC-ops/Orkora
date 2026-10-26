@@ -47,8 +47,29 @@ import {
   sanitizeDocumentName,
 } from './document';
 
+import { OutboundGuardService, OutboundLimitError } from '../../common/outbound/outbound-guard.service';
+import {
+  assertSafeEnvelope,
+  isOneLineSubject,
+  isPlainEmailAddress,
+  safeFromName,
+  sanitizeForEmail,
+} from '../../common/outbound/text-safety';
+
 const BATCH_SIZE = 500;
 const POSTMARK_API = 'https://api.postmarkapp.com';
+// Test sends go only to verified team members, and at most this many a day
+// per person sending them.
+const TEST_SENDS_PER_USER_PER_DAY = 20;
+
+/** Collapse to one printable line, capped, for a Subject header. */
+function oneLine(s: string, max = 200): string {
+  const out = sanitizeForEmail(s, max * 2)
+    .replace(/\[link removed\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return out.length > max ? out.slice(0, max) : out;
+}
 
 @Injectable()
 export class CampaignsService {
@@ -58,7 +79,58 @@ export class CampaignsService {
     private readonly prisma: PrismaService,
     private readonly cfg: ConfigService,
     private readonly audiences: AudienceMaterialiser,
+    private readonly guard?: OutboundGuardService,
   ) {}
+
+  /**
+   * The only address campaigns are sent From. Postmark is dedicated to Orkora,
+   * so a campaign may not claim another domain; organizers put their own
+   * address in Reply-to. EMAIL_FROM_ADDRESS, default no-reply@orkora.events.
+   */
+  private platformSender(): string {
+    const configured = this.cfg.get<string>('EMAIL_FROM_ADDRESS');
+    return configured && isPlainEmailAddress(configured) ? configured : 'no-reply@orkora.events';
+  }
+
+  /** A stored fromEmail on our sending domain, otherwise the platform sender. */
+  private lockedFromEmail(raw: string | null | undefined): string {
+    const sender = this.platformSender();
+    const domain = sender.split('@')[1]!.toLowerCase();
+    const v = String(raw ?? '').trim().toLowerCase();
+    return isPlainEmailAddress(v) && v.split('@')[1] === domain ? v : sender;
+  }
+
+  /** The From header: a cleaned display name and our own address. */
+  private fromHeader(campaign: { fromName: string; fromEmail: string; organization?: { name: string } | null }) {
+    // "via Orkora" so a display name such as "GTBank Alert" cannot pass as
+    // the real sender.
+    const name = safeFromName(campaign.fromName, safeFromName(campaign.organization?.name ?? 'Orkora'));
+    const display = name === 'Orkora' ? 'Orkora' : `${name} via Orkora`;
+    return `${display} <${this.lockedFromEmail(campaign.fromEmail)}>`;
+  }
+
+  /** Reply-to only when it is one plain address. */
+  private safeReplyTo(raw: string | null | undefined): string | undefined {
+    const v = String(raw ?? '').trim();
+    return v && isPlainEmailAddress(v) ? v : undefined;
+  }
+
+  /** Door check for an organizer-typed subject. */
+  private requireSubject(subject: string): string {
+    const s = String(subject ?? '').trim();
+    if (!isOneLineSubject(s) || /[\r\n]/.test(s)) {
+      throw new BadRequestException('The subject must be one line of at most 200 characters.');
+    }
+    return s;
+  }
+
+  /** Door check for Reply-to: empty, or exactly one plain address. */
+  private requireReplyTo(raw: string | null | undefined): string | null {
+    const v = String(raw ?? '').trim();
+    if (!v) return null;
+    if (!isPlainEmailAddress(v)) throw new BadRequestException('Reply-to must be a single email address.');
+    return v;
+  }
 
   // ------------------- AUDIENCES -------------------
 
@@ -134,7 +206,7 @@ export class CampaignsService {
       include: {
         audience: { select: { id: true, name: true, cachedCount: true } },
         // Name and logo for the email header (option B: organizer branding).
-        organization: { select: { name: true, logoUrl: true, postalAddress: true } },
+        organization: { select: { name: true, logoUrl: true, postalAddress: true, createdAt: true } },
       },
     });
     if (!campaign) throw new NotFoundException('Campaign not found');
@@ -176,13 +248,13 @@ export class CampaignsService {
         organizationId,
         eventId: input.eventId ?? null,
         name: input.name,
-        subject: input.subject,
+        subject: this.requireSubject(input.subject),
         previewText: input.previewText ?? null,
         bodyMarkdown: input.bodyMarkdown,
         bodyHtml,
-        fromName: input.fromName,
-        fromEmail: input.fromEmail,
-        replyTo: input.replyTo ?? null,
+        fromName: safeFromName(input.fromName),
+        fromEmail: this.lockedFromEmail(input.fromEmail),
+        replyTo: this.requireReplyTo(input.replyTo),
         audienceId: input.audienceId,
         flyerUrl,
         documentUrl: document?.url ?? null,
@@ -341,6 +413,10 @@ export class CampaignsService {
     const data: Record<string, unknown> = { ...patch };
     delete data.documentUrl;
     delete data.documentName;
+    if (typeof patch.subject === 'string') data.subject = this.requireSubject(patch.subject);
+    if (typeof patch.fromName === 'string') data.fromName = safeFromName(patch.fromName);
+    if (typeof patch.fromEmail === 'string') data.fromEmail = this.lockedFromEmail(patch.fromEmail);
+    if (typeof patch.replyTo === 'string') data.replyTo = this.requireReplyTo(patch.replyTo);
     // null (or empty) removes the document; a new value must be one of our
     // uploaded PDFs. A name alone renames the current document.
     if (patch.documentUrl === null || patch.documentUrl === '') {
@@ -382,27 +458,49 @@ export class CampaignsService {
    * campaign_sends (no need - it's a developer / organizer
    * verification, not a real send).
    */
-  async testSend(id: string, organizationId: string, email: string, actorUserId?: string) {
+  async testSend(id: string, organizationId: string, emailRaw: string, actorUserId?: string) {
     const campaign = await this.get(id, organizationId);
+    const email = String(emailRaw ?? '').trim().toLowerCase();
+    if (!isPlainEmailAddress(email)) throw new BadRequestException('Enter a single email address.');
+    if (!actorUserId) throw new ForbiddenException('Sign in again to send a test.');
     // A test address is not a registrant, so there is no attendee name to fill
     // {{first_name}} with; previews used to read "Hi ,". Use the name of the
     // organizer sending the test so the preview looks like the real thing.
-    const actor = actorUserId
-      ? await this.prisma.user.findUnique({
-          where: { id: actorUserId },
-          select: { fullName: true },
-        })
-      : null;
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { fullName: true, emailVerified: true },
+    });
+    // Abuse rule: a test send is not a way to mail strangers. The sender must
+    // have a verified email, and the recipient must be a verified member of
+    // this organization.
+    if (!actor?.emailVerified) {
+      throw new ForbiddenException('Verify your email address before sending tests.');
+    }
+    const member = await this.prisma.user.findFirst({
+      where: { email, emailVerified: true, memberships: { some: { organizationId } } },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new BadRequestException(
+        'Test emails can only go to verified members of your team. Invite the address to your team first.',
+      );
+    }
+    if (this.guard) {
+      const ok = await this.guard.allow('campaign_test', [
+        { name: 'user', value: actorUserId, limit: TEST_SENDS_PER_USER_PER_DAY, windowSeconds: 86_400 },
+      ]);
+      if (!ok) throw new OutboundLimitError('Test send limit reached for today. Please try again tomorrow.');
+    }
     const recipient: Recipient = {
       email,
-      name: actor?.fullName?.trim() || null,
+      name: actor.fullName?.trim() || null,
       userId: null,
     };
     const html = this.renderForRecipient(campaign, recipient);
     await this.postmarkSingle({
-      from: `${campaign.fromName} <${campaign.fromEmail}>`,
+      from: this.fromHeader(campaign),
       to: email,
-      replyTo: campaign.replyTo ?? undefined,
+      replyTo: this.safeReplyTo(campaign.replyTo),
       subject: `[TEST] ${this.subjectForRecipient(campaign.subject, recipient)}`,
       htmlBody: html,
       tag: `campaign-test:${campaign.id}`,
@@ -420,7 +518,7 @@ export class CampaignsService {
    * audiences should wait for Slice B's BullMQ worker to avoid
    * blocking the request.
    */
-  async sendNow(id: string, organizationId: string) {
+  async sendNow(id: string, organizationId: string, actorUserId?: string) {
     const campaign = await this.get(id, organizationId);
     if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
       throw new ConflictException(`Cannot send a campaign in status ${campaign.status}`);
@@ -436,14 +534,26 @@ export class CampaignsService {
       );
     }
 
+    if (this.guard?.disabled) {
+      throw new OutboundLimitError('Sending is paused on Orkora right now. Please try again later.');
+    }
+
     // Per-org rolling-24h send cap. Guards against a "click Send on a
     // huge audience by mistake" accident that burns Postmark quota and
     // irreversibly emails real people. Counted over campaign_sends by
-    // sentAt in the last 24 hours.
-    const cap = this.cfg.get<number>('CAMPAIGNS_DAILY_CAP_PER_ORG') ?? 1000;
+    // queuedAt, so rows still queued or that failed count too (counting
+    // sentAt let a send in progress, or a failed one, slip under the cap).
+    let cap = Number(this.cfg.get<number>('CAMPAIGNS_DAILY_CAP_PER_ORG') ?? 1000);
+    // A brand-new organization starts with a small daily allowance, so a
+    // throwaway account cannot mail a large list on day one.
+    const orgCreated = (campaign as { organization?: { createdAt?: Date | string } | null }).organization?.createdAt;
+    const newOrgDays = Number(this.cfg.get<number>('CAMPAIGNS_NEW_ORG_DAYS') ?? 14);
+    if (orgCreated && Date.now() - new Date(orgCreated).getTime() < newOrgDays * 86_400_000) {
+      cap = Math.min(cap, Number(this.cfg.get<number>('CAMPAIGNS_NEW_ORG_DAILY_CAP') ?? 200));
+    }
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const alreadySent = await this.prisma.campaignSend.count({
-      where: { organizationId, sentAt: { gte: since } },
+      where: { organizationId, queuedAt: { gte: since } },
     });
     if (alreadySent + recipients.length > cap) {
       const remaining = Math.max(0, cap - alreadySent);
@@ -454,13 +564,58 @@ export class CampaignsService {
       );
     }
 
+    // Platform-wide and per-sender daily budgets, counted atomically in the
+    // shared counter, on top of the per-organization cap above.
+    // The sender's own budget is checked first, so one sender over their
+    // limit can never spend the shared platform budget; any later refusal
+    // gives the units back.
+    const budgetN = recipients.length;
+    const userKey = actorUserId ? `user:${actorUserId}` : null;
+    let spentUser = false;
+    let spentGlobal = false;
+    const refund = async () => {
+      if (!this.guard) return;
+      if (spentUser && userKey) await this.guard.refundBulk('campaign', userKey, budgetN);
+      if (spentGlobal) await this.guard.refundBulk('campaign', 'global', budgetN);
+    };
+    if (this.guard) {
+      if (userKey) {
+        spentUser = await this.guard.allowBulk(
+          'campaign',
+          userKey,
+          budgetN,
+          Number(this.cfg.get<number>('CAMPAIGNS_USER_DAILY_CAP') ?? 2000),
+        );
+        if (!spentUser) {
+          throw new OutboundLimitError('Campaign sending limit reached for today. Please try again tomorrow.');
+        }
+      }
+      spentGlobal = await this.guard.allowBulk(
+        'campaign',
+        'global',
+        budgetN,
+        Number(this.cfg.get<number>('CAMPAIGNS_GLOBAL_DAILY_CAP') ?? 20000),
+      );
+      if (!spentGlobal) {
+        await refund();
+        throw new OutboundLimitError('Campaign sending limit reached for today. Please try again tomorrow.');
+      }
+    }
+
+    // Atomic claim: only one request can move this campaign out of
+    // draft/scheduled, so a double click or two tabs cannot send it twice.
+    const claimed = await this.prisma.campaign.updateMany({
+      where: { id, organizationId, status: { in: ['draft', 'scheduled'] } },
+      data: { status: 'sending', sentStartedAt: new Date(), recipientCount: recipients.length },
+    });
+    if (claimed.count !== 1) {
+      await refund();
+      throw new ConflictException('This campaign is already being sent.');
+    }
+
     // Idempotency: insert campaign_sends rows in a single batch with
     // ON CONFLICT DO NOTHING semantics. createMany with skipDuplicates
     // collapses by the (campaign_id, recipient_email) unique index.
-    await this.prisma.campaign.update({
-      where: { id },
-      data: { status: 'sending', sentStartedAt: new Date(), recipientCount: recipients.length },
-    });
 
     await this.prisma.campaignSend.createMany({
       data: recipients.map((r) => ({
@@ -474,13 +629,26 @@ export class CampaignsService {
       skipDuplicates: true,
     });
 
+    const from = this.fromHeader(campaign);
+    const replyTo = this.safeReplyTo(campaign.replyTo);
     // Send in batches of 500
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-      const chunk = recipients.slice(i, i + BATCH_SIZE);
+      const all = recipients.slice(i, i + BATCH_SIZE);
+      // Envelope rule: one plain address per message. Anything else is marked
+      // failed and never handed to Postmark.
+      const chunk = all.filter((r) => isPlainEmailAddress(r.email));
+      const rejected = all.filter((r) => !isPlainEmailAddress(r.email));
+      if (rejected.length) {
+        await this.prisma.campaignSend.updateMany({
+          where: { campaignId: id, recipientEmail: { in: rejected.map((r) => r.email) }, status: 'queued' },
+          data: { status: 'failed' },
+        });
+      }
+      if (chunk.length === 0) continue;
       const payload = chunk.map((r) => ({
-        From: `${campaign.fromName} <${campaign.fromEmail}>`,
+        From: from,
         To: r.email,
-        ReplyTo: campaign.replyTo ?? undefined,
+        ReplyTo: replyTo,
         Subject: this.subjectForRecipient(campaign.subject, r),
         HtmlBody: this.renderForRecipient(campaign, r),
         Tag: `campaign:${campaign.id}`,
@@ -533,7 +701,9 @@ export class CampaignsService {
    * the subject so all three always personalise the same way.
    */
   private tokenContext(recipient: Recipient): Record<string, string> {
-    const name = (recipient.name ?? '').trim();
+    // Recipient names were typed by whoever registered, so they are cleaned
+    // (no links, one line) before they can appear in a subject or body.
+    const name = sanitizeForEmail(recipient.name, 80);
     return {
       first_name: name.split(/\s+/)[0] ?? '',
       full_name: name,
@@ -543,7 +713,7 @@ export class CampaignsService {
 
   /** Subject line for one recipient: tokens filled as plain text, one line. */
   private subjectForRecipient(subject: string, recipient: Recipient): string {
-    return applyTokensText(subject, this.tokenContext(recipient));
+    return oneLine(applyTokensText(subject, this.tokenContext(recipient))) || 'An update from your event';
   }
 
   private renderForRecipient(
@@ -786,6 +956,7 @@ You are receiving this because you registered for one of our events.
     tag: string;
     metadata?: Record<string, string>;
   }) {
+    assertSafeEnvelope(input.to, input.subject);
     const token = this.cfg.get<string>('POSTMARK_TOKEN');
     if (!token) {
       this.logger.warn(`[campaigns/test] Would send: ${input.subject} -> ${input.to}`);
@@ -816,7 +987,10 @@ You are receiving this because you registered for one of our events.
     return (await r.json()) as { MessageID: string };
   }
 
-  private async postmarkBatch(payload: unknown[]): Promise<Array<{ MessageID?: string; ErrorCode?: number }>> {
+  private async postmarkBatch(
+    payload: Array<{ To: string; Subject: string }>,
+  ): Promise<Array<{ MessageID?: string; ErrorCode?: number }>> {
+    for (const m of payload) assertSafeEnvelope(m.To, m.Subject);
     const token = this.cfg.get<string>('POSTMARK_TOKEN');
     if (!token) {
       // No token: pretend every message landed with a mock id. Useful

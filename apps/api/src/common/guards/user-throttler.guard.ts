@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
+import { rateLimitIpKey } from '../outbound/ip';
 
 interface AuthedRequest extends Request {
   user?: { userId?: string };
@@ -21,7 +22,10 @@ export class UserThrottlerGuard extends ThrottlerGuard {
   protected override getTracker(req: AuthedRequest): Promise<string> {
     const userId = req.user?.userId;
     if (userId) return Promise.resolve(`user:${userId}`);
-    const ip = (req.ips && req.ips[0]) || req.ip || 'unknown';
-    return Promise.resolve(`ip:${ip}`);
+    // req.ip, not req.ips[0]: with 'trust proxy' set to a hop count (main.ts)
+    // Express resolves req.ip to the real client, while the leftmost
+    // X-Forwarded-For entry is whatever the client chose to send. IPv6 is
+    // keyed on its /64 so one device cannot rotate through fresh buckets.
+    return Promise.resolve(`ip:${rateLimitIpKey(req.ip)}`);
   }
 }

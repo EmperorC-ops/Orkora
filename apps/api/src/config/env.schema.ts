@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/** An optional variable set to an empty string counts as unset (not 0). */
+const blankAsUnset = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), inner);
+
 /**
  * Single source of truth for environment variables.
  * The API refuses to boot if anything required is missing.
@@ -84,12 +88,28 @@ export const envSchema = z.object({
    * only for orgs that have proven their sending pattern.
    */
   CAMPAIGNS_DAILY_CAP_PER_ORG: z.coerce.number().int().positive().default(1000),
+  // Campaign budgets on top of the per-organization cap (docs/SIGNUP_ABUSE_2026-10.md).
+  CAMPAIGNS_NEW_ORG_DAYS: blankAsUnset(z.coerce.number().int().min(0).optional()),
+  CAMPAIGNS_NEW_ORG_DAILY_CAP: blankAsUnset(z.coerce.number().int().positive().optional()),
+  CAMPAIGNS_USER_DAILY_CAP: blankAsUnset(z.coerce.number().int().positive().optional()),
+  CAMPAIGNS_GLOBAL_DAILY_CAP: blankAsUnset(z.coerce.number().int().positive().optional()),
   /**
    * When true, OTP codes are logged at WARN level so they can be retrieved
    * from server logs. Use only when email delivery is unavailable (e.g. a
    * provider is in review). Never enable in real production traffic.
    */
   LOG_OTP_TO_CONSOLE: z.coerce.boolean().default(false),
+  // Outbound protection (common/outbound). All optional; see
+  // docs/SIGNUP_ABUSE_2026-10.md for what each one does.
+  OUTBOUND_SENDS_DISABLED: z.string().optional(),
+  OUTBOUND_GLOBAL_HOURLY_CAP: blankAsUnset(z.coerce.number().int().positive().optional()),
+  OUTBOUND_ALERT_HOURLY: blankAsUnset(z.coerce.number().int().positive().optional()),
+  SIGNUP_ALERT_HOURLY: blankAsUnset(z.coerce.number().int().positive().optional()),
+  TURNSTILE_SITE_KEY: z.string().optional(),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
+  TURNSTILE_ALLOWED_HOSTNAMES: z.string().optional(),
+  TRUST_PROXY_HOPS: blankAsUnset(z.coerce.number().int().min(0).max(5).optional()),
+  SMS_ALLOWED_COUNTRY_CODES: z.string().optional(),
   TERMII_API_KEY: z.string().optional(),
   TWILIO_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),

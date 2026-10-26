@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -15,6 +16,9 @@ import { SocialLoginDto } from './dto/social.dto';
 import { GoogleVerifier, AppleVerifier, type SocialIdentity } from './verifiers/social';
 import { OtpService } from './otp.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OutboundGuardService } from '../../common/outbound/outbound-guard.service';
+import { validateDisplayText } from '../../common/outbound/text-safety';
+import { emailCapKey } from '../../common/outbound/ip';
 
 interface TokenBundle {
   accessToken: string;
@@ -76,6 +80,7 @@ export class AuthService {
     private readonly apple: AppleVerifier,
     private readonly otp: OtpService,
     private readonly notifications: NotificationsService,
+    private readonly guard?: OutboundGuardService,
   ) {}
 
   /**
@@ -104,8 +109,15 @@ export class AuthService {
    * the response. We rely on Sentry + the email provider's own delivery
    * dashboard for observability of those failures.
    */
-  async signupRequest(dto: SignupDto): Promise<SignupRequestResult> {
+  async signupRequest(dto: SignupDto, ctx: { ip?: string } = {}): Promise<SignupRequestResult> {
     const email = dto.email.trim().toLowerCase();
+
+    // Names land in emails we send (tickets, invites, team pages), so a name
+    // that is really an advert is refused at the door. Checked before any
+    // lookup, so the answer is the same whether or not the email exists.
+    const nameProblem = validateDisplayText(dto.fullName ?? '', 'person');
+    if (nameProblem) throw new BadRequestException(nameProblem);
+    if (!dto.fullName?.trim()) throw new BadRequestException('Enter your name.');
 
     // Always pay the argon2 cost so the response time does not branch on
     // whether the email was already registered. The hash is discarded for
@@ -124,7 +136,8 @@ export class AuthService {
           emailVerified: false,
         },
       });
-      await this.sendSignupOtpQuietly(email);
+      await this.guard?.noteSignup();
+      await this.sendSignupOtpQuietly(email, ctx.ip);
       return { status: 'verification_sent', destination: email };
     }
 
@@ -165,7 +178,7 @@ export class AuthService {
       }
 
       await this.prisma.user.update({ where: { id: existing.id }, data });
-      await this.sendSignupOtpQuietly(email);
+      await this.sendSignupOtpQuietly(email, ctx.ip);
       return { status: 'verification_sent', destination: email };
     }
 
@@ -175,9 +188,9 @@ export class AuthService {
     return { status: 'verification_sent', destination: email };
   }
 
-  private async sendSignupOtpQuietly(email: string): Promise<void> {
+  private async sendSignupOtpQuietly(email: string, ip?: string): Promise<void> {
     try {
-      await this.otp.send({ channel: 'email', destination: email, purpose: 'signup' });
+      await this.otp.send({ channel: 'email', destination: email, purpose: 'signup' }, { ip });
     } catch (err) {
       // Cooldown / hourly cap throws are *expected* user-paced behavior; do
       // not page on them. Anything else is genuinely unexpected.
@@ -187,6 +200,15 @@ export class AuthService {
 
   private async sendSignupCollisionNoticeQuietly(email: string): Promise<void> {
     try {
+      // The notice promises it is once-off, and repeated signups against one
+      // address must not become a way to flood that inbox: at most one per
+      // address per day. Skipped silently, so the response never changes.
+      if (this.guard) {
+        const ok = await this.guard.allow('signup_notice', [
+          { name: 'email', value: emailCapKey(email), limit: 1, windowSeconds: 86_400 },
+        ]);
+        if (!ok) return;
+      }
       await this.notifications.sendSignupCollisionNotice(email);
     } catch (err) {
       this.logger.warn({ err, email }, 'signup collision notice failed (suppressed)');
@@ -225,7 +247,7 @@ export class AuthService {
     return this.issueTokens(user.id, user.email);
   }
 
-  async login(dto: LoginDto): Promise<TokenBundle> {
+  async login(dto: LoginDto, ctx: { ip?: string } = {}): Promise<TokenBundle> {
     // Per-email exponential backoff: the global per-IP throttler stops a single
     // attacker hammering one machine, but cannot stop a slow distributed
     // brute-force across many source IPs hitting one account. This check (and
@@ -284,7 +306,8 @@ export class AuthService {
     // caller who knows the password already knows the account exists. The
     // non-enumeration property of /auth/signup is unaffected.
     if (!user.emailVerified) {
-      await this.sendSignupOtpQuietly(emailLower);
+      // Counted against the caller's network like any other code request.
+      await this.sendSignupOtpQuietly(emailLower, ctx.ip);
       throw new EmailVerificationRequiredException(emailLower);
     }
 

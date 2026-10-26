@@ -50,6 +50,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { LegalModule } from './modules/legal/legal.module';
 import { HelpModule } from './modules/help/help.module';
+import { OutboundModule } from './common/outbound/outbound.module';
 
 @Module({
   imports: [
@@ -114,6 +115,7 @@ import { HelpModule } from './modules/help/help.module';
     AdminModule,
     LegalModule,
     HelpModule,
+    OutboundModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: UserThrottlerGuard }],
 })

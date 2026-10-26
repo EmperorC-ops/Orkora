@@ -10,8 +10,17 @@ import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { Role } from '../../common/decorators/roles.decorator';
+import { OutboundGuardService, OutboundLimitError } from '../../common/outbound/outbound-guard.service';
+import { isPlainEmailAddress } from '../../common/outbound/text-safety';
+import { emailCapKey } from '../../common/outbound/ip';
 
 const TTL_DAYS = 14;
+
+// Invite caps (docs/SIGNUP_ABUSE_2026-10.md). A team is a handful of people;
+// these stop a throwaway account using invites to mail a list.
+const INVITES_PER_ORG_PER_DAY = 30;
+const INVITES_PER_USER_PER_DAY = 30;
+const INVITES_PER_ADDRESS_PER_DAY = 3;
 
 @Injectable()
 export class InvitesService {
@@ -19,6 +28,7 @@ export class InvitesService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly cfg: ConfigService,
+    private readonly guard?: OutboundGuardService,
   ) {}
 
   async create(input: {
@@ -37,11 +47,25 @@ export class InvitesService {
     if (!org) throw new NotFoundException('Organization not found');
 
     const email = input.email.trim().toLowerCase();
+    if (!isPlainEmailAddress(email)) throw new BadRequestException('Enter a valid email address.');
     const existingMember = await this.prisma.user.findFirst({
       where: { email, memberships: { some: { organizationId: input.organizationId } } },
     });
     if (existingMember) {
       throw new ConflictException('That email is already a member of this organization');
+    }
+
+    // Caps are counted before anything is written, so a refused invite leaves
+    // any earlier pending invitation for this address untouched.
+    if (this.guard) {
+      const ok = await this.guard.allow('invite', [
+        { name: 'org', value: input.organizationId, limit: INVITES_PER_ORG_PER_DAY, windowSeconds: 86_400 },
+        { name: 'user', value: input.invitedById, limit: INVITES_PER_USER_PER_DAY, windowSeconds: 86_400 },
+        { name: 'email', value: emailCapKey(email), limit: INVITES_PER_ADDRESS_PER_DAY, windowSeconds: 86_400 },
+      ]);
+      if (!ok) {
+        throw new OutboundLimitError('Invitation limit reached for today. Please try again tomorrow.');
+      }
     }
 
     // Generate single-use token. The plaintext is mailed; only the hash is stored.

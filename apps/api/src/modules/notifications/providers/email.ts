@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import * as Sentry from '@sentry/node';
 import type { EmailProvider } from '../tokens';
+import { assertSafeEnvelope } from '../../../common/outbound/text-safety';
 
 /**
  * Logs the email to stdout. Use for local dev so we never need a real SMTP server.
@@ -10,6 +11,7 @@ export class ConsoleEmailProvider implements EmailProvider {
   private readonly logger = new Logger('ConsoleEmail');
 
   async send(input: { to: string; subject: string; html: string; text?: string }): Promise<void> {
+    assertSafeEnvelope(input.to, input.subject);
     this.logger.log(
       `\n----- EMAIL -----\nTo: ${input.to}\nSubject: ${input.subject}\n${input.text ?? input.html.replace(/<[^>]+>/g, '')}\n-----------------`,
     );
@@ -29,6 +31,9 @@ export class PostmarkEmailProvider implements EmailProvider {
   ) {}
 
   async send(input: { to: string; subject: string; html: string; text?: string }): Promise<void> {
+    // The choke point: one plain recipient, one-line subject, whatever path
+    // built this message.
+    assertSafeEnvelope(input.to, input.subject);
     const res = await fetch('https://api.postmarkapp.com/email', {
       method: 'POST',
       headers: {

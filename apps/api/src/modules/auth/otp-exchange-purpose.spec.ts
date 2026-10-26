@@ -37,8 +37,10 @@ function makeRes() {
   } as never;
 }
 
-function dto(purpose: VerifyOtpDto['purpose']): VerifyOtpDto {
-  return { destination: 'buyer@example.com', code: '123456', purpose };
+// Takes any string: the removed purposes (payment_confirm, phone_verify) can
+// no longer pass the DTO, but the controller allowlist still refuses them.
+function dto(purpose: string): VerifyOtpDto {
+  return { destination: 'buyer@example.com', code: '123456', purpose: purpose as VerifyOtpDto['purpose'] };
 }
 
 describe('AuthController.exchangeOtp purpose allowlist', () => {

@@ -22,6 +22,7 @@ import {
   type LegalDocument,
 } from '../../common/legal-versions';
 import { LegalService } from './legal.service';
+import { requestIp } from '../../common/outbound/ip';
 
 class AcceptItemDto {
   @IsIn(LEGAL_DOCUMENTS as unknown as string[])
@@ -78,12 +79,9 @@ export class LegalController {
   accept(@Body() dto: AcceptDto, @CurrentUser() user: AuthUser, @Req() req: Request) {
     return this.legal.accept(user.userId, dto.documents, {
       source: dto.source ?? 'prompt',
-      // Behind Render's proxy req.ip is the proxy; the client is the first
-      // X-Forwarded-For entry.
-      ip:
-        (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
-        req.ip ||
-        null,
+      // req.ip is the real client once 'trust proxy' is set (main.ts); the
+      // leftmost X-Forwarded-For entry is client-controlled and not used.
+      ip: requestIp(req),
       userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
     });
   }

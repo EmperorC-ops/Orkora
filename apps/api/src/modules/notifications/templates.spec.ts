@@ -33,10 +33,13 @@ describe('ticketConfirmationTemplate venue block', () => {
     });
     expect(out.html).toContain('The Landmark Centre');
     expect(out.html).toContain('Water Corporation Rd');
-    expect(out.html).toContain('https://meet.example/room');
+    // The organizer's join link never appears in the email; "Join online"
+    // opens the attendee's ticket page, which shows it.
+    expect(out.html).not.toContain('meet.example');
     expect(out.html).toContain('Join online');
+    expect(out.html).toContain('href="https://x/t/TKT-1"');
     expect(out.text).toContain('The Landmark Centre');
-    expect(out.text).toContain('https://meet.example/room');
+    expect(out.text).not.toContain('meet.example');
   });
 
   it('omits the venue block entirely when no venue is set', () => {
@@ -107,5 +110,62 @@ describe('statutory particulars on every email', () => {
       expect(out.html).not.toContain('orkora-wordmark-on-dark.png');
       expect(out.html).not.toMatch(/<img[^>]+alt="Orkora"/);
     }
+  });
+});
+
+/**
+ * Abuse rules: no user-typed text in a subject, links stripped from names and
+ * titles in bodies, and only escaped https hrefs.
+ */
+describe('templates resist being used to carry spam', () => {
+  const spam = 'WIN NOW visit cheap-pills.xyz';
+  const ticket = ticketConfirmationTemplate({
+    eventTitle: `Party ${spam}`,
+    eventDateLine: 'Sat, 10 Jan 2026, 10:00',
+    tickets: [
+      {
+        code: 'TKT-1',
+        holderName: `Ada https://evil.example/x`,
+        tierName: 'General',
+        ticketUrl: 'https://orkora.events/t/TKT-1"onmouseover="x',
+      },
+    ],
+    venue: { name: 'Hall www.bad.example', address: 'Line 1\nbit.ly/abc', joinUrl: 'javascript:alert(1)' },
+  });
+
+  it('uses fixed subjects that carry no user-typed text', () => {
+    expect(ticket.subject).toBe('Your ticket is confirmed');
+    expect(inviteEmailTemplate(spam, 'https://x/accept').subject).toBe('You have been invited to a team on Orkora');
+    const r = receiptTemplate({
+      orderId: 'o', eventTitle: spam, orgName: spam, paidAtLine: 'd', provider: 'Paystack', totalFormatted: 'NGN 1', lines: [],
+    });
+    expect(r.subject).toBe('Your Orkora payment receipt');
+    const f = refundTemplate({
+      orderId: 'o', eventTitle: spam, orgName: spam, refundedAtLine: 'd', provider: 'Paystack', totalFormatted: 'NGN 1',
+    });
+    expect(f.subject).toBe('Your refund has been issued');
+  });
+
+  it('removes links from titles, names and venues in both parts', () => {
+    for (const part of [ticket.html, ticket.text]) {
+      expect(part).not.toContain('cheap-pills.xyz');
+      expect(part).not.toContain('evil.example');
+      expect(part).not.toContain('bad.example');
+      expect(part).not.toContain('bit.ly');
+    }
+    expect(ticket.html).toContain('[link removed]');
+  });
+
+  it('drops a non-https join link and escapes ticket hrefs', () => {
+    expect(ticket.html).not.toContain('javascript:');
+    expect(ticket.html).not.toContain('Join online');
+    expect(ticket.html).not.toContain('"onmouseover="');
+    expect(ticket.html).toContain('&quot;onmouseover=&quot;');
+  });
+
+  it('keeps an organization name in the invite body but strips links from it', () => {
+    const inv = inviteEmailTemplate('Acme www.spam.example', 'https://orkora.events/invite/abc');
+    expect(inv.html).toContain('Acme');
+    expect(inv.html).not.toContain('spam.example');
   });
 });
