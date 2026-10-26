@@ -120,7 +120,7 @@ export default function EventDetailsEditor({
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="font-semibold text-slate-900">Event details</h3>
+      <h3 className="font-semibold text-slate-900">Event Details</h3>
       <p className="mt-1 text-sm text-slate-500">
         Title, description, format, dates and timezone. Changes to a published event go live
         immediately.

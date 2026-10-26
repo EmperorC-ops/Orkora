@@ -121,7 +121,7 @@ export default async function BrandHomePage({
         {brand.past.length > 0 ? (
           <section id="archive">
             <div className="mb-6 flex items-end justify-between gap-4">
-              <h2 className="text-2xl font-bold">Past editions</h2>
+              <h2 className="text-2xl font-bold">Past Editions</h2>
               <Link
                 href={`/o/${brand.slug}/past`}
                 className="text-sm font-semibold text-brand-300 transition hover:text-brand-200"
@@ -158,7 +158,7 @@ export default async function BrandHomePage({
 
         {/* Connect / community subscribe */}
         <section id="connect" className="rounded-2xl border border-surface-border bg-surface/40 p-8">
-          <h2 className="text-2xl font-bold">Stay in the world</h2>
+          <h2 className="text-2xl font-bold">Stay in the World</h2>
           <p className="mt-2 max-w-md text-sm text-ink-secondary">
             Get the next drop from {brand.name} before anyone else.
           </p>

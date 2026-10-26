@@ -169,7 +169,7 @@ All four legal documents have been re-audited for placeholder text. No `[PLACEHO
 
 ### Status of the items in §5 (pre-launch operational gates) — DEFAULTS APPLIED
 
-The defaults below have been applied to the four draft documents (`LEGAL/terms.md`, `LEGAL/privacy.md`, `LEGAL/refunds.md`, `LEGAL/organizer.md`). Each is clearly flagged as a default; counsel review will confirm or substitute.
+The defaults below were applied to the four v1 draft documents (formerly in `LEGAL/`, removed in October 2026; the current texts are `apps/web/legal/*.md`, version 2.1). Each is clearly flagged as a default; counsel review will confirm or substitute.
 
 | Item | Applied default | Source |
 |---|---|---|

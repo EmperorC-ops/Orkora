@@ -63,7 +63,7 @@ export default function ConfirmOrderPage() {
             <Icon tone="warm">
               <XCircle className="h-6 w-6" />
             </Icon>
-            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Could not load order</h1>
+            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Could Not Load Order</h1>
             <p className="mt-3 text-sm text-ink-secondary">{error}</p>
           </Card>
         ) : !order ? (
@@ -71,7 +71,7 @@ export default function ConfirmOrderPage() {
             <Icon tone="brand">
               <Hourglass className="h-6 w-6" />
             </Icon>
-            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Confirming payment</h1>
+            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Confirming Payment</h1>
             <p className="mt-3 text-sm text-ink-secondary">Talking to your bank...</p>
           </Card>
         ) : order.status === 'paid' ? (
@@ -81,7 +81,7 @@ export default function ConfirmOrderPage() {
             <Icon tone="warm">
               <XCircle className="h-6 w-6" />
             </Icon>
-            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Payment did not go through</h1>
+            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Payment Did Not Go Through</h1>
             <p className="mt-3 text-sm text-ink-secondary">
               Your seats have been released. You can try again from the event page.
             </p>
@@ -99,7 +99,7 @@ export default function ConfirmOrderPage() {
             <Icon tone="brand">
               <Hourglass className="h-6 w-6" />
             </Icon>
-            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Still confirming</h1>
+            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Still Confirming</h1>
             <p className="mt-3 text-sm text-ink-secondary">
               Payment confirmation is taking a little longer than usual. We will email you the moment
               your tickets are ready. You can also refresh this page.
@@ -110,7 +110,7 @@ export default function ConfirmOrderPage() {
             <Icon tone="brand">
               <Hourglass className="h-6 w-6" />
             </Icon>
-            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Confirming payment</h1>
+            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Confirming Payment</h1>
             <p className="mt-3 text-sm text-ink-secondary">
               Status: <span className="font-mono">{order.status}</span>
             </p>

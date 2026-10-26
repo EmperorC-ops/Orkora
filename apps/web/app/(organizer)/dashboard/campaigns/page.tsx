@@ -88,7 +88,7 @@ export default function CampaignsListPage() {
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-300">
             <Mail className="h-6 w-6" />
           </span>
-          <h2 className="mt-4 text-lg font-semibold text-ink-primary">No campaigns yet</h2>
+          <h2 className="mt-4 text-lg font-semibold text-ink-primary">No Campaigns Yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ink-secondary">
             Send your first email to everyone registered for one of your events. Pick an audience, write the message, send.
           </p>

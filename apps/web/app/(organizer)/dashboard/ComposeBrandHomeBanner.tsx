@@ -40,7 +40,7 @@ export default function ComposeBrandHomeBanner() {
           <Sparkles className="h-4 w-4 text-brand-300" />
         </span>
         <div>
-          <h2 className="text-base font-semibold text-ink-primary">Turn your page into a brand home</h2>
+          <h2 className="text-base font-semibold text-ink-primary">Turn Your Page Into a Brand Home</h2>
           <p className="mt-1 max-w-2xl text-sm text-ink-secondary">
             Your events now live inside a year-round public home. Compose the hero, tell your story, and start
             capturing a community that comes back for every drop.

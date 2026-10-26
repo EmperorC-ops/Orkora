@@ -162,7 +162,7 @@ export default function OtpScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.hero}>
-            <Text style={styles.heroBold}>Check your email</Text>
+            <Text style={styles.heroBold}>Check Your Email</Text>
             <Text style={styles.heroSubtitle}>
               We sent a 6-digit code to{'\n'}
               <Text style={styles.heroDest}>{destination}</Text>

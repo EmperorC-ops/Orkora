@@ -10,11 +10,10 @@ import { LegalEntityLine } from '@/components/legal-entity';
  * changes are announced in advance" note, and pins a "questions" contact line
  * at the bottom.
  *
- * Earlier versions carried a "Draft for review by counsel" banner and then a
- * private-beta note; both were retired as the platform moved to general
- * availability (2026-10). The full counsel-marked-up source with
- * [COUNSEL NOTE: ...] markers is retained at LEGAL/*.md at repo root and
- * stripped from the rendered output by lib/legal-markdown.tsx.
+ * Earlier versions carried a review banner and then a private-beta note; both
+ * were retired at general availability (2026-10). apps/web/legal/*.md are the
+ * only copies of the texts; lib/legal-markdown.tsx still strips any stray
+ * [COUNSEL NOTE: ...] marker from the rendered output as a safeguard.
  */
 // Next.js App Router only permits a specific set of named exports from a
 // layout.tsx (default, metadata, generateMetadata, viewport, ...). Anything

@@ -117,7 +117,7 @@ export default function RegisterScreen() {
   if (loadError) {
     return (
       <View style={styles.center}>
-        <Text style={styles.heading}>Event not found</Text>
+        <Text style={styles.heading}>Event Not Found</Text>
         <Text style={styles.muted}>{loadError}</Text>
       </View>
     );
@@ -153,7 +153,7 @@ export default function RegisterScreen() {
           })}
         </Text>
 
-        <Text style={styles.sectionLabel}>Choose a ticket</Text>
+        <Text style={styles.sectionLabel}>Choose a Ticket</Text>
         <View style={{ gap: 8 }}>
           {(event.tiers ?? [])
             .slice()
@@ -195,7 +195,7 @@ export default function RegisterScreen() {
         </View>
 
         <View style={styles.attendeesHeader}>
-          <Text style={styles.sectionLabel}>Attendee details</Text>
+          <Text style={styles.sectionLabel}>Attendee Details</Text>
           {tier && attendees.length < tier.maxPerOrder ? (
             <Pressable onPress={addAttendee} style={styles.addBtn}>
               <Feather name="plus" size={14} color="#ACA6F1" />

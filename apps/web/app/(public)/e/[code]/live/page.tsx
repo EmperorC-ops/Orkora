@@ -345,7 +345,7 @@ export default function LiveEngagementPage() {
         <InstallPrompt
           variant="inline"
           surface="live"
-          title="Jump back in faster next time"
+          title="Jump Back in Faster Next Time"
           description="Add Orkora to your home screen to return to the live room in one tap."
           onEvent={(evt) => {
             if (entryTicket) recordTicketCardEvent(entryTicket, `install_prompt.${evt}`, 'live');

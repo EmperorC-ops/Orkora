@@ -6,8 +6,9 @@
  * surfaces read from here so the numbers live in exactly one place.
  *
  * Model: free events are always free. The per-ticket fee applies to paid
- * tickets only and is taken from the organizer's settlement, never added on top
- * of the attendee's price. Payment processing fees (Stripe, Paystack,
+ * tickets only. Per event, the organizer either absorbs it (taken from their
+ * settlement) or passes it on (added to the ticket price and shown to the
+ * attendee before they pay). Payment processing fees (Stripe, Paystack,
  * Flutterwave) are charged separately by the provider at their published rates.
  */
 

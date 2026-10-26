@@ -381,7 +381,7 @@ export default function EventDetailPage() {
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">Ticket tiers</h3>
+          <h3 className="font-semibold text-slate-900">Ticket Tiers</h3>
           <button
             onClick={() => setShowTierForm((s) => !s)}
             className="inline-flex items-center gap-1 rounded-full bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white"
@@ -1570,7 +1570,7 @@ function DiscoveryDetails({
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="font-semibold text-slate-900">Discovery details</h3>
+      <h3 className="font-semibold text-slate-900">Discovery Details</h3>
       <p className="mt-1 text-sm text-slate-500">
         Category and city help people find this event through search engines.
       </p>
@@ -1636,7 +1636,7 @@ function BannerEditor({
       <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
         <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-2xl">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-slate-900">Update banner</h4>
+            <h4 className="text-sm font-semibold text-slate-900">Update Banner</h4>
             <button
               type="button"
               onClick={() => setEditing(false)}

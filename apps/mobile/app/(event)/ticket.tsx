@@ -38,7 +38,7 @@ export default function TicketScreen() {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.heading}>Ticket not found</Text>
+        <Text style={styles.heading}>Ticket Not Found</Text>
         <Text style={styles.muted}>{error}</Text>
       </View>
     );

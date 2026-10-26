@@ -38,7 +38,7 @@ export default function AdminOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-ink-primary">Platform overview</h2>
+      <h2 className="text-2xl font-bold text-ink-primary">Platform Overview</h2>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (

@@ -82,7 +82,7 @@ export default function EventFeedbackPage() {
 
       <header>
         <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Feedback</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Attendee feedback</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Attendee Feedback</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           {data.total > 0
             ? `${data.total} response${data.total === 1 ? '' : 's'} across the event and its sessions.`
@@ -134,14 +134,14 @@ export default function EventFeedbackPage() {
 
           {data.overall.npsCount > 0 && (
             <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
-              <h3 className="text-sm font-semibold text-ink-primary">NPS breakdown</h3>
+              <h3 className="text-sm font-semibold text-ink-primary">NPS Breakdown</h3>
               <NpsBar agg={data.overall} />
             </section>
           )}
 
           {data.sessions.length > 0 && (
             <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
-              <h3 className="text-sm font-semibold text-ink-primary">By session</h3>
+              <h3 className="text-sm font-semibold text-ink-primary">By Session</h3>
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>

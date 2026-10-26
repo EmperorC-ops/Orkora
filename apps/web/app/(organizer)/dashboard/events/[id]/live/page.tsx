@@ -82,7 +82,7 @@ export default function LiveControlPage() {
 
       <header>
         <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Live</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Live control</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Live Control</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           Launch polls and moderate audience questions while your event is running.
         </p>
@@ -254,7 +254,7 @@ function SpotlightSection({
     <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
       <div className="flex items-center gap-2">
         <Megaphone className="h-5 w-5 text-brand-300" />
-        <h2 className="text-lg font-semibold text-ink-primary">On screen now</h2>
+        <h2 className="text-lg font-semibold text-ink-primary">On Screen Now</h2>
       </div>
       <p className="mt-1 text-sm text-ink-secondary">
         Push an announcement, a link, or a video to every participant&apos;s live screen.
@@ -580,7 +580,7 @@ function QaSection({
     <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
       <div className="flex items-center gap-2">
         <MessageCircleQuestion className="h-5 w-5 text-brand-300" />
-        <h2 className="text-lg font-semibold text-ink-primary">Q&amp;A moderation</h2>
+        <h2 className="text-lg font-semibold text-ink-primary">Q&amp;A Moderation</h2>
       </div>
 
       <div className="mt-5 space-y-3">

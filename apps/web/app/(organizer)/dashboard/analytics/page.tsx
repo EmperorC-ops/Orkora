@@ -89,7 +89,7 @@ export default function OrgAnalyticsPage() {
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Analytics</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            How everything is moving
+            How Everything Is Moving
           </h1>
           <p className="mt-1 text-sm text-ink-secondary">
             Twelve-month rollup of registrations, paid orders, and check-ins across every event.
@@ -142,13 +142,13 @@ export default function OrgAnalyticsPage() {
 
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
             <Panel
-              title="Registrations & paid orders"
+              title="Registrations & Paid Orders"
               subtitle="Last 12 months"
               right={<Legend dotClass="bg-brand-500" label="Registrations" extra="bg-[#00C896]" extraLabel="Paid orders" />}
             >
               <DualBarChart series={data.monthly} />
             </Panel>
-            <Panel title="Conversion funnel" subtitle="Org-wide">
+            <Panel title="Conversion Funnel" subtitle="Org-wide">
               <Funnel
                 steps={[
                   { label: 'Registrations', value: data.funnel.registrations },
@@ -163,7 +163,7 @@ export default function OrgAnalyticsPage() {
           </section>
 
           <Panel
-            title="Events breakdown"
+            title="Events Breakdown"
             subtitle="Sorted by start date"
             right={
               <Link

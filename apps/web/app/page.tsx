@@ -21,25 +21,25 @@ import { LegalEntityLine } from '@/components/legal-entity';
 const capabilities = [
   {
     Icon: Calendar,
-    title: 'Plan with clarity',
+    title: 'Plan with Clarity',
     body: 'Create events, manage registrations, and structure every session with precision.',
     accent: 'from-brand-500 to-brand-700',
   },
   {
     Icon: Activity,
-    title: 'Operate in real time',
+    title: 'Operate in Real Time',
     body: 'Track attendance, push updates, and adjust instantly as things evolve.',
     accent: 'from-[#FF7675] to-[#FF5757]',
   },
   {
     Icon: Users,
-    title: 'Engage with purpose',
+    title: 'Engage with Purpose',
     body: 'Keep attendees informed, involved, and moving in sync with the event.',
     accent: 'from-[#00C896] to-[#00A074]',
   },
   {
     Icon: BarChart3,
-    title: 'Measure what matters',
+    title: 'Measure What Matters',
     body: 'Access live data and post-event insights without guesswork.',
     accent: 'from-[#5B8DEF] to-[#3F69D1]',
   },
@@ -48,19 +48,19 @@ const capabilities = [
 const howItWorks = [
   {
     step: '01',
-    title: 'Set up your event',
+    title: 'Set Up Your Event',
     body: 'Customize registration, tickets, agenda, and branding.',
     visual: <SetupVisual />,
   },
   {
     step: '02',
-    title: 'Run everything from one system',
+    title: 'Run Everything from One System',
     body: 'Coordinate teams, attendees, and sessions in real time.',
     visual: <OperateVisual />,
   },
   {
     step: '03',
-    title: 'Close with clarity',
+    title: 'Close with Clarity',
     body: 'Track performance, engagement, and outcomes in one place.',
     visual: <CloseVisual />,
   },

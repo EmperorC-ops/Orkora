@@ -73,7 +73,7 @@ Yes. Choose **Export CSV** on the registrations page. The export includes the an
 - **Across all events (Analytics in the menu):** a 12-month trend, a conversion funnel and an events breakdown.
 
 **Can I filter by date, tier or registration answers?**
-Yes. Open the event's **Analytics** and scroll to **Insights**. Filter by when people registered, tier, status, VIP and any dropdown or checkbox question on your registration form. **Compare by** shows the same numbers side by side (for example check-in rate per tier, or registrations per "How did you hear about us?" answer), and **Arrivals** shows check-ins every 15 minutes on the day.
+Yes. Open the event's **Analytics** and scroll to **Insights**. Filter by when people registered, tier, status, VIP and any dropdown or checkbox question on your registration form. **Compare By** shows the same numbers side by side (for example check-in rate per tier, or registrations per "How did you hear about us?" answer), and **Arrivals** shows check-ins every 15 minutes on the day.
 
 **Can I download exactly what I filtered?**
 Yes. **Export CSV** in Insights downloads the attendees in the current view, with their answers.`,
@@ -85,7 +85,7 @@ Yes. **Export CSV** in Insights downloads the attendees in the current view, wit
     title: 'Creating and Editing Events',
     minRole: 'organizer',
     body: `**How do I create an event?**
-**Events, then Create a new event.** Add a title, description, format (in person, virtual or hybrid), start and end times, timezone and location. You can change all of it later.
+**Events, then New event.** Add a title, description, format (in person, virtual or hybrid), start and end times, timezone and location. You can change all of it later.
 
 **Which timezone do event times use?**
 The one you choose for the event. Everyone sees the event's local time. Set it before you publish.
@@ -94,7 +94,7 @@ The one you choose for the event. Everyone sees the event's local time. Set it b
 No. It starts as a draft. Choose **Publish** when you are ready, and **Unpublish** to hide it again. Your organization must have accepted the Organizer Agreement before it can publish.
 
 **Can I edit an event after publishing?**
-Yes, under **Event details**. Changes go live immediately.
+Yes, under **Event Details**. Changes go live immediately.
 
 **Can I hide the venue until people register?**
 Yes. Turn on **Reveal the venue only on the ticket**. The public page then shows only the city; the venue, address and online join link appear on the ticket.
@@ -114,7 +114,7 @@ All three are optional. Polls can run for the whole event or for one session.
     title: 'Tickets and Registration',
     minRole: 'organizer',
     body: `**How do I add tickets?**
-Under **Ticket tiers**, choose **Add tier**. Set a name, price (0 for free), currency and quantity.
+Under **Ticket Tiers**, choose **Add tier**. Set a name, price (0 for free), currency and quantity.
 
 **Can I change a tier after people have registered?**
 Yes: name, price, currency and quantity. The quantity cannot go below what has been sold, and a tier with sales or check-ins is protected from deletion.
@@ -129,7 +129,7 @@ One registration per email address per event. Submitting the form again does not
 Yes. Make the tier a **Group ticket** and set the **Minimum group size** and **Maximum per order**.
 
 **Can I ask my own questions at registration?**
-Yes, under **Registration form**. Types: short text, paragraph, dropdown, checkboxes, number, date, consent checkbox, and a **Note / info** block (no answer, can include links). Questions can be required, and **Show only if** makes a question appear after a particular answer.
+Yes, under **Registration Form**. Types: short text, paragraph, dropdown, checkboxes, number, date, consent checkbox, and a **Note / info** block (no answer, can include links). Questions can be required, and **Show only if** makes a question appear after a particular answer.
 
 **What is a VIP express link?**
 A private link for guests to register through a short form. They are tagged VIP and appear under the **VIP** tab. Choose **Generate VIP link** (optionally with a custom word), then **Copy link** and share it privately. VIP guests get a free ticket, so the event needs a free tier.`,
@@ -155,7 +155,7 @@ The Story tab shows views, how many visitors reached the tickets section, and wh
 A second screen for attendees during the event: ask and upvote questions, vote in polls, chat. Attendees open it from **Join live** on their ticket.
 
 **How do I run it?**
-Open the event, then **Live control**. Create polls, answer and hide questions, moderate chat and put something on screen.
+Open the event, then **Live Control**. Create polls, answer and hide questions, moderate chat and put something on screen.
 
 **Do I need sessions to run polls?**
 No. Choose **Whole event** in the Session box, or pick a session to tie the poll to it.
@@ -174,7 +174,7 @@ Yes. Hide it from Live control.`,
     title: 'Discounts, Recordings and Feedback',
     minRole: 'organizer',
     body: `**How do I create a discount code?**
-On the event, **Discounts, then New code**. Choose **Percentage off** (1 to 100) or **Fixed amount off**, and optionally a maximum number of uses, an expiry and a specific tier.
+On the event, **Discounts, then New Code**. Choose **Percentage off** (1 to 100) or **Fixed amount off**, and optionally a maximum number of uses, an expiry and a specific tier.
 
 **Can I share recordings after the event?**
 Yes. Under **Recordings**, add a recording and optionally restrict it to holders of a specific tier. Viewers watch it from the event's watch page.
@@ -189,7 +189,7 @@ Attendees leave a rating, a 0 to 10 score and comments from the event page. See 
     title: 'Your Team: Roles and Access',
     minRole: 'admin',
     body: `**How do I add someone?**
-**Settings, then Invite a teammate.** Enter their email and choose a role. They receive an email with an accept link.
+**Settings, then Invite a Teammate.** Enter their email and choose a role. They receive an email with an accept link.
 
 **Which role should I give?**
 
@@ -249,10 +249,10 @@ Yes, a daily limit per organization. Contact us before emailing a very large aud
     title: 'Paid Events, Payouts and Refunds',
     minRole: 'admin',
     body: `**How do I sell paid tickets?**
-Set a price on the tier and connect a payout account under **Settings, then Payout accounts**: pick your bank, enter the account number, verify it and connect.
+Set a price on the tier and connect a payout account under **Settings, then Payout Accounts**: pick your bank, enter the account number, verify it and connect.
 
 **Which providers are supported?**
-Paystack is the main provider. Choose the provider for each currency under **Settings, then Provider preferences**.
+Paystack is the main provider. Choose the provider for each currency under **Settings, then Provider Preferences**.
 
 **What does Orkora charge?**
 A platform fee on each paid ticket, shown on the **Billing** page. Free tickets carry no fee. For each event you choose **I will absorb the fee** or **Pass the fee on to attendees**; if passed on, buyers see the exact fee before paying. Your payment provider also charges its own processing fee.
@@ -280,7 +280,7 @@ A public page for your organization at **orkora.events/o/your-name**, listing up
 Under **Settings, then Branding**. The logo also heads your campaign emails.
 
 **Can I change the organization's name or link?**
-Yes, under **Settings, then Organization profile**.`,
+Yes, under **Settings, then Organization Profile**.`,
   },
 ];
 

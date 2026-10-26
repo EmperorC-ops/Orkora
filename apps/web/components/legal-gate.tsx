@@ -75,7 +75,7 @@ export function LegalGate({ children }: { children: React.ReactNode }) {
           </span>
           <div>
             <h1 className="text-xl font-bold text-ink-primary">
-              Please review our terms
+              Please Review Our Terms
             </h1>
             <p className="text-sm text-ink-secondary">Accept to continue to your dashboard.</p>
           </div>

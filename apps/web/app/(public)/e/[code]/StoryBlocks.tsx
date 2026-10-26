@@ -286,7 +286,7 @@ function CastBlock({
   if (block.data.variant === 'list') {
     return (
       <section className="mx-auto max-w-3xl px-6 py-12">
-        <h2 className="mb-6 text-2xl font-bold">Line-up</h2>
+        <h2 className="mb-6 text-2xl font-bold">Line-Up</h2>
         <ul className="divide-y divide-surface-border">
           {fromSpeakers.map((p, i) => (
             <li key={i} className="flex items-baseline justify-between gap-4 py-3">
@@ -302,7 +302,7 @@ function CastBlock({
   const cols = block.data.columns === 4 ? 'sm:grid-cols-4' : block.data.columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3';
   return (
     <section className="mx-auto max-w-4xl px-6 py-12">
-      <h2 className="mb-6 text-2xl font-bold">Line-up</h2>
+      <h2 className="mb-6 text-2xl font-bold">Line-Up</h2>
       <div className={`grid grid-cols-2 gap-6 ${cols}`}>
         {fromSpeakers.map((p, i) => (
           <div key={i} className="text-center">
@@ -351,7 +351,7 @@ function PlaylistBlock({ block, color }: { block: Extract<StoryBlock, { type: 'p
   if (data.tracks.length > 0) {
     return (
       <section className="mx-auto max-w-3xl px-6 py-12">
-        <h2 className="mb-4 text-2xl font-bold">The playlist</h2>
+        <h2 className="mb-4 text-2xl font-bold">The Playlist</h2>
         <ol className="space-y-2">
           {data.tracks.map((t, i) => (
             <li key={i} className="flex items-baseline gap-3 text-ink-secondary">

@@ -185,7 +185,7 @@ export default function OrganizerRegistrationsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Registrations</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Who is coming</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Who Is Coming</h1>
         </div>
         {totals && (
           <div className="flex flex-wrap items-center gap-2">

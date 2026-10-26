@@ -193,7 +193,7 @@ today with the following defaults live and documented:
 | DMARC policy | `p=none` with aggregate reports to `dmarc@orkora.events`; monitoring 14-day window before moving to `p=quarantine` |
 | Legal entity | Orkora Technologies Limited (registration in progress; drafts carry `RC [to be filled...]` placeholder that will render as-is on the live pages until updated) |
 | Insurance | Recommendation adopted (Hiscox / Embroker SMB SaaS US$1M cyber + US$1M E&O + US$1M GL); binding scheduled once entity registration closes |
-| Legal pages | Best-case counsel-marked drafts live at `/legal/{terms,privacy,refunds,organizer}` with `[COUNSEL NOTE]` markers stripped from the rendered output; source retains them at `LEGAL/*.md` for the counsel round |
+| Legal pages | Version 2.1 texts live at `/legal/{terms,privacy,refunds,organizer}` from `apps/web/legal/*.md`. The counsel-marked v1 drafts in `LEGAL/` were removed in October 2026. |
 | Campaigns webhook | Basic-Auth guarded via `POSTMARK_WEBHOOK_TOKEN` (backwards-compat admits when unset) |
 | Campaigns daily cap | Enforced per-org rolling 24 h: `CAMPAIGNS_DAILY_CAP_PER_ORG` env, default 1000 |
 

@@ -132,7 +132,7 @@ export default function DashboardOverview() {
       {/* Charts row */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         <Panel
-          title="Attendance analytics"
+          title="Attendance Analytics"
           subtitle="Registrations per month, last 6 months"
           right={
             <div className="flex items-center gap-3 text-xs text-ink-secondary">
@@ -144,7 +144,7 @@ export default function DashboardOverview() {
           <MonthlyBarChart months={data?.monthlyRegistrations ?? []} />
         </Panel>
 
-        <Panel title="Revenue breakdown" subtitle="By source">
+        <Panel title="Revenue Breakdown" subtitle="By source">
           <RevenueDonut
             items={[
               {
@@ -167,7 +167,7 @@ export default function DashboardOverview() {
       {/* Bottom row */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
         <Panel
-          title="Latest registrations"
+          title="Latest Registrations"
           subtitle="Across every event you run"
           right={
             <Link
@@ -226,7 +226,7 @@ export default function DashboardOverview() {
           )}
         </Panel>
 
-        <Panel title="Most engaged" subtitle="Events by registrations">
+        <Panel title="Most Engaged" subtitle="Events by registrations">
           {!data ? (
             <p className="py-6 text-sm text-ink-muted">Loading...</p>
           ) : data.topEvents.length === 0 ? (

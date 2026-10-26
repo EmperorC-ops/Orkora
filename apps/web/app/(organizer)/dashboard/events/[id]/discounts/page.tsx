@@ -105,7 +105,7 @@ export default function EventDiscountsPage() {
 
       <header>
         <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Discounts</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Discount codes</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Discount Codes</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           Create percentage or fixed-amount codes buyers can apply at checkout.
         </p>
@@ -113,7 +113,7 @@ export default function EventDiscountsPage() {
 
       {/* Create form */}
       <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
-        <h3 className="text-sm font-semibold text-ink-primary">New code</h3>
+        <h3 className="text-sm font-semibold text-ink-primary">New Code</h3>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField label="Code">
             <input
@@ -209,7 +209,7 @@ export default function EventDiscountsPage() {
 
       {/* Existing codes */}
       <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
-        <h3 className="text-sm font-semibold text-ink-primary">Existing codes</h3>
+        <h3 className="text-sm font-semibold text-ink-primary">Existing Codes</h3>
         {codes === null ? (
           <p className="mt-4 text-sm text-ink-secondary">Loading codes...</p>
         ) : codes.length === 0 ? (

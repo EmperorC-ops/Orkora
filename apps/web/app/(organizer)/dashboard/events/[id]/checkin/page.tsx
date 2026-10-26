@@ -376,7 +376,7 @@ export default function CheckinPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Check-in</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Scan tickets at the door</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Scan Tickets at the Door</h1>
         </div>
         <CheckinStatsCard stats={stats} />
       </header>
@@ -486,7 +486,7 @@ export default function CheckinPage() {
 
         <aside className="rounded-2xl border border-surface-border bg-surface/40 p-6">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            Last scan
+            Last Scan
           </h3>
           <div className="mt-4 min-h-[160px]">
             {busy ? (
@@ -497,7 +497,7 @@ export default function CheckinPage() {
               <p className="text-sm text-ink-muted">Waiting for a scan.</p>
             ) : outcome.kind === 'success' ? (
               <>
-                <ScanResult tone="success" result={outcome.result} title="Checked in" />
+                <ScanResult tone="success" result={outcome.result} title="Checked In" />
                 <UndoButton
                   disabled={busy}
                   onUndo={() => void undoLast(outcome.result.id)}
@@ -505,7 +505,7 @@ export default function CheckinPage() {
               </>
             ) : outcome.kind === 'duplicate' ? (
               <>
-                <ScanResult tone="warm" result={outcome.result} title="Already checked in" />
+                <ScanResult tone="warm" result={outcome.result} title="Already Checked In" />
                 <UndoButton
                   disabled={busy}
                   onUndo={() => void undoLast(outcome.result.id)}

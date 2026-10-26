@@ -86,7 +86,7 @@ export default function OrgAttendeesPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Attendees</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Your audience</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Your Audience</h1>
           <p className="mt-1 text-sm text-ink-secondary">
             One row per person. Counts and spend roll up across every event.
           </p>

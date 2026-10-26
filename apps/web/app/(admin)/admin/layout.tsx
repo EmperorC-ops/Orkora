@@ -192,7 +192,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="truncate text-lg font-semibold text-ink-primary">Platform administration</h1>
+            <h1 className="truncate text-lg font-semibold text-ink-primary">Platform Administration</h1>
           </div>
           <Link href="/dashboard" className="text-xs text-ink-secondary transition hover:text-ink-primary">
             Organizer view

@@ -630,7 +630,7 @@ function TemplatePicker({
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-surface-border bg-surface/40 p-6">
-        <h2 className="text-lg font-semibold">Compose your event story</h2>
+        <h2 className="text-lg font-semibold">Compose Your Event Story</h2>
         <p className="mt-1 text-sm text-ink-secondary">
           Pick a starting template. Templates are a seed, not a lock-in. Once you start editing, the composition is
           yours.

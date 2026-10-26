@@ -41,7 +41,15 @@ You keep ownership of the content you upload. You allow Orkora to host, display 
 
 Tickets are sold by the organiser to the attendee. Orkora is not a party to that sale. Payments are processed by the organiser's payment provider (currently Paystack or Flutterwave), and the organiser's share settles directly to the organiser's account with that provider.
 
-**Platform fee.** Orkora charges a fee on each paid ticket. Free tickets carry no fee. The fee for each paid ticket is:
+**Plans.** Free events are always free. Paid events are charged on one of our plans, which scale with the size of your events:
+
+- **Standard**, the default plan for every organiser, with the per-ticket fee below.
+- **Pro**, for organisers running a recurring series, with a monthly subscription and a lower per-ticket fee.
+- **Enterprise**, for high-volume and multi-entity organisers, with fees agreed for your volume.
+
+Current plan prices are published on our Pricing page. Pro and Enterprise apply only once you and Orkora have agreed to them in writing (including by email or in your dashboard); until then, Standard applies. Where an agreed plan sets different fees, those fees replace the Standard fee for the events it covers.
+
+**Standard platform fee.** Orkora charges a fee on each paid ticket. Free tickets carry no fee. The fee for each paid ticket is:
 
 - **3% of that ticket's price**, plus
 - **a fixed amount per ticket**: US$0.99, or its Naira equivalent for Naira sales (currently **NGN 1,350**).

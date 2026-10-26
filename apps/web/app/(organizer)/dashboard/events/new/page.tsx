@@ -80,7 +80,7 @@ export default function NewEventPage() {
       </Link>
 
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-ink-primary">Create a new event</h2>
+        <h2 className="text-2xl font-bold tracking-tight text-ink-primary">Create a New Event</h2>
         <p className="text-sm text-ink-secondary">
           Save as a draft now, fine-tune details later, and publish when you are ready.
         </p>

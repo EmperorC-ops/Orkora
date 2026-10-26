@@ -78,7 +78,7 @@ Date math to record and re-check before the flip:
       satisfies the Terms sections 4 and 7 notice obligation. GATE: blocks sending
       the notice. (FEE_NOTICE_DRAFT.md) [Legal]
 - [ ] Send the 60-day written notice to every organizer account from a monitored
-      address (for example billing@orkora.events) and RECORD THE SEND DATE. GATE:
+      address (for example support@orkora.events) and RECORD THE SEND DATE. GATE:
       starts the 60-day clock; the effective date must be at least 60 days later.
       (FEE_GOLIVE_RUNBOOK.md A; FEE_NOTICE_DRAFT.md; PLATFORM_FEE_ROLLOUT.md
       section 5.4) [Founder]

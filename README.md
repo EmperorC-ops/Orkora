@@ -42,7 +42,7 @@ As of 23 October 2026, Orkora is in production. Its largest event so far, WMXKED
 | Free events | Fully working end to end. |
 | Paid events | Paystack (NGN) was verified live end to end in May 2026. Stripe is coded but **not being pursued** (decision of 7 October 2026), so its keys stay unset. Flutterwave is coded, including the platform-fee split, but has **not** been verified in test mode. |
 | Platform fee | Coded (3% plus a flat fee per paid ticket, grandfathered per event) and **switched off**. Switching it on is an environment change, not a code change. See section 13 and `FEE_GOLIVE_CHECKLIST.md`. |
-| Beta wording | Removed from the marketing pages and dashboard copy (commit `add3c46`). It **remains** in `apps/web/legal/terms.md` (sections 4 and 7), `apps/web/legal/organizer.md` (section 3) and one note in `billing.service.ts`. It comes out together with the fee decision. |
+| Beta wording | Removed everywhere, including the legal texts (version 2.1, October 2026) and the billing notes. |
 | Staging | Partly down. The Vercel staging project exists (it had been paused, then was unpaused). The Render staging API it points to is missing, so staging cannot be used end to end. Rebuilding it is on the open list. |
 | Mobile (Expo) | The app exists (event code, login, register, ticket, event home) and ships through EAS. The repository records no store release. The PWA is the main mobile path today. |
 
@@ -343,7 +343,7 @@ Root documents, grouped by topic. **History** means the document is an accurate 
 | Payments and fees | `PLATFORM_FEE_ROLLOUT.md`, `FEE_GOLIVE_CHECKLIST.md`, `FEE_GOLIVE_RUNBOOK.md`, `FEE_NOTICE_DRAFT.md`, `STRIPE_FLUTTERWAVE_SPLIT_SCOPE.md` (Stripe dropped 7 Oct 2026), `BILLING_ENFORCEMENT_SLICE.md` |
 | Feature specs | `CAMPAIGNS_SPEC.md`, `REGISTRATION_QUESTIONS.md`, `LIVE_SECOND_SCREEN_DESIGN.md`, `DELEGATE_FLOW.md`, `PUSH_NOTIFICATIONS_DESIGN.md`, `ORKORA_WORKFLOW.md` |
 | Security | `SECURITY_REVIEW.md`, `SECURITY_REVIEW_2026-05-30.md`, `SECURITY_REVIEW_2026-07-23.md`, `SECURITY_AUDIT.md`, `SECURITY_AUDIT_2026-08.md`, `SECURITY_REVIEW_API.md`, `SECURITY_REVIEW_WEB.md`, `SECURITY_FIX_E2E_2026-07-07.md`, `API_EXPOSURE_AUDIT_2026-07-25.md`, `API_EXPOSURE_AUDIT_PLAYBOOK.md`, `THREAT_MODEL.md`, `security/` |
-| Legal | `LEGAL_REVIEW_PACKET.md`, `LEGAL_REVIEW_BINDER.pdf`, `LEGAL/`, published texts in `apps/web/legal/*.md` (marked "draft for counsel review") |
+| Legal | Published texts in `apps/web/legal/*.md` (version 2.1, the only copies), `LEGAL_REVIEW_PACKET.md`, `LEGAL_REVIEW_BINDER.pdf`. The old counsel-marked v1 drafts in `LEGAL/` were removed in October 2026. |
 | Brand and product | `BRAND_VOICE.md`, `DESIGN/`, `COPY/`, `ONE_PAGER.*`, `BUILD_RISK_ASSESSMENTS.md`, `PLAYBOOK_INTEGRATION_2026-08.md` |
 | Testing | `TESTER_GUIDE.*`, `SMOKE_TEST_new_features.md` |
 

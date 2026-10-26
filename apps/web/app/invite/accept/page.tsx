@@ -180,7 +180,7 @@ function AcceptInner() {
         {state.kind === 'mismatch' && (
           <>
             <AlertCircle className="mx-auto h-8 w-8 text-amber-400" />
-            <h1 className="mt-4 text-lg font-semibold">This invite is for a different email</h1>
+            <h1 className="mt-4 text-lg font-semibold">This Invite Is for a Different Email</h1>
             <p className="mt-1 text-sm text-ink-secondary">
               You are signed in with an account that does not match the invited address. Sign in with the
               email the invitation was sent to, then open the link again.
@@ -208,7 +208,7 @@ function AcceptInner() {
         {state.kind === 'expired' && (
           <>
             <AlertCircle className="mx-auto h-8 w-8 text-amber-400" />
-            <h1 className="mt-4 text-lg font-semibold">This invitation is no longer valid</h1>
+            <h1 className="mt-4 text-lg font-semibold">This Invitation Is No Longer Valid</h1>
             <p className="mt-1 text-sm text-ink-secondary">
               It may have expired, been revoked, or already been accepted. Ask the organiser to send a new
               invite.
@@ -219,7 +219,7 @@ function AcceptInner() {
         {state.kind === 'invalid' && (
           <>
             <AlertCircle className="mx-auto h-8 w-8 text-amber-400" />
-            <h1 className="mt-4 text-lg font-semibold">Invalid invitation link</h1>
+            <h1 className="mt-4 text-lg font-semibold">Invalid Invitation Link</h1>
             <p className="mt-1 text-sm text-ink-secondary">
               This link is missing its token. Please use the exact link from your invitation email.
             </p>
@@ -229,7 +229,7 @@ function AcceptInner() {
         {state.kind === 'error' && (
           <>
             <AlertCircle className="mx-auto h-8 w-8 text-red-400" />
-            <h1 className="mt-4 text-lg font-semibold">Could not accept the invitation</h1>
+            <h1 className="mt-4 text-lg font-semibold">Could Not Accept the Invitation</h1>
             <p className="mt-1 text-sm text-ink-secondary">{state.message}</p>
           </>
         )}

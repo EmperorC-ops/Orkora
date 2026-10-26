@@ -144,7 +144,7 @@ export default function EventAnalyticsPage() {
       {/* Charts row */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         <Panel
-          title="Registrations over time"
+          title="Registrations Over Time"
           subtitle={
             data.dailyRegistrations.length > 0
               ? `Day-by-day, ${data.dailyRegistrations.length} day${data.dailyRegistrations.length === 1 ? '' : 's'} so far`
@@ -154,14 +154,14 @@ export default function EventAnalyticsPage() {
           <DailyChart points={data.dailyRegistrations} />
         </Panel>
 
-        <Panel title="Sell-through" subtitle="Across all tiers">
+        <Panel title="Sell-Through" subtitle="Across all tiers">
           <SellThroughDonut sold={data.ticketsSold} capacity={data.ticketsCapacity} />
         </Panel>
       </section>
 
       {/* Tier breakdown + engagement */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <Panel title="Tier breakdown" subtitle="Sales and revenue by tier">
+        <Panel title="Tier Breakdown" subtitle="Sales and revenue by tier">
           <ul className="mt-1 space-y-3">
             {data.tiers.map((t, i) => {
               const cap = t.total ?? null;

@@ -207,7 +207,7 @@ function ProfileTab({ orgId }: { orgId: string }) {
   if (!org) return <SkeletonCard />;
 
   return (
-    <Section title="Organization profile" subtitle="Public name, URL slug, default country">
+    <Section title="Organization Profile" subtitle="Public name, URL slug, default country">
       <form onSubmit={save} className="space-y-4">
         <Field label="Name">
           <input
@@ -448,7 +448,7 @@ function MembersTab({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-6">
-      <Section title="Invite a teammate" subtitle="They get an email with an accept link.">
+      <Section title="Invite a Teammate" subtitle="They get an email with an accept link.">
         <form onSubmit={sendInvite} className="flex flex-wrap items-end gap-3">
           <Field label="Email" className="flex-1 min-w-[240px]">
             <div className="flex items-center gap-2 rounded-lg border border-surface-border bg-surface/40 px-3 py-2">
@@ -561,7 +561,7 @@ function MembersTab({ orgId }: { orgId: string }) {
         )}
       </Section>
 
-      <Section title="Pending invitations" subtitle={invites ? `${invites.length} open` : ''}>
+      <Section title="Pending Invitations" subtitle={invites ? `${invites.length} open` : ''}>
         {!invites ? (
           <SkeletonRows />
         ) : invites.length === 0 ? (
@@ -693,7 +693,7 @@ function ApiKeysTab({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-6">
       <Section
-        title="Create an API key"
+        title="Create an API Key"
         subtitle="Tokens carry the org id and the scopes you select."
       >
         <form onSubmit={create} className="space-y-4">
@@ -778,7 +778,7 @@ function ApiKeysTab({ orgId }: { orgId: string }) {
         )}
       </Section>
 
-      <Section title="Active keys" subtitle="Revoked keys remain for audit but cannot authenticate.">
+      <Section title="Active Keys" subtitle="Revoked keys remain for audit but cannot authenticate.">
         {!keys ? (
           <SkeletonRows />
         ) : keys.length === 0 ? (
@@ -930,7 +930,7 @@ function PaymentsTab({ orgId }: { orgId: string }) {
       <PayoutAccountsSection orgId={orgId} />
 
       <Section
-        title="Provider preferences"
+        title="Provider Preferences"
         subtitle="Override the default per-currency routing. Leaves the default in place when no row exists."
       >
         <form onSubmit={upsert} className="flex flex-wrap items-end gap-3">
@@ -972,7 +972,7 @@ function PaymentsTab({ orgId }: { orgId: string }) {
         </p>
       </Section>
 
-      <Section title="Active overrides" subtitle={`${data.preferences.length} configured`}>
+      <Section title="Active Overrides" subtitle={`${data.preferences.length} configured`}>
         {data.preferences.length === 0 ? (
           <Empty text="No overrides set. Default per-currency ordering applies." />
         ) : (
@@ -1062,7 +1062,7 @@ function PayoutAccountsSection({ orgId }: { orgId: string }) {
 
   return (
     <Section
-      title="Payout accounts"
+      title="Payout Accounts"
       subtitle="Connect the account each provider settles ticket sales to. Required before selling paid tickets once the platform fee is live."
     >
       {!status.gateEnabled && (

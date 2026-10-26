@@ -101,7 +101,7 @@ export default function VipLinkEditor({
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-brand-700" />
-        <h3 className="font-semibold text-slate-900">VIP express link</h3>
+        <h3 className="font-semibold text-slate-900">VIP Express Link</h3>
       </div>
       <p className="mt-1 text-sm text-slate-500">
         A private, shareable link for VIP guests. They register with just their name and email, skip

@@ -80,7 +80,7 @@ export default function BillingPage() {
       <section>
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <h2 className="text-base font-semibold text-ink-primary">Revenue by currency</h2>
+            <h2 className="text-base font-semibold text-ink-primary">Revenue by Currency</h2>
             <p className="text-xs text-ink-secondary">Lifetime paid GMV, with the notional Orkora fee and refunds for comparison.</p>
           </div>
           {orgId && (

@@ -49,7 +49,7 @@ export default function ComposeStoryPrompt({
           <Sparkles className="h-4 w-4 text-brand-700" />
         </span>
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Compose your event story</h3>
+          <h3 className="text-base font-semibold text-slate-900">Compose Your Event Story</h3>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
             Turn this event page into a scroll-narrative so attendees feel the event before they see the price.
             Pick a template and you have a beautiful page in minutes.

@@ -53,7 +53,7 @@ export default function PricingPage() {
           Pricing that scales with your events.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-ink-secondary">
-          One platform for registration, tickets, global payments, and your brand. Free events are always free. Paid events pay as you grow, and your attendees never see a surprise fee.
+          One platform for registration, tickets, global payments, and your brand. Free events are always free. Paid events pay as you grow, and any fee your attendees pay is shown before they pay.
         </p>
       </section>
 
@@ -78,17 +78,17 @@ export default function PricingPage() {
           <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3">
             <TrustItem
               Icon={ShieldCheck}
-              title="Provider-hosted card payments"
+              title="Provider-Hosted Card Payments"
               body="Card data is handled by your payment provider. Orkora never touches a card number."
             />
             <TrustItem
               Icon={Globe2}
-              title="USD, NGN, GHS, KES checkout"
+              title="USD, NGN, GHS, KES Checkout"
               body="Real local-currency settlement. Naira and cedi are not afterthoughts on Orkora."
             />
             <TrustItem
               Icon={Download}
-              title="Your data is yours"
+              title="Your Data Is Yours"
               body="Export attendees, orders, and registrations at any time. No lock-in."
             />
           </div>
@@ -110,7 +110,7 @@ export default function PricingPage() {
           />
           <Faq
             q="How is the per-ticket fee charged?"
-            a="It applies to paid tickets only and is taken from your organizer settlement, never added on top of the price your attendee pays. The price you set on a ticket tier is the price the attendee sees."
+            a="It applies to paid tickets only. For each event you choose who covers it: absorb it, and it is taken from your settlement so attendees pay exactly the ticket price; or pass it on, and it is added to the ticket price and shown to the attendee before they pay."
           />
           <Faq
             q="What about Stripe, Paystack, and Flutterwave fees?"

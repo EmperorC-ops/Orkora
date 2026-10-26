@@ -166,7 +166,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-12 text-center">
       <Calendar className="mb-3 h-10 w-10 text-slate-400" />
-      <h3 className="font-semibold text-slate-900">No events yet</h3>
+      <h3 className="font-semibold text-slate-900">No Events Yet</h3>
       <p className="mt-1 max-w-sm text-sm text-slate-500">
         Spin up your first event in under a minute. You can save it as a draft and publish when ready.
       </p>

@@ -143,7 +143,7 @@ export default function OrgRegistrationsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Registrations</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Across every event</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Across Every Event</h1>
           <p className="mt-1 text-sm text-ink-secondary">
             One queue covering registrations from every event you run.
           </p>

@@ -333,7 +333,7 @@ function CreateRecordingForm({
 
   return (
     <section className="rounded-2xl border border-surface-border bg-surface/40 p-5">
-      <h3 className="text-sm font-semibold text-ink-primary">Add a recording</h3>
+      <h3 className="text-sm font-semibold text-ink-primary">Add a Recording</h3>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block sm:col-span-2">

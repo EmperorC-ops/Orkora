@@ -194,7 +194,7 @@ export default function RegistrationFieldsEditor({
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="font-semibold text-slate-900">Registration form</h3>
+      <h3 className="font-semibold text-slate-900">Registration Form</h3>
       <p className="mt-1 text-sm text-slate-500">
         Extra questions asked at registration. Leave it empty to just collect name, email and
         phone.

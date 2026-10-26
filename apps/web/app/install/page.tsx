@@ -94,7 +94,7 @@ export default function InstallPage() {
 
           <Platform
             Icon={Smartphone}
-            title="Android phone or tablet"
+            title="Android Phone or Tablet"
             steps={[
               <>
                 Open this page in <strong className="text-ink-primary">Chrome</strong>, Edge, or Brave.

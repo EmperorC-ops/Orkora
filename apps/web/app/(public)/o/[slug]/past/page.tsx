@@ -70,7 +70,7 @@ export default async function BrandPastPage({ params }: { params: { slug: string
         >
           &larr; Back to {brand.name}
         </Link>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Past editions</h1>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Past Editions</h1>
         <p className="mt-2 text-sm text-ink-secondary">
           The full archive of everything {brand.name} has run on Orkora.
         </p>

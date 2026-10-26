@@ -7,7 +7,7 @@ satisfies the notice obligation in the Terms. Placeholders in ALL CAPS are fille
 in at send time.
 
 Suggested delivery: email to every organizer account, from a monitored address
-(for example billing@orkora.events), with the send date recorded so the effective
+(for example support@orkora.events), with the send date recorded so the effective
 date can be set at least 60 calendar days later.
 
 ---

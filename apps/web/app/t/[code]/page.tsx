@@ -50,7 +50,7 @@ export default function TicketPage() {
 
         {error ? (
           <div className="rounded-2xl border border-surface-border bg-surface/40 p-10 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Ticket not found</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Ticket Not Found</h1>
             <p className="mt-3 text-sm text-ink-secondary">{error}</p>
           </div>
         ) : !ticket ? (
@@ -159,7 +159,7 @@ export default function TicketPage() {
               <InstallPrompt
                 variant="inline"
                 surface="ticket"
-                title="Keep your ticket on your phone"
+                title="Keep Your Ticket on Your Phone"
                 description="Add Orkora to your home screen. Your QR code works at the door even with no signal."
                 onEvent={(evt) => recordTicketCardEvent(ticket.code, `install_prompt.${evt}`, 'ticket')}
               />

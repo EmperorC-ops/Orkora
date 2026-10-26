@@ -45,7 +45,7 @@ export default function ServiceFeeEditor({
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2">
         <Wallet className="h-4 w-4 text-brand-700" />
-        <h3 className="font-semibold text-slate-900">Service fee</h3>
+        <h3 className="font-semibold text-slate-900">Service Fee</h3>
       </div>
       <p className="mt-1 text-sm text-slate-500">
         Orkora&apos;s fee on paid tickets is 3% plus USD 0.99 per ticket. Choose who covers it. This

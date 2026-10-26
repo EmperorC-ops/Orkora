@@ -295,7 +295,7 @@ export function InsightsPanel({ eventId }: { eventId: string }) {
               empty="No registrations in this view."
             />
             <Bars
-              title="Arrivals (check-ins per 15 minutes)"
+              title="Arrivals (Check-Ins per 15 Minutes)"
               points={data.arrivals.map((a) => ({ key: a.key.slice(11) || a.key, count: a.count, full: a.key }))}
               max={maxArrivals}
               empty="No check-ins yet."
@@ -304,7 +304,7 @@ export function InsightsPanel({ eventId }: { eventId: string }) {
 
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Compare by</h4>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Compare By</h4>
               <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className={select}>
                 <option value="tier">Tier</option>
                 <option value="status">Status</option>

@@ -33,7 +33,7 @@ export default function WatchPage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-100">
             Recording library
           </p>
-          <h1 className="mt-3 text-3xl font-extrabold sm:text-4xl">Watch on demand</h1>
+          <h1 className="mt-3 text-3xl font-extrabold sm:text-4xl">Watch on Demand</h1>
           <p className="mt-3 max-w-2xl text-sm text-brand-50">
             Session recordings for this event. Some are open to everyone; others
             unlock with your ticket code.

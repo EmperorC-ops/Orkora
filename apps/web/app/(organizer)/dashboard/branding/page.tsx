@@ -123,7 +123,7 @@ export default function BrandingPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-brand-300">Brand Home</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Compose your brand home</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Compose Your Brand Home</h1>
           <p className="mt-1 text-sm text-ink-secondary">
             Your year-round public page at /o/{slug || 'your-brand'}.
           </p>
@@ -160,7 +160,7 @@ export default function BrandingPage() {
       {analytics && (analytics.cardViewed > 0 || analytics.cardGenerated > 0) ? (
         <div className="rounded-2xl border border-surface-border bg-surface/40 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-secondary">
-            Shareable Card reach
+            Shareable Card Reach
           </h2>
           <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
             <Stat label="Cards shown" value={analytics.cardGenerated} />

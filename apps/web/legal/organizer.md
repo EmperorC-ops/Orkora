@@ -30,6 +30,8 @@ The percentage is worked out on each ticket, not on your total sales. For exampl
 
 Free tickets carry no fee. You choose for each event whether to absorb the fee or pass it on to buyers. Your payment provider's processing fees are separate.
 
+This is the Standard plan, which applies to every Organisation by default. As your events grow you may move to the Pro or Enterprise plan described in the Terms of Service and on our Pricing page; their fees apply once agreed in writing.
+
 ## 4. Payments
 
 Ticket payments are processed by your payment provider. Your share settles from the provider to your own account; Orkora's platform fee is split out by the provider at the same time. **Orkora never receives or holds your ticket revenue.** You are responsible for:
@@ -95,6 +97,6 @@ This Agreement is governed by the laws of the Federal Republic of Nigeria. The c
 ## 17. Contact
 
 - Support: hello@orkora.events
-- Billing: billing@orkora.events
+- Billing: support@orkora.events
 - Legal notices: legal@orkora.events
 - Data protection: dpo@orkora.events

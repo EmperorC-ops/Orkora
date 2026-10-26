@@ -67,7 +67,7 @@ export default function FeedbackForm({
   if (submitted) {
     return (
       <section className="rounded-xl border border-surface-border bg-surface p-6 text-center shadow-glow">
-        <h2 className="text-xl font-bold text-ink-primary">Thank you</h2>
+        <h2 className="text-xl font-bold text-ink-primary">Thank You</h2>
         <p className="mt-2 text-sm text-ink-secondary">
           Your feedback has been shared with the organizer.
         </p>
@@ -79,7 +79,7 @@ export default function FeedbackForm({
 
   return (
     <section className="rounded-xl border border-surface-border bg-surface p-6 shadow-glow">
-      <h2 className="text-2xl font-bold text-ink-primary">Share your feedback</h2>
+      <h2 className="text-2xl font-bold text-ink-primary">Share Your Feedback</h2>
       <p className="mt-1 text-sm text-ink-secondary">
         Optional and anonymous. Help the organizer make the next one better.
       </p>
