@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.6
 
 # === Base ===
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 # Prisma needs openssl on alpine. swc and the API runtime need it too.
 RUN apk add --no-cache openssl libc6-compat
@@ -46,7 +46,7 @@ RUN pnpm deploy --filter @orkora/api --prod /tmp/api-deploy
 RUN cd /tmp/api-deploy && npx --yes prisma@5.22.0 generate --schema=./prisma/schema.prisma
 
 # === Runtime ===
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
